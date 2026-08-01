@@ -3,197 +3,1018 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Itan</title>
+<title>ìtàn</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@10..48,300..800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0b0f1a;--panel:#121827;--panel2:#1a2236;--line:#26304a;--text:#e8edf7;--muted:#8a97b1;
---accent:#6d8bff;--accent2:#9b6dff;--good:#37d39a;--bad:#ff6b6b;--r:12px}
+:root,[data-theme="light"]{--bg:#F5F5F7;--surface:#FFFFFF;--surface2:#FFFFFF;--fill:#F2F2F5;--fill2:#E8E8ED;--bubble:#E9E9EB;--border1:#E4E4E9;--border2:#D2D2D7;--border3:#B4B4BC;--t1:#1D1D1F;--t2:#48484D;--t3:#86868B;--t4:#AEAEB2;--accent:#0071E3;--accent-hov:#2B8AF0;--accent-deep:#005BB8;--accent-tint:rgba(0,113,227,.08);--accent-border:rgba(0,113,227,.32);--accent-border2:rgba(0,113,227,.5);--grid:rgba(0,0,0,.022);--plan:#C25E00;--plan-hov:#E07000;--plan-dim:#8F5A10;--plan-tint:rgba(255,149,0,.1);--plan-tint2:rgba(255,149,0,.2);--plan-border:rgba(255,149,0,.45);--rec:#FF3B30;--rec-tint:rgba(255,59,48,.07);--rec-border:rgba(255,59,48,.35);--err:#D70015;--err-tint:rgba(215,0,21,.05);--err-border:rgba(215,0,21,.3);--ok:#248A3D;--ok-border:rgba(36,138,61,.35);--stage:#E9E9ED;--ph1:#DFDFE4;--ph2:#D6D6DC;--hud:rgba(255,255,255,.85);--glass:rgba(255,255,255,.72);--dock:rgba(255,255,255,.92);--scrim:rgba(0,0,0,.3);--hf-bg:rgba(245,245,247,.97);--dots:rgba(0,0,0,.04);--shadow:rgba(0,0,0,.16)}
+[data-theme="dark"]{--bg:#000000;--surface:#131316;--surface2:#1A1A1E;--fill:#232328;--fill2:#2C2C32;--bubble:#2E2E34;--border1:#26262C;--border2:#36363E;--border3:#4A4A54;--t1:#F5F5F7;--t2:#B9B9C0;--t3:#8E8E93;--t4:#636368;--accent:#0A84FF;--accent-hov:#409CFF;--accent-deep:#0060DF;--accent-tint:rgba(10,132,255,.12);--accent-border:rgba(10,132,255,.4);--accent-border2:rgba(10,132,255,.55);--grid:rgba(255,255,255,.016);--plan:#FF9F0A;--plan-hov:#FFB340;--plan-dim:#B37A20;--plan-tint:rgba(255,159,10,.1);--plan-tint2:rgba(255,159,10,.18);--plan-border:rgba(255,159,10,.4);--rec:#FF453A;--rec-tint:rgba(255,69,58,.08);--rec-border:rgba(255,69,58,.4);--err:#FF6961;--err-tint:rgba(255,105,97,.08);--err-border:rgba(255,105,97,.35);--ok:#32D74B;--ok-border:rgba(50,215,75,.35);--stage:#0A0A0C;--ph1:#141418;--ph2:#0E0E12;--hud:rgba(24,24,28,.85);--glass:rgba(16,16,18,.75);--dock:rgba(28,28,32,.92);--scrim:rgba(0,0,0,.55);--hf-bg:rgba(8,8,10,.95);--dots:rgba(255,255,255,.03);--shadow:rgba(0,0,0,.6)}
 *{box-sizing:border-box}
-body{margin:0;height:100vh;display:flex;flex-direction:column;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-background:radial-gradient(1000px 700px at 85% -10%,#1a2340,var(--bg) 55%);color:var(--text)}
-header{display:flex;align-items:center;gap:12px;padding:10px 18px;border-bottom:1px solid var(--line)}
-header h1{font-size:16px;margin:0}
-header .model{margin-left:auto;font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:3px 10px}
-main{flex:1;display:grid;grid-template-columns:1.4fr 1fr;gap:14px;padding:14px;min-height:0}
-.panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:var(--r);
-display:flex;flex-direction:column;min-height:0;overflow:hidden}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--t1);font-family:'Bricolage Grotesque',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
+a{color:var(--accent);text-decoration:none}
+button{font:inherit;border:none;background:none;color:inherit;cursor:pointer;padding:0}
+input,textarea{font:inherit;color:var(--t1);background:transparent;border:none;outline:none}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:var(--border1);border-radius:4px}::-webkit-scrollbar-track{background:transparent}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes blink{0%,55%{opacity:1}56%,100%{opacity:0}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes wv{0%,100%{transform:scaleY(.22)}50%{transform:scaleY(1)}}
+@keyframes ringp{0%{box-shadow:0 0 0 0 rgba(255,69,58,.4)}100%{box-shadow:0 0 0 18px rgba(255,69,58,0)}}
+.hidden{display:none!important}
+.cursor{display:inline-block;width:7px;height:14px;background:var(--accent);margin-left:3px;vertical-align:-2px;animation:blink 1s step-end infinite}
 
-/* left: stage */
-.stage{padding:14px;gap:12px}
-.player{flex:1;background:#000;border-radius:10px;display:flex;align-items:center;justify-content:center;min-height:0;position:relative}
-.player video{max-width:100%;max-height:100%;}
-.player .empty{color:var(--muted);text-align:center;padding:30px}
-.player .empty b{color:var(--text)}
-.timeline{border-top:1px solid var(--line);padding-top:10px}
-.timeline h3{margin:0 0 8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
-.strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px}
-.clip{flex:0 0 auto;border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer;background:var(--panel);
-font-size:12px;transition:border-color .15s}
-.clip:hover{border-color:var(--accent)}
-.clip.active{border-color:var(--accent);background:rgba(109,139,255,.12)}
-.clip .tool{font-family:ui-monospace,Menlo,monospace;color:var(--accent);font-size:11px}
-.clip .sum{color:var(--muted);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rowbtns{display:flex;gap:8px;margin-top:8px}
-button,.filelabel{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;
-padding:7px 12px;font-size:12.5px;cursor:pointer}
-button:hover,.filelabel:hover{border-color:var(--accent)}
-button.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;font-weight:600}
-button:disabled{opacity:.5;cursor:not-allowed}
+#app{height:100vh;min-height:620px;display:flex;flex-direction:column;background:radial-gradient(1100px 520px at 66% -12%,var(--accent-tint),transparent 62%),radial-gradient(760px 420px at 10% 110%,var(--plan-tint),transparent 60%),repeating-linear-gradient(0deg,var(--grid) 0 1px,transparent 1px 32px),repeating-linear-gradient(90deg,var(--grid) 0 1px,transparent 1px 32px),var(--bg);overflow:hidden;position:relative}
+#topbar{height:3px;flex:none;background:linear-gradient(90deg,var(--plan),var(--plan) 40%,transparent 92%)}
 
-/* right: chat */
-.chat{min-height:0}
-.msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
-.m{max-width:92%;padding:9px 12px;border-radius:12px;border:1px solid var(--line);white-space:pre-wrap}
-.m.user{align-self:flex-end;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff}
-.m.bot{align-self:flex-start;background:var(--panel2)}
-.trace{align-self:stretch;display:flex;flex-direction:column;gap:4px;font-size:12px}
-.t{display:flex;gap:8px;align-items:baseline;background:#0e1524;border:1px solid var(--line);border-radius:8px;padding:6px 10px}
-.t .name{font-family:ui-monospace,Menlo,monospace;color:var(--accent)}
-.t.err .name{color:var(--bad)}
-.t .info{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.compose{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line)}
-.compose input{flex:1;background:#0e1524;border:1px solid var(--line);border-radius:9px;color:var(--text);
-padding:10px 12px;font-size:14px;outline:none}
-.compose input:focus{border-color:var(--accent)}
-.chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 10px}
-.chips button{border-radius:99px;color:var(--muted);font-size:12px}
-.spin{display:inline-block;width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--accent);
-border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px}
-@keyframes sp{to{transform:rotate(360deg)}}
-@media(max-width:900px){main{grid-template-columns:1fr}}
+/* header */
+header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--border1);background:var(--glass);animation:rise .5s ease both}
+.logo{display:flex;align-items:center;gap:9px}
+.logo .bars{display:flex;flex-direction:column;gap:2.5px;padding-top:1px}
+.logo .bars i{display:block;height:2px;background:var(--plan);border-radius:1px}
+.logo .bars i:nth-child(1){width:15px}.logo .bars i:nth-child(2){width:10px;opacity:.75}.logo .bars i:nth-child(3){width:5px;opacity:.5}
+.logo b{font-size:18px;font-weight:800;letter-spacing:-.01em}
+#fileChip{font-size:10.5px;color:var(--t3);background:var(--surface2);border-radius:5px;padding:3px 8px}
+.hpill{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--t2);background:var(--fill);border-radius:999px;padding:5px 12px;cursor:pointer}
+.hpill:hover{background:var(--border1)}
+.hbtn{font-size:12px;color:var(--t2);background:var(--fill);border-radius:7px;padding:5px 11px;cursor:pointer}
+.hbtn:hover{background:var(--border1)}
+#skillChip{font-size:10px;color:var(--accent);background:var(--accent-tint);border-radius:999px;padding:1.5px 8px}
+#gear{font-size:13px;color:var(--t2);background:var(--fill);border-radius:999px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#gear:hover{background:var(--fill2)}
+.vsep{width:1px;height:18px;background:var(--border1)}
+#modelPill{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--t1);background:var(--fill);border-radius:6px;padding:4.5px 10px;cursor:pointer}
+#modelPill:hover{background:var(--fill2)}
+#modelPill .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+#modePill{font-size:10.5px;font-weight:500;border-radius:999px;padding:3.5px 10px;cursor:pointer;color:var(--t2);border:1px solid transparent;background:var(--fill)}
+#modePill.plan{color:var(--plan);border-color:var(--plan-border);background:var(--plan-tint)}
+#repliesPill{display:flex;align-items:center;gap:6px;background:var(--fill);border-radius:999px;padding:4px 11px;font-size:11px;cursor:pointer}
+.wave{display:flex;align-items:flex-end;gap:1.5px;height:10px}
+.wave i{width:2px;height:10px;background:var(--accent);border-radius:1px;transform-origin:bottom;animation:wv .8s ease-in-out infinite}
+.wave i:nth-child(2){animation-delay:.15s}.wave i:nth-child(3){animation-delay:.3s}.wave i:nth-child(4){animation-delay:.45s}
+#tokens{font-size:10.5px;color:var(--t3)}
+#ffdot{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--t3)}
+#ffdot i{width:6px;height:6px;border-radius:50%;background:var(--ok)}
+#ffdot.bad i{background:var(--err)}
+
+/* layout */
+#main{flex:1;display:flex;min-height:0}
+#stagecol{flex:1.45;min-width:0;display:flex;flex-direction:column;padding:16px 18px 14px;gap:12px;animation:rise .55s .08s ease both}
+#planBanner{flex:none;display:flex;align-items:center;gap:9px;background:var(--plan-tint);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--plan)}
+#planBanner .r{margin-left:auto;color:var(--plan-dim)}
+
+/* empty state */
+#empty{flex:1;min-height:0;border:1.5px dashed var(--border2);border-radius:14px;background:var(--surface) repeating-linear-gradient(135deg,var(--plan-tint) 0 2px,transparent 2px 26px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:32px}
+#empty.drag{border-color:var(--accent)}
+#empty .bars i{display:block;height:3px;background:var(--plan);border-radius:2px;margin-bottom:3px}
+#empty .bars i:nth-child(1){width:26px}#empty .bars i:nth-child(2){width:17px;opacity:.7}#empty .bars i:nth-child(3){width:9px;opacity:.45}
+#empty h1{font-size:27px;font-weight:600;letter-spacing:-.015em;margin:0}
+#empty p{font-size:14px;color:var(--t2);text-align:center;max-width:380px;margin:0;text-wrap:pretty}
+.btnP{font-size:13px;font-weight:500;color:#FFF;background:var(--accent);border-radius:8px;padding:8px 16px;cursor:pointer}
+.btnP:hover{background:var(--accent-deep)}
+.btnS{font-size:13px;color:var(--t2);background:var(--fill);border-radius:8px;padding:8px 16px;cursor:pointer}
+.btnS:hover{background:var(--border1)}
+
+/* stage */
+#stage{flex:1;min-height:0;background:var(--stage);border-radius:14px;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#stage video{max-width:100%;max-height:100%;border-radius:4px}
+.hud{font-size:10.5px;color:var(--t2);background:var(--hud);border-radius:6px;padding:4px 9px}
+#hudFile{position:absolute;top:12px;left:12px;z-index:3}
+#hudRight{position:absolute;top:12px;right:12px;display:flex;gap:8px;align-items:center;z-index:3}
+#viewToggle{display:flex;font-size:10.5px;background:var(--hud);border-radius:7px;overflow:hidden}
+#viewToggle span{cursor:pointer;padding:4px 10px;color:var(--t3)}
+#viewToggle span.on{color:#FFF;background:var(--accent);font-weight:700}
+#dlBtn,#regionBtn{cursor:pointer}
+#dlBtn:hover,#regionBtn:hover{background:var(--border1)}
+#workBanner{position:absolute;left:12px;right:12px;bottom:52px;display:flex;align-items:center;gap:10px;background:var(--hud);border:1px solid var(--accent-border);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--accent);z-index:3}
+#workBanner .spin{display:inline-block;width:11px;height:11px;border:1.5px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite}
+#workBanner .r{margin-left:auto;color:var(--t3)}
+#transport{position:absolute;left:12px;right:12px;bottom:12px;display:flex;align-items:center;gap:12px;background:var(--hud);border-radius:8px;padding:7px 12px;z-index:3}
+#transport #playBtn{cursor:pointer;font-size:12px;color:var(--t1)}
+#tTime{font-size:10.5px;color:var(--t2)}
+#tBar{flex:1;height:3px;background:var(--border1);border-radius:2px;position:relative;cursor:pointer}
+#tFill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--accent);border-radius:2px}
+#tKnob{position:absolute;top:-3.5px;width:10px;height:10px;border-radius:50%;background:var(--t1);transform:translateX(-5px)}
+#tDims{font-size:10px;color:var(--t3)}
+/* region select */
+#regionLayer{position:absolute;inset:0;z-index:4;cursor:crosshair;display:none}
+#regionBox{position:absolute;border:1.5px dashed var(--plan);background:var(--plan-tint);border-radius:3px;box-shadow:0 0 0 2000px var(--scrim)}
+#regionBox i{position:absolute;width:7px;height:7px;background:var(--plan);border-radius:1px}
+#regionBox i:nth-child(1){top:-7px;left:-7px}#regionBox i:nth-child(2){top:-7px;right:-7px}#regionBox i:nth-child(3){bottom:-7px;left:-7px}#regionBox i:nth-child(4){bottom:-7px;right:-7px}
+#regionLabel{position:absolute;top:-24px;left:0;font-size:9.5px;color:var(--plan);white-space:nowrap;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#regionPop{position:absolute;width:300px;background:var(--surface2);border-radius:11px;box-shadow:0 16px 50px var(--shadow);overflow:hidden;z-index:6}
+#regionPop .hd{padding:7px 12px;background:var(--fill);font-size:9px;letter-spacing:.12em;color:var(--t3);display:flex;align-items:center;gap:7px}
+#regionPop .hd .r{margin-left:auto;letter-spacing:0}
+#regionPop .bd{padding:10px 12px;display:flex;flex-direction:column;gap:9px}
+#regionText{font-size:13px;color:var(--t1);line-height:1.4;width:100%}
+#regionPop .opts{display:flex;gap:5px;font-size:9px;align-items:center}
+#regionPop .opts span{cursor:pointer;color:var(--t3);background:var(--fill);border-radius:999px;padding:2.5px 8px}
+#regionPop .opts span.on{color:#FFF;background:var(--plan);font-weight:600}
+#regionSend{margin-left:auto;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#FFF;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer}
+
+/* timeline */
+#tlHead{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+.lbl{font-size:9.5px;letter-spacing:.14em;color:var(--t3);font-family:'IBM Plex Mono',ui-monospace,monospace}
+#chapter{font-size:9.5px;color:var(--t4)}
+#tlToggle{display:flex;font-size:9px;background:var(--fill);border-radius:6px;overflow:hidden;margin-left:2px}
+#tlToggle span{cursor:pointer;padding:2.5px 9px;color:var(--t3);font-weight:700}
+#tlToggle span.on{color:#FFF;background:var(--accent)}
+.tlAct{cursor:pointer;font-size:10px;color:var(--t3);font-family:'IBM Plex Mono',ui-monospace,monospace}
+.tlAct:hover{color:var(--t1)}
+#tlEmpty{border:1px dashed var(--border1);border-radius:10px;padding:14px;font-size:10.5px;color:var(--t4);font-family:'IBM Plex Mono',ui-monospace,monospace}
+#strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.step{cursor:pointer;flex:none;width:158px;border:1px solid transparent;background:var(--fill);border-radius:10px;padding:9px 11px}
+.step:hover{background:var(--fill2)}
+.step.active{border-color:var(--accent);background:var(--accent-tint)}
+.step.rendering{border-color:var(--accent-border2);background:var(--accent-tint)}
+.step .row{display:flex;align-items:baseline;gap:7px;font-size:10.5px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.step .num{color:var(--t3);font-weight:700}
+.step.active .num,.step.rendering .num{color:var(--accent)}
+.step .nm{color:var(--t1);font-weight:500}
+.step .tag{margin-left:auto;font-size:8.5px;letter-spacing:.06em;color:var(--accent)}
+.step.rendering .tag{animation:pulse 1.2s ease-in-out infinite}
+.step .sum{font-size:11.5px;color:var(--t2);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.step .meta{font-size:9.5px;color:var(--t3);margin-top:4px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#tracks{background:var(--surface2);border-radius:10px;padding:9px 12px 11px;display:flex;flex-direction:column;gap:5px;position:relative}
+#tracks .scale{display:flex;justify-content:space-between;font-size:8.5px;color:var(--t4);padding-left:34px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#tracks .trow{display:flex;align-items:center;gap:8px}
+#tracks .tlab{width:26px;font-size:9px;color:var(--t3);flex:none;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#tracks .note{font-size:8.5px;color:var(--t4);padding-left:34px;margin-top:2px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+
+/* chat */
+#chatcol{width:clamp(400px,34vw,540px);flex:none;display:flex;flex-direction:column;border-left:1px solid var(--border1);background-color:var(--surface);background-image:radial-gradient(var(--dots) 1px,transparent 1px);background-size:20px 20px;min-height:0;animation:rise .55s .16s ease both}
+#msgs{flex:1;overflow-y:auto;padding:16px 16px 8px;display:flex;flex-direction:column;gap:12px}
+.mU{flex:none;align-self:flex-end;max-width:86%;background:var(--bubble);border-radius:12px 12px 3px 12px;padding:9px 13px;font-size:13.5px;line-height:1.45;white-space:pre-wrap}
+.mA{flex:none;align-self:flex-start;max-width:94%;font-size:13.5px;line-height:1.5;color:var(--t2);white-space:pre-wrap}
+.speakChip{display:inline-flex;align-items:center;gap:7px;margin-top:8px;background:var(--accent-tint);border-radius:999px;padding:4px 11px;font-size:10px;color:var(--accent);font-family:'IBM Plex Mono',ui-monospace,monospace}
+.speakChip .mute{cursor:pointer;color:var(--t3)}
+.speakChip .mute:hover{color:var(--t1)}
+.trace{flex:none;background:var(--surface2);border-radius:11px;overflow:hidden}
+.trace .hd{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:10px;letter-spacing:.1em;color:var(--t3);font-family:'IBM Plex Mono',ui-monospace,monospace;cursor:pointer}
+.trace .hd .sum{margin-left:auto;letter-spacing:0;color:var(--t2)}
+.trow2{padding:8px 12px;border-top:1px solid var(--border1)}
+.trow2 .l1{display:flex;align-items:baseline;gap:8px;font-size:12px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.trow2 .g{display:inline-block}
+.trow2 .nm{font-weight:700;color:var(--t1)}
+.trow2 .ar{color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.trow2 .rt{flex:none;margin-left:auto;font-size:10.5px;color:var(--t3)}
+.trow2 .res{font-size:11.5px;line-height:1.5;padding-left:21px;margin-top:2px;color:var(--t2);font-family:'IBM Plex Mono',ui-monospace,monospace;word-break:break-word}
+.plan{flex:none;background:var(--plan-tint);border-radius:11px;overflow:hidden}
+.plan .hd{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:10px;letter-spacing:.1em;color:var(--plan);font-family:'IBM Plex Mono',ui-monospace,monospace}
+.plan .bd{padding:6px 12px 10px;display:flex;flex-direction:column}
+.plan .it{display:flex;gap:10px;padding:5.5px 0;font-size:13px;line-height:1.45;color:var(--t2);border-bottom:1px solid var(--plan-tint)}
+.plan .it b{font-size:11px;color:var(--plan);font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:400;padding-top:1px}
+.plan .acts{display:flex;gap:8px;align-items:center;margin-top:11px}
+.planGo{font-size:12.5px;font-weight:600;color:#FFF;background:var(--plan);border-radius:7px;padding:7px 14px;cursor:pointer}
+.planGo:hover{background:var(--plan-hov)}
+.planKeep{font-size:12.5px;color:var(--t2);background:var(--fill);border-radius:7px;padding:7px 12px;cursor:pointer}
+.planSteer{flex:1;font-size:12px;color:var(--t3);background:var(--fill);border-radius:7px;padding:7px 11px;font-style:italic}
+
+/* composer */
+#composer{flex:none;padding:10px 16px 12px;border-top:1px solid var(--border1);display:flex;flex-direction:column;gap:9px}
+#micErr{background:var(--err-tint);border-radius:9px;padding:9px 12px;display:flex;gap:9px;align-items:baseline}
+#micErr .x{font-size:12px;color:var(--err);font-family:'IBM Plex Mono',ui-monospace,monospace}
+#micErr .bd{font-size:12.5px;line-height:1.5;color:var(--t2);flex:1}
+#micErr code{display:block;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11.5px;color:var(--t1);background:var(--surface2);border-radius:6px;padding:6px 10px;margin-top:6px}
+#micErr .retry{cursor:pointer;font-size:10.5px;color:var(--err);flex:none;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#chips{display:flex;gap:7px;flex-wrap:wrap}
+#chips span{cursor:pointer;font-size:12px;color:var(--t2);background:var(--fill);border-radius:999px;padding:5px 12px}
+#chips span:hover{background:var(--fill2);color:var(--t1)}
+#composeBar{display:flex;align-items:center;gap:10px;background:var(--fill);border-radius:13px;padding:10px 10px 10px 15px}
+#input{flex:1;font-size:13.5px;color:var(--t1)}
+#input::placeholder{color:var(--t3)}
+#hfBtn{cursor:pointer;font-size:9.5px;color:var(--t3);background:var(--fill2);border-radius:999px;padding:3px 9px;font-family:'IBM Plex Mono',ui-monospace,monospace;flex:none}
+#hfBtn:hover{color:var(--accent)}
+#micBtn{cursor:pointer;width:34px;height:34px;border-radius:50%;background:var(--fill);color:var(--t2);display:flex;align-items:center;justify-content:center;flex:none}
+#micBtn:hover{color:var(--rec)}
+.micIco{position:relative;width:16px;height:16px}
+.micIco i:nth-child(1){position:absolute;left:5px;top:0;width:6px;height:9px;border-radius:3px;background:currentColor}
+.micIco i:nth-child(2){position:absolute;left:2px;top:4px;width:12px;height:8px;border:1.5px solid currentColor;border-top:none;border-radius:0 0 7px 7px}
+.micIco i:nth-child(3){position:absolute;left:7px;bottom:0;width:2px;height:2.5px;background:currentColor}
+#sendBtn{width:34px;height:34px;border-radius:50%;background:var(--accent);color:#FFF;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer}
+#sendBtn:hover{background:var(--accent-hov)}
+#sendBtn.stop span{width:10px;height:10px;background:#FFF;border-radius:2px;display:block}
+#listenBar{display:flex;align-items:center;gap:12px;background:var(--rec-tint);border-radius:13px;padding:10px 14px}
+#listenBar .dot{width:10px;height:10px;border-radius:50%;background:var(--rec);animation:ringp 1.4s ease-out infinite;flex:none}
+#listenBar .lb{font-size:11px;color:var(--rec);letter-spacing:.08em;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#lwave{flex:1;display:flex;align-items:center;justify-content:center;gap:2.5px;height:20px}
+#lwave i{width:2.5px;border-radius:1px;background:var(--rec);transform-origin:center;animation:wv .9s ease-in-out infinite}
+#listenTime{font-size:11px;color:var(--t1);font-family:'IBM Plex Mono',ui-monospace,monospace}
+#listenStop{width:30px;height:30px;border-radius:50%;background:var(--rec);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none}
+#listenStop i{width:10px;height:10px;background:#FFF;border-radius:2px}
+#listenHint,#hints{font-size:9.5px;color:var(--t4);font-family:'IBM Plex Mono',ui-monospace,monospace}
+#listenHint{text-align:center;color:var(--t3)}
+#hints{display:flex;gap:14px}
+#hints .r{margin-left:auto}
+
+/* overlays */
+.scrim{position:absolute;inset:0;background:var(--scrim);backdrop-filter:blur(2px);z-index:40}
+.scrimClear{position:absolute;inset:0;z-index:40}
+.dlg{position:absolute;background:var(--surface2);border-radius:14px;box-shadow:0 24px 80px var(--shadow);z-index:41;overflow:hidden}
+.dlgHd{padding:9px 16px;background:var(--fill);font-size:9.5px;letter-spacing:.14em;color:var(--t3);display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.dlgHd .r{margin-left:auto;letter-spacing:0}
+#permDlg{width:480px;top:50%;left:50%;transform:translate(-50%,-50%)}
+#permDlg .bd{padding:16px;display:flex;flex-direction:column;gap:13px}
+#permCall{font-size:13px;background:var(--surface2);border:1px solid var(--border1);border-radius:9px;padding:11px 13px;font-family:'IBM Plex Mono',ui-monospace,monospace;word-break:break-all}
+#permCall .t{color:var(--accent)}
+#permCall .a{color:var(--t2)}
+#permNote{font-size:12.5px;color:var(--t2);line-height:1.5}
+#permDlg .btns{display:flex;gap:8px}
+#permDlg .btns div{cursor:pointer;text-align:center;font-size:13px;border-radius:8px;padding:8.5px 0}
+#permAllow{flex:1;font-weight:600;color:#FFF;background:var(--accent)}
+#permAllow:hover{background:var(--accent-hov)}
+#permAlways{flex:1.3;color:var(--t1);background:var(--fill)}
+#permAlways:hover{background:var(--border1)}
+#permDeny{flex:1;color:var(--t2);background:var(--fill)}
+#permDeny:hover{color:var(--err)}
+#permSteerLbl{font-size:9.5px;letter-spacing:.1em;color:var(--plan);margin-bottom:6px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#permSteer{width:100%;border:1px solid var(--accent-border2);background:var(--surface2);border-radius:9px;padding:10px 13px;font-size:13px;box-shadow:0 0 0 3px var(--accent-tint)}
+#permHint{font-size:11px;color:var(--t3);margin-top:6px}
+#hfOverlay{position:absolute;inset:0;background:var(--hf-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;z-index:50;padding:40px}
+#hfTag{display:flex;align-items:center;gap:10px;font-size:10px;letter-spacing:.18em;color:var(--rec);font-family:'IBM Plex Mono',ui-monospace,monospace}
+#hfTag i{width:9px;height:9px;border-radius:50%;background:var(--rec);animation:ringp 1.4s ease-out infinite}
+#hfText{font-size:40px;font-weight:600;line-height:1.15;letter-spacing:-.02em;text-align:center;max-width:760px;text-wrap:balance}
+#hfText .cursor{width:3px;height:34px;background:var(--rec);vertical-align:-3px}
+#hfWave{display:flex;align-items:center;gap:2.5px;height:26px}
+#hfWave i{width:3px;border-radius:1.5px;background:var(--rec);transform-origin:center;animation:wv .9s ease-in-out infinite}
+#hfPause{font-size:12px;color:var(--t2);font-family:'IBM Plex Mono',ui-monospace,monospace}
+#hfPause b{color:var(--t1);font-weight:400}
+#hfFoot{position:absolute;bottom:26px;font-size:10px;color:var(--t4);font-family:'IBM Plex Mono',ui-monospace,monospace}
+#modelDlg{top:50px;right:230px;width:312px;border-radius:12px}
+.mrow{cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--border1)}
+.mrow:hover{background:var(--fill2)}
+.mrow .dot{width:6px;height:6px;border-radius:50%;flex:none}
+.mrow .nm{font-size:12px;color:var(--t1);font-family:'IBM Plex Mono',ui-monospace,monospace}
+.mrow .via{font-size:9.5px;color:var(--t3);margin-top:2px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.badgeL{font-size:9px;color:var(--ok);background:var(--fill2);border-radius:4px;padding:1px 6px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#modelFoot{padding:9px 14px;border-top:1px solid var(--border1);font-size:11px;color:var(--t3);line-height:1.5}
+#skillsDlg{top:50%;left:50%;transform:translate(-50%,-50%);width:640px}
+#skillsDlg .top{padding:13px 18px;display:flex;align-items:baseline;gap:10px;border-bottom:1px solid var(--border1)}
+#skillsDlg .top h2{font-size:16px;font-weight:600;margin:0}
+#skillsDlg .top p{font-size:12px;color:var(--t3);margin:0}
+#skillsGrid{padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;max-height:50vh;overflow-y:auto}
+.skCard{cursor:default;border:1px solid transparent;background:var(--fill);border-radius:11px;padding:13px 14px}
+.skCard.active{border-color:var(--accent-border);background:var(--accent-tint)}
+.skCard .nm{font-size:12.5px;font-weight:700;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.skCard .ab{font-size:9px;color:var(--accent);background:var(--accent-tint);border-radius:4px;padding:1px 6px;margin-left:8px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.skCard .ds{font-size:12.5px;color:var(--t2);line-height:1.5;margin-top:6px;text-wrap:pretty}
+.skCard .src{font-size:9.5px;color:var(--t3);margin-top:9px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#skillsFoot{padding:11px 18px;border-top:1px solid var(--border1);font-size:10px;color:var(--t3);font-family:'IBM Plex Mono',ui-monospace,monospace}
+#cpDlg{top:52px;right:0;bottom:0;width:372px;border-radius:0;background:var(--surface);box-shadow:-20px 0 60px var(--shadow);display:flex;flex-direction:column}
+#cpDlg .top{padding:14px 18px;border-bottom:1px solid var(--border1)}
+#cpDlg .top .t{display:flex;align-items:baseline}
+#cpDlg .top .t b{font-size:15px;font-weight:600}
+#cpDlg .top p{font-size:12px;color:var(--t3);margin:4px 0 0;line-height:1.5;text-wrap:pretty}
+#cpList{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.cpRow{background:var(--fill);border-radius:10px;padding:11px 13px;display:flex;align-items:center;gap:11px}
+.cpRow:hover{background:var(--fill2)}
+.cpRow .num{font-size:10px;color:var(--plan);flex:none;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.cpRow .lb{font-size:12.5px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cpRow .wh{font-size:9.5px;color:var(--t3);margin-top:3px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.cpRow .go{cursor:pointer;flex:none;font-size:10px;color:var(--t3);font-family:'IBM Plex Mono',ui-monospace,monospace}
+.cpRow .go:hover{color:var(--plan)}
+#cpFoot{padding:11px 18px;border-top:1px solid var(--border1);font-size:9.5px;color:var(--t4);font-family:'IBM Plex Mono',ui-monospace,monospace}
+#setDlg{top:50%;left:50%;transform:translate(-50%,-50%);width:560px;max-height:86vh;overflow-y:auto;background:var(--bg)}
+#setDlg .top{padding:13px 20px;display:flex;align-items:baseline;position:sticky;top:0;background:var(--bg);z-index:2}
+#setDlg .top b{font-size:16px;font-weight:600}
+#setDlg .sec{padding:0 20px;margin-bottom:16px}
+#setDlg .sec .lbl{margin-bottom:7px;padding-left:2px;display:block}
+#setDlg .card{background:var(--surface);border-radius:11px}
+#setDlg .srow{padding:11px 14px;display:flex;align-items:center;gap:10px}
+#setDlg .srow+.srow{border-top:1px solid var(--border1)}
+#setDlg .srow .nm{flex:1;font-size:13px;color:var(--t1)}
+#setDlg .srow .sub{font-size:10.5px;color:var(--t3);margin-top:3px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.seg{display:flex;background:var(--fill);border-radius:8px;padding:2px}
+.seg span{cursor:pointer;font-size:12px;padding:4px 12px;border-radius:6px;color:var(--t3)}
+.seg span.on{color:#FFF;background:var(--accent)}
+.toggle{cursor:pointer;width:36px;height:21px;border-radius:999px;background:var(--fill2);position:relative;flex:none}
+.toggle.on{background:var(--accent)}
+.toggle i{position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;background:#FFF;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s}
+.toggle.on i{left:17px}
+.close{cursor:pointer;margin-left:auto;color:var(--t3)}
+.close:hover{color:var(--t1)}
+#toast{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:var(--dock);border-radius:999px;padding:8px 16px;font-size:12px;color:var(--t1);box-shadow:0 10px 40px var(--shadow);z-index:70}
 </style>
 </head>
 <body>
-<header>
-  <h1>🎬 Itan</h1>
-  <span class="model" id="model">…</span>
-</header>
-<main>
-  <section class="panel stage">
-    <div class="player" id="player">
-      <div class="empty" id="empty"><b>No video yet.</b><br>Upload one below, or add it from the CLI with <code>add &lt;path&gt;</code>.</div>
-      <video id="video" controls playsinline style="display:none"></video>
-    </div>
-    <div class="timeline">
-      <h3>Edit timeline — click any step to preview it</h3>
-      <div class="strip" id="strip"></div>
-      <div class="rowbtns">
-        <label class="filelabel">Upload video<input id="file" type="file" accept="video/*" hidden></label>
-        <button id="undo">Undo last edit</button>
-        <a id="download" style="margin-left:auto"><button>Download current</button></a>
+<div id="app">
+  <div id="topbar"></div>
+  <header>
+    <div class="logo"><div class="bars"><i></i><i></i><i></i></div><b>ìtàn</b></div>
+    <div id="fileChip" class="mono hidden"></div>
+    <div style="flex:1"></div>
+    <div class="hpill" id="skillsBtn">❖ skills<span id="skillChip" class="mono hidden"></span></div>
+    <div class="hbtn" id="cpBtn">⟲ checkpoints <span id="cpCount" class="mono" style="font-size:10px;color:var(--t3)">0</span></div>
+    <div id="gear">⚙</div>
+    <div class="vsep"></div>
+    <div id="modelPill" class="mono"><span class="dot"></span><span id="modelName">…</span><span style="color:var(--t3)">▾</span></div>
+    <div id="modePill" class="mono">ask ▾</div>
+    <div id="repliesPill"><span class="wave hidden" id="hdrWave"><i></i><i></i><i></i></span><span id="repliesLabel">replies on</span></div>
+    <div class="vsep"></div>
+    <div id="tokens" class="mono hidden"></div>
+    <div id="ffdot" class="mono"><i></i>ffmpeg</div>
+  </header>
+
+  <div id="main">
+    <div id="stagecol">
+      <div id="planBanner" class="mono hidden">◇ plan mode: the agent may read but not edit until you approve<span class="r">shift+tab cycles modes</span></div>
+
+      <div id="empty">
+        <div class="bars"><i></i><i></i><i></i></div>
+        <h1>Drop a video here</h1>
+        <p>Tell ìtàn the story this footage should become. It stays on this disk. Nothing uploads.</p>
+        <div style="display:flex;gap:10px;margin-top:14px">
+          <div class="btnP" id="browseBtn">browse files</div>
+          <div class="btnS" id="demoBtn">try a demo clip</div>
+        </div>
+        <input type="file" id="fileInput" accept="video/*" hidden>
+      </div>
+
+      <div id="stage" class="hidden">
+        <video id="video" playsinline></video>
+        <div id="hudFile" class="hud mono"></div>
+        <div id="hudRight">
+          <div id="viewToggle" class="mono"><span data-v="original">original</span><span data-v="current" class="on">current</span></div>
+          <div id="regionBtn" class="hud mono">⌖ region</div>
+          <a id="dlBtn" class="hud mono">⤓ download</a>
+        </div>
+        <div id="regionLayer">
+          <div id="regionBox" class="hidden"><i></i><i></i><i></i><i></i><div id="regionLabel"></div></div>
+        </div>
+        <div id="regionPop" class="hidden">
+          <div class="hd mono">FIX THIS REGION<span class="r">esc clears</span></div>
+          <div class="bd">
+            <input id="regionText" placeholder="what should change here?">
+            <div class="opts mono">
+              <span data-s="this frame">this frame</span>
+              <span data-s="track it everywhere" class="on">track it everywhere</span>
+              <span id="regionSend">↑</span>
+            </div>
+          </div>
+        </div>
+        <div id="workBanner" class="mono hidden"><span class="spin"></span><span id="workText"></span><span class="r">esc cancels · nothing blocks silently</span></div>
+        <div id="transport" class="hidden">
+          <span id="playBtn">▶</span>
+          <span id="tTime" class="mono">0:00.0 / 0:00</span>
+          <div id="tBar"><div id="tFill"></div><div id="tKnob" style="left:0"></div></div>
+          <span id="tDims" class="mono"></span>
+        </div>
+      </div>
+
+      <div id="timeline">
+        <div id="tlHead">
+          <span class="lbl">SESSION STORY</span>
+          <span id="chapter" class="mono"></span>
+          <div id="tlToggle" class="mono hidden"><span data-v="story" class="on">story</span><span data-v="tracks">tracks</span></div>
+          <div style="flex:1"></div>
+          <span class="tlAct hidden" id="undoBtn">↶ undo</span>
+          <span class="tlAct hidden" id="cpBtn2">⟲ checkpoints</span>
+        </div>
+        <div id="tlEmpty">every edit becomes a numbered, undoable render here · click any step to rewind the story</div>
+        <div id="strip" class="hidden"></div>
+        <div id="tracks" class="hidden"></div>
       </div>
     </div>
-  </section>
 
-  <section class="panel chat">
-    <div class="msgs" id="msgs">
-      <div class="m bot">Tell me what to change — I'll pick the tools and edit the actual file. Try “make this a tiktok” or “trim to the first 10 seconds and caption it”.</div>
+    <div id="chatcol">
+      <div id="msgs"></div>
+      <div id="composer">
+        <div id="micErr" class="hidden">
+          <span class="x">✕</span>
+          <div class="bd">Voice needs the local Whisper server. Start it, then retry:<code id="micErrCmd">faster-whisper-server · http://localhost:8000</code></div>
+          <span class="retry" id="micRetry">↻ retry</span>
+        </div>
+        <div id="chips"></div>
+        <div id="composeBar">
+          <input id="input" placeholder='Tell the story: "cut the first 4 seconds and caption what she says"' autocomplete="off">
+          <span id="hfBtn">hands-free</span>
+          <div id="micBtn" title="hold to talk"><div class="micIco"><i></i><i></i><i></i></div></div>
+          <div id="sendBtn"><span>↑</span></div>
+        </div>
+        <div id="listenBar" class="hidden">
+          <span class="dot"></span><span class="lb">LISTENING</span>
+          <div id="lwave"></div>
+          <span id="listenTime">0:00</span>
+          <div id="listenStop"><i></i></div>
+        </div>
+        <div id="listenHint" class="hidden">tap ■ to transcribe into the composer · esc discards · transcript is editable before it sends</div>
+        <div id="hints"><span>⏎ send</span><span>/ commands</span><span>esc cancel</span><span>hold mic to talk</span><span class="r">local &amp; private · whisper + kokoro on this machine</span></div>
+      </div>
     </div>
-    <div class="chips">
-      <button data-q="Make this a TikTok">TikTok format</button>
-      <button data-q="Make this an Instagram reel">Instagram reel</button>
-      <button data-q="Expand the frame to 16:9">Expand to 16:9</button>
-      <button data-q="Fix the grammar in the spoken audio">Fix speech grammar</button>
+  </div>
+
+  <!-- permission dialog -->
+  <div id="permWrap" class="hidden">
+    <div class="scrim"></div>
+    <div class="dlg" id="permDlg">
+      <div class="dlgHd">PERMISSION · MUTATING TOOL<span class="r">⏎ allow · esc deny</span></div>
+      <div class="bd">
+        <div id="permCall"><span class="t" id="permTool"></span> <span class="a" id="permArgs"></span></div>
+        <div id="permNote"></div>
+        <div class="btns"><div id="permAllow">Allow</div><div id="permAlways">Always allow</div><div id="permDeny">Deny</div></div>
+        <div>
+          <div id="permSteerLbl">OR STEER IT</div>
+          <input id="permSteer" placeholder='"export as final-v2.mp4 instead" — your words become the instruction'>
+          <div id="permHint">Deny + text sends both: the refusal <i>and</i> why. The agent acts on it immediately.</div>
+        </div>
+      </div>
     </div>
-    <form class="compose" id="form">
-      <input id="input" placeholder="Ask Itan to edit…" autocomplete="off">
-      <button class="primary" id="send">Send</button>
-    </form>
-  </section>
-</main>
+  </div>
+
+  <!-- hands-free overlay -->
+  <div id="hfOverlay" class="hidden">
+    <div id="hfTag"><i></i>HANDS-FREE · LISTENING</div>
+    <div id="hfText">…<span class="cursor"></span></div>
+    <div id="hfWave"></div>
+    <div id="hfPause" class="mono">auto-send after a natural pause · <b id="hfCount">0.0s</b> of 0.8s silence</div>
+    <div id="hfFoot">esc exits hands-free · agent status will read aloud when replies are on</div>
+  </div>
+
+  <!-- model picker -->
+  <div id="modelWrap" class="hidden">
+    <div class="scrimClear" data-close></div>
+    <div class="dlg" id="modelDlg">
+      <div class="dlgHd">SWAP THE BRAIN, MID-SESSION</div>
+      <div id="modelList"></div>
+      <div id="modelFoot"></div>
+    </div>
+  </div>
+
+  <!-- skills -->
+  <div id="skillsWrap" class="hidden">
+    <div class="scrim" data-close></div>
+    <div class="dlg" id="skillsDlg">
+      <div class="top"><h2>Skills</h2><p>readable markdown playbooks: recipes, not presets.</p><span class="close" data-close>✕</span></div>
+      <div id="skillsGrid"></div>
+      <div id="skillsFoot">~/.itan/skills/*/SKILL.md · add your own playbook there</div>
+    </div>
+  </div>
+
+  <!-- checkpoints -->
+  <div id="cpWrap" class="hidden">
+    <div class="scrimClear" data-close></div>
+    <div class="dlg" id="cpDlg">
+      <div class="top"><div class="t"><b>Checkpoints</b><span class="close" data-close>✕</span></div><p>Chapters of this session. Reverting rewinds the <i>project and the conversation together</i>.</p></div>
+      <div id="cpList"></div>
+      <div id="cpFoot">checkpoints are immutable · reverting never destroys later steps</div>
+    </div>
+  </div>
+
+  <!-- settings -->
+  <div id="setWrap" class="hidden">
+    <div class="scrim" data-close></div>
+    <div class="dlg" id="setDlg">
+      <div class="top"><b>Settings</b><span class="close" data-close>✕</span></div>
+      <div class="sec"><span class="lbl">APPEARANCE</span>
+        <div class="card"><div class="srow"><span class="nm">Theme</span>
+          <div class="seg" id="themeSeg"><span data-t="light">light</span><span data-t="dark">dark</span><span data-t="system">system</span></div>
+        </div></div>
+      </div>
+      <div class="sec"><span class="lbl">VOICE</span>
+        <div class="card">
+          <div class="srow"><span class="nm">Speech to text</span><span class="mono" id="setStt" style="font-size:11px;color:var(--t2);background:var(--fill);border-radius:7px;padding:4px 10px"></span></div>
+          <div class="srow"><span class="nm">Voice</span><span class="mono" id="setTts" style="font-size:11px;color:var(--t2);background:var(--fill);border-radius:7px;padding:4px 10px"></span></div>
+          <div class="srow"><span class="nm">Spoken replies</span><div class="toggle" id="repliesToggle"><i></i></div></div>
+          <div class="srow"><span class="nm">Hands-free auto-send</span><span class="mono" style="font-size:11px;color:var(--t2);background:var(--fill);border-radius:7px;padding:4px 10px">0.8s</span></div>
+        </div>
+      </div>
+      <div class="sec"><span class="lbl">AGENT</span>
+        <div class="card"><div class="srow"><span class="nm">Edit permission</span>
+          <div class="seg" id="modeSeg"><span data-m="ask">ask</span><span data-m="auto">auto-edit</span><span data-m="plan">plan</span></div>
+        </div></div>
+      </div>
+      <div style="font-size:10px;color:var(--t4);text-align:center;padding:2px 0 20px" class="mono">ìtàn</div>
+    </div>
+  </div>
+</div>
+
 <script>
-const $=s=>document.querySelector(s);
-let state=null, previewURL=null;
+'use strict';
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const S={state:null,view:'current',previewURL:null,busy:false,abort:null,replies:JSON.parse(localStorage.getItem('itan.replies')??'true'),
+  theme:localStorage.getItem('itan.theme')||'system',tlView:'story',audio:null,perm:null,region:null,selStep:null};
 
-async function refresh(){
-  state = await (await fetch('/api/state')).json();
-  $('#model').textContent = state.model + (state.ffmpeg?'':' · ⚠ ffmpeg missing');
-  renderStrip();
-  if(previewURL===null) setPreview(state.current||'', true);
+/* ---------- theme ---------- */
+function applyTheme(){
+  const t=S.theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):S.theme;
+  document.documentElement.setAttribute('data-theme',t);
+  $$('#themeSeg span').forEach(el=>el.classList.toggle('on',el.dataset.t===S.theme));
 }
-function setPreview(url, isCurrent){
-  previewURL = isCurrent ? null : url;      // null ⇒ follow "current"
-  const src = url || state.current || '';
-  const v=$('#video');
-  if(!src){v.style.display='none';$('#empty').style.display='block';return}
-  $('#empty').style.display='none'; v.style.display='block';
-  if(v.dataset.src!==src){v.dataset.src=src;v.src=src+'&t='+Date.now();}
-  $('#download').href=src; $('#download').download='itan.mp4';
-  renderStrip();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme);
+$('#themeSeg').onclick=e=>{const t=e.target.dataset.t;if(!t)return;S.theme=t;localStorage.setItem('itan.theme',t);applyTheme();};
+applyTheme();
+
+/* ---------- helpers ---------- */
+const fmtT=s=>{const m=Math.floor(s/60),x=(s%60);return m+':'+(x<10?'0':'')+x.toFixed(1)};
+const esc=t=>{const d=document.createElement('span');d.textContent=t??'';return d.innerHTML};
+function toast(t){const d=document.createElement('div');d.id='toast';d.textContent=t;document.getElementById('app').appendChild(d);setTimeout(()=>d.remove(),3200)}
+async function api(path,body){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||r.statusText);return j}
+
+/* ---------- state / render ---------- */
+async function refresh(){try{S.state=await (await fetch('/api/state')).json();render()}catch(e){toast('backend unreachable')}}
+function render(){
+  const st=S.state;if(!st)return;
+  const has=st.assets.length>0;
+  $('#modelName').textContent=st.model.split('/')[1]||st.model;
+  $('#ffdot').classList.toggle('bad',!st.ffmpeg);
+  $('#fileChip').classList.toggle('hidden',!has);
+  if(has)$('#fileChip').textContent=st.assets[0].name;
+  $('#cpCount').textContent=st.checkpoints.length;
+  const active=st.skills.filter(s=>s.active).map(s=>s.name);
+  $('#skillChip').classList.toggle('hidden',!active.length);
+  if(active.length)$('#skillChip').textContent=active[0]+(active.length>1?' +'+(active.length-1):'');
+  $('#tokens').classList.toggle('hidden',!(st.tokens_in||st.tokens_out));
+  $('#tokens').textContent=(st.tokens_in/1000).toFixed(1)+'k in · '+(st.tokens_out/1000).toFixed(1)+'k out';
+  renderMode(st.mode);
+  renderReplies();
+  $('#empty').classList.toggle('hidden',has);
+  $('#stage').classList.toggle('hidden',!has);
+  $('#transport').classList.toggle('hidden',!has);
+  $('#tlToggle').classList.toggle('hidden',!has);
+  $('#undoBtn').classList.toggle('hidden',!st.ops.length);
+  $('#cpBtn2').classList.toggle('hidden',!st.checkpoints.length);
+  $('#chapter').textContent=has?('chapter 1 · '+st.ops.length+' edit'+(st.ops.length===1?'':'s')+' · all reversible'):'chapter 0 · waiting for footage';
+  $('#tlEmpty').classList.toggle('hidden',has);
+  $('#strip').classList.toggle('hidden',!has||S.tlView!=='story');
+  $('#tracks').classList.toggle('hidden',!has||S.tlView!=='tracks');
+  renderChips(has);
+  if(has){renderStrip();renderTracks();setPreview(S.previewURL,S.previewURL===null)}
+}
+function renderMode(m){
+  const p=$('#modePill');p.textContent=(m==='plan'?'◇ plan':m)+' ▾';p.classList.toggle('plan',m==='plan');
+  $('#planBanner').classList.toggle('hidden',m!=='plan');
+  $$('#modeSeg span').forEach(el=>el.classList.toggle('on',el.dataset.m===m));
+}
+function renderReplies(){
+  $('#repliesLabel').textContent='replies '+(S.replies?'on':'off');
+  $('#repliesLabel').style.color=S.replies?'var(--accent)':'var(--t3)';
+  $('#repliesToggle').classList.toggle('on',S.replies);
+}
+function renderChips(has){
+  const chips=has?['Export as MP4','Punch up the hook','Add a music bed']:['Make this a TikTok','Expand to 16:9','Fix speech grammar'];
+  $('#chips').innerHTML=chips.map(c=>`<span>${esc(c)}</span>`).join('');
+  $$('#chips span').forEach(el=>el.onclick=()=>send(el.textContent));
 }
 function renderStrip(){
-  const strip=$('#strip'); strip.innerHTML='';
-  for(const a of state.assets){
-    strip.appendChild(clipEl('source '+a.id, a.name+' · '+a.info, a.url));
-  }
-  for(const op of state.ops){
-    strip.appendChild(clipEl(op.seq+'. '+op.tool, op.summary, op.url));
-  }
-  if(!state.assets.length && !state.ops.length) strip.innerHTML='<span style="color:var(--muted);font-size:12px">empty project</span>';
+  const st=S.state,strip=$('#strip');strip.innerHTML='';
+  const items=[];
+  st.assets.forEach((a,i)=>items.push({num:'00'+i,name:'source',sum:a.name,meta:a.info,url:a.url}));
+  st.ops.forEach(op=>items.push({num:String(op.seq).padStart(3,'0'),name:op.tool,sum:op.summary,meta:'',url:op.url}));
+  const activeURL=S.previewURL??st.current;
+  items.forEach(it=>{
+    const d=document.createElement('div');
+    const isCur=it.url&&it.url===st.current, isSel=it.url&&it.url===activeURL;
+    d.className='step'+(isSel?' active':'');
+    d.innerHTML=`<div class="row"><span class="num">${it.num}</span><span class="nm">${esc(it.name)}</span>${isCur?'<span class="tag">CURRENT</span>':''}</div><div class="sum">${esc(it.sum)}</div><div class="meta">${esc(it.meta)}</div>`;
+    if(it.url)d.onclick=()=>setPreview(it.url,it.url===st.current);
+    strip.appendChild(d);
+  });
 }
-function clipEl(tool,sum,url){
-  const d=document.createElement('div');
-  d.className='clip'+(url && (url===(previewURL??state.current))?' active':'');
-  d.innerHTML=`<div class="tool"></div><div class="sum"></div>`;
-  d.querySelector('.tool').textContent=tool;
-  d.querySelector('.sum').textContent=sum;
-  if(url) d.onclick=()=>setPreview(url, url===state.current);
+function renderTracks(){
+  const st=S.state,info=st.current_info||'';
+  const m=info.match(/(\d+)x(\d+).*?([\d.]+)s.*audio:(\w+)/)||[];
+  const dur=parseFloat(m[3]||0),hasAudio=m[4]==='yes';
+  const marks=[0,.25,.5,.75,1].map(f=>fmtT(dur*f));
+  $('#tracks').innerHTML=`
+    <div class="scale">${marks.map(x=>`<span>${x}</span>`).join('')}</div>
+    <div class="trow"><span class="tlab">V1</span><div style="flex:1;height:30px;background:var(--accent-tint);border-radius:4px;display:flex;align-items:center;padding:0 9px;font-size:9px;color:var(--t2)" class="mono">${esc(st.assets[0]?.name||'video')} · ${m[1]||'?'}×${m[2]||'?'}</div></div>
+    ${hasAudio?`<div class="trow"><span class="tlab">A1</span><div style="flex:1;height:18px;border-radius:3px;background:rgba(85,201,127,.07) repeating-linear-gradient(90deg,rgba(85,201,127,.35) 0 1.5px,transparent 1.5px 5px);background-position:center;background-size:100% 62%;background-repeat:no-repeat"></div></div>`:''}
+    <div class="note">tracks are read-only truth · edits still happen by asking</div>`;
+}
+$('#tlToggle').onclick=e=>{const v=e.target.dataset.v;if(!v)return;S.tlView=v;$$('#tlToggle span').forEach(el=>el.classList.toggle('on',el.dataset.v===v));render()};
+
+/* ---------- preview / transport ---------- */
+const video=$('#video');
+function setPreview(url,followCurrent){
+  const st=S.state;S.previewURL=followCurrent?null:url;
+  const src=(followCurrent?st.current:url)||st.current||'';
+  S.view=followCurrent&&url===st.original&&st.original!==st.current?'original':(S.previewURL?'step':'current');
+  if(!src)return;
+  if(video.dataset.src!==src){video.dataset.src=src;video.src=src+'&t='+Date.now()}
+  $('#dlBtn').href=src;$('#dlBtn').setAttribute('download','itan.mp4');
+  $('#hudFile').textContent=(S.previewURL?'preview · ':'')+decodeURIComponent(src.split('path=')[1]||'').split('/').pop()+(st.current_info&&!S.previewURL?' · '+st.current_info.split(' ').slice(0,1):'');
+  $$('#viewToggle span').forEach(el=>el.classList.toggle('on',(el.dataset.v==='current')===(S.previewURL===null)));
+  $('#tDims').textContent=st.current_info?st.current_info.split(' ').filter((_,i)=>i<2).join(' · '):'';
+  renderStrip();
+}
+$('#viewToggle').onclick=e=>{
+  const v=e.target.dataset.v;if(!v||!S.state)return;
+  if(v==='original'&&S.state.original)setPreview(S.state.original,false);
+  else setPreview(null,true);
+  $$('#viewToggle span').forEach(el=>el.classList.toggle('on',el.dataset.v===v));
+};
+$('#playBtn').onclick=()=>{video.paused?video.play():video.pause()};
+video.addEventListener('play',()=>$('#playBtn').textContent='⏸');
+video.addEventListener('pause',()=>$('#playBtn').textContent='▶');
+video.addEventListener('timeupdate',()=>{
+  const p=video.duration?video.currentTime/video.duration:0;
+  $('#tFill').style.width=(p*100)+'%';$('#tKnob').style.left=(p*100)+'%';
+  $('#tTime').textContent=fmtT(video.currentTime||0)+' / '+fmtT(video.duration||0);
+});
+$('#tBar').onclick=e=>{const r=e.currentTarget.getBoundingClientRect();video.currentTime=((e.clientX-r.left)/r.width)*(video.duration||0)};
+
+/* ---------- upload / demo ---------- */
+$('#browseBtn').onclick=()=>$('#fileInput').click();
+$('#fileInput').onchange=async e=>{if(e.target.files[0])await upload(e.target.files[0])};
+$('#empty').addEventListener('dragover',e=>{e.preventDefault();$('#empty').classList.add('drag')});
+$('#empty').addEventListener('dragleave',()=>$('#empty').classList.remove('drag'));
+$('#empty').addEventListener('drop',async e=>{e.preventDefault();$('#empty').classList.remove('drag');if(e.dataTransfer.files[0])await upload(e.dataTransfer.files[0])});
+async function upload(f){
+  const fd=new FormData();fd.append('file',f);
+  addA('Uploading '+f.name+'…');
+  const r=await fetch('/api/upload',{method:'POST',body:fd});const j=await r.json();
+  if(!r.ok){addA('✕ '+(j.error||'upload failed'));return}
+  S.state=j;S.previewURL=null;render();addA('Got it. What should this footage become?');
+}
+$('#demoBtn').onclick=async()=>{try{addA('Rendering a demo clip…');S.state=await api('/api/demo');S.previewURL=null;render();addA('Demo clip loaded. Try "make this a tiktok".')}catch(e){addA('✕ '+e.message)}};
+
+/* ---------- chat rendering ---------- */
+const msgs=$('#msgs');
+function addU(t){const d=document.createElement('div');d.className='mU';d.textContent=t;msgs.appendChild(d);scrollBot();return d}
+function addA(t){const d=document.createElement('div');d.className='mA';d.textContent=t;msgs.appendChild(d);scrollBot();return d}
+function scrollBot(){msgs.scrollTop=1e9}
+function glyph(state){return {run:['⚙','var(--accent)','spin 1.6s linear infinite'],done:['✓','var(--ok)','none'],err:['✕','var(--err)','none'],retry:['↻','var(--plan)','none']}[state]}
+
+let trace=null,traceRows=0,traceStart=0,runTimer=null;
+function ensureTrace(){
+  if(trace)return trace;
+  traceStart=Date.now();traceRows=0;
+  trace=document.createElement('div');trace.className='trace';
+  trace.innerHTML=`<div class="hd">TOOL TRACE<span class="sum"></span><span class="chev">▾</span></div><div class="rows"></div>`;
+  trace.querySelector('.hd').onclick=()=>{const r=trace.querySelector('.rows');const open=r.style.display!=='none';r.style.display=open?'none':'';trace.querySelector('.chev').textContent=open?'▸':'▾'};
+  msgs.appendChild(trace);scrollBot();return trace;
+}
+function traceSummary(){
+  if(!trace)return;
+  const rows=[...trace.querySelectorAll('.trow2')];
+  const running=rows.filter(r=>r.dataset.state==='run').length,failed=rows.filter(r=>r.dataset.state==='err').length;
+  let s=rows.length+' tool'+(rows.length===1?'':'s');
+  if(running)s=running+' running'+(rows.some(r=>r.dataset.par)?' ∥':'');
+  if(failed)s=failed+' failed';
+  if(!running)s+=' · '+((Date.now()-traceStart)/1000).toFixed(1)+'s';
+  trace.querySelector('.sum').textContent=s;
+}
+function traceRow(tool,args){
+  ensureTrace();
+  const d=document.createElement('div');d.className='trow2';d.dataset.state='run';d.dataset.t0=Date.now();
+  const g=glyph('run');
+  d.innerHTML=`<div class="l1"><span class="g" style="color:${g[1]};animation:${g[2]}">${g[0]}</span><span class="nm">${esc(tool)}</span><span class="ar">${esc(args==='{}'?'':args)}</span><span class="rt">…</span></div>`;
+  trace.querySelector('.rows').appendChild(d);traceSummary();scrollBot();
   return d;
 }
-
-function addMsg(cls, text){
-  const d=document.createElement('div'); d.className='m '+cls; d.textContent=text;
-  $('#msgs').appendChild(d); $('#msgs').scrollTop=1e9; return d;
-}
-function addTrace(events){
-  if(!events||!events.length) return;
-  const wrap=document.createElement('div'); wrap.className='trace';
-  for(const e of events){
-    if(e.kind!=='tool_end') continue;
-    const t=document.createElement('div'); t.className='t'+(e.err?' err':'');
-    t.innerHTML=`<span class="name"></span><span class="info"></span>`;
-    t.querySelector('.name').textContent=(e.err?'✗ ':'✓ ')+e.tool;
-    t.querySelector('.info').textContent=e.err||e.summary;
-    wrap.appendChild(t);
-  }
-  $('#msgs').appendChild(wrap); $('#msgs').scrollTop=1e9;
+function endRow(d,ok,summary,ms,errText){
+  d.dataset.state=ok?'done':'err';
+  const g=glyph(ok?'done':'err');
+  const gl=d.querySelector('.g');gl.textContent=g[0];gl.style.color=g[1];gl.style.animation=g[2];
+  d.querySelector('.rt').textContent=(ms/1000).toFixed(1)+'s';
+  const res=document.createElement('div');res.className='res';res.style.color=ok?'var(--t2)':'var(--err)';
+  res.textContent=ok?summary:('failed: '+errText);
+  d.appendChild(res);traceSummary();scrollBot();
 }
 
-let busy=false;
-async function send(q){
-  if(busy) return;
-  const msg=q||$('#input').value.trim(); if(!msg) return;
-  $('#input').value=''; busy=true; $('#send').disabled=true;
-  addMsg('user', msg);
-  const wait=addMsg('bot',''); wait.innerHTML='<span class="spin"></span> working…';
+/* streaming assistant text */
+let liveA=null;
+function liveText(delta){
+  if(!liveA){liveA=addA('');liveA.insertAdjacentHTML('beforeend','<span class="cursor"></span>')}
+  liveA.querySelector('.cursor').insertAdjacentText('beforebegin',delta);scrollBot();
+}
+function liveDone(){if(liveA){liveA.querySelector('.cursor')?.remove();liveA=null}}
+
+/* plan card */
+function renderPlanCard(reply){
+  const lines=reply.split('\n').map(l=>l.trim()).filter(Boolean);
+  const items=lines.filter(l=>/^\d+[.)]/.test(l)).map(l=>l.replace(/^\d+[.)]\s*/,''));
+  if(items.length<2)return false;
+  const intro=lines.findIndex(l=>/^\d+[.)]/.test(l));
+  if(intro>0)addA(lines.slice(0,intro).join('\n'));
+  const d=document.createElement('div');d.className='plan';
+  d.innerHTML=`<div class="hd">◇ PLAN · NO EDITS UNTIL APPROVED<span style="margin-left:auto;letter-spacing:0;color:var(--plan-dim)">${items.length} steps</span></div>
+    <div class="bd">${items.map((x,i)=>`<div class="it"><b>${i+1}</b><span>${esc(x)}</span></div>`).join('')}
+    <div class="acts"><div class="planGo">approve &amp; run ⏎</div><div class="planKeep">keep planning</div></div></div>`;
+  d.querySelector('.planGo').onclick=async()=>{await api('/api/mode',{mode:'auto'});renderMode('auto');send('Approved — execute the plan now.')};
+  d.querySelector('.planKeep').onclick=()=>$('#input').focus();
+  msgs.appendChild(d);scrollBot();return true;
+}
+
+/* ---------- send / stream ---------- */
+async function send(text){
+  text=(text??$('#input').value).trim();if(!text||S.busy)return;
+  if(!S.state?.assets.length&&!/demo/i.test(text)){addA('Add a video first — drop one on the stage or try the demo clip.');return}
+  $('#input').value='';S.busy=true;setSendStop(true);
+  addU(text);trace=null;liveA=null;
+  startWork();
+  S.abort=new AbortController();
+  const rows=new Map();
   try{
-    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
-    const data=await r.json();
-    wait.remove();
-    if(!r.ok) throw new Error(data.error||r.statusText);
-    addTrace(data.events);
-    addMsg('bot', data.reply);
-    state=data.state; previewURL=null; setPreview(state.current||'', true);
-  }catch(err){ wait.remove(); addMsg('bot','✗ '+err.message); }
-  busy=false; $('#send').disabled=false; $('#input').focus();
+    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text}),signal:S.abort.signal});
+    if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||r.statusText)}
+    const reader=r.body.getReader(),dec=new TextDecoder();let buf='';
+    while(true){
+      const {done,value}=await reader.read();if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      let nl;while((nl=buf.indexOf('\n'))>=0){
+        const line=buf.slice(0,nl);buf=buf.slice(nl+1);
+        if(line.trim())handleEvent(JSON.parse(line),rows);
+      }
+    }
+  }catch(e){
+    liveDone();
+    addA(e.name==='AbortError'?'✕ canceled — the run stopped where it was; every finished step is still in the timeline.':'✕ '+e.message);
+  }
+  stopWork();liveDone();S.busy=false;setSendStop(false);S.abort=null;closePerm(true);
 }
-$('#form').onsubmit=e=>{e.preventDefault();send()};
-document.querySelectorAll('.chips button').forEach(b=>b.onclick=()=>send(b.dataset.q));
-$('#file').onchange=async e=>{
-  const f=e.target.files[0]; if(!f) return;
-  const fd=new FormData(); fd.append('file',f);
-  addMsg('bot','Uploading '+f.name+'…');
-  const r=await fetch('/api/upload',{method:'POST',body:fd});
-  const data=await r.json();
-  if(!r.ok){addMsg('bot','✗ '+(data.error||'upload failed'));return}
-  state=data; previewURL=null; setPreview(state.current||'', true);
-  addMsg('bot','Got it — what should I change?');
+function handleEvent(ev,rows){
+  switch(ev.type){
+    case 'text_delta':liveText(ev.text);break;
+    case 'text':if(!liveA)addA(ev.text);break;
+    case 'tool_start':{liveDone();const d=traceRow(ev.tool,ev.args);rows.set(ev.tool+'|'+rows.size,d);d.dataset.key=ev.tool;break}
+    case 'tool_end':{
+      let d=null;for(const [k,v] of rows){if(v.dataset.state==='run'&&v.dataset.key===ev.tool){d=v;rows.delete(k);break}}
+      if(!d)d=traceRow(ev.tool,'');
+      endRow(d,!ev.err,ev.summary+(ev.output?' → '+decodeURIComponent(ev.output.split('path=')[1]||'').split('/').pop():''),ev.ms||((Date.now()-d.dataset.t0)),ev.err);
+      if(ev.output&&!ev.err)refreshDuringRun();
+      break}
+    case 'retry':{const d=traceRow('retry','');d.dataset.state='done';const g=glyph('retry');const gl=d.querySelector('.g');gl.textContent=g[0];gl.style.color=g[1];d.querySelector('.nm').textContent='retry';d.querySelector('.ar').textContent=ev.text;d.querySelector('.rt').textContent='';traceSummary();break}
+    case 'permission':{/* denied w/o dialog (rules) — row for honesty */const d=traceRow(ev.tool,'');endRow(d,false,'',0,ev.err);break}
+    case 'permission_request':openPerm(ev);break;
+    case 'error':liveDone();addA('✕ '+ev.error);break;
+    case 'done':{
+      liveDone();
+      const isPlan=S.state?.mode==='plan';
+      if(!(isPlan&&renderPlanCard(ev.reply))){
+        if(!msgs.lastElementChild?.classList.contains('mA')||msgs.lastElementChild.textContent.trim()!==ev.reply.trim()){
+          const last=[...msgs.querySelectorAll('.mA')].pop();
+          if(!last||last.textContent.trim()!==ev.reply.trim())addA(ev.reply);
+        }
+      }
+      S.state=ev.state;S.previewURL=null;render();
+      if(S.replies)speak(ev.reply);
+      break}
+  }
+}
+async function refreshDuringRun(){try{const st=await (await fetch('/api/state')).json();S.state=st;S.previewURL=null;render()}catch(e){}}
+function setSendStop(stop){const b=$('#sendBtn');b.classList.toggle('stop',stop);b.innerHTML=stop?'<span></span>':'<span>↑</span>'}
+$('#sendBtn').onclick=()=>{if(S.busy){S.abort?.abort()}else send()};
+$('#input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();send()}});
+
+/* working banner + elapsed */
+let workT0=0;
+function startWork(){workT0=Date.now();$('#workBanner').classList.remove('hidden');runTimer=setInterval(()=>{$('#workText').textContent='working · '+((Date.now()-workT0)/1000).toFixed(1)+'s elapsed';
+  $$('#strip .step.rendering .meta').forEach(m=>m.textContent=((Date.now()-workT0)/1000).toFixed(1)+'s elapsed')},200)}
+function stopWork(){clearInterval(runTimer);$('#workBanner').classList.add('hidden')}
+
+/* ---------- permission dialog ---------- */
+function openPerm(ev){
+  S.perm=ev;
+  $('#permTool').textContent='⚙ '+ev.tool;$('#permArgs').textContent=ev.args==='{}'?'':ev.args;
+  $('#permNote').textContent=ev.safety?ev.safety+' — the old version is backed up first.':'Runs immediately if allowed. Every result is undoable.';
+  $('#permAlways').textContent='Always allow '+ev.tool;
+  $('#permAlways').style.display=ev.safety?'none':'';
+  $('#permSteer').value='';
+  $('#permWrap').classList.remove('hidden');
+  setTimeout(()=>$('#permSteer').focus(),50);
+}
+function closePerm(silent){$('#permWrap').classList.add('hidden');S.perm=null}
+async function answerPerm(action,always){
+  if(!S.perm)return;
+  const feedback=$('#permSteer').value.trim();
+  try{await api('/api/permission',{id:S.perm.id,action,always:!!always,feedback:action==='deny'?feedback:''})}catch(e){}
+  closePerm();
+}
+$('#permAllow').onclick=()=>answerPerm('allow');
+$('#permAlways').onclick=()=>answerPerm('allow',true);
+$('#permDeny').onclick=()=>answerPerm('deny');
+$('#permSteer').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#permSteer').value.trim()?answerPerm('deny'):answerPerm('allow')}});
+
+/* ---------- voice ---------- */
+let rec=null,recChunks=[],recT0=0,recTimer=null,handsFree=false,analyser=null,audioCtx=null,silenceT0=0,vadTimer=null;
+for(let i=0;i<12;i++){const b=document.createElement('i');b.style.height=(8+Math.round(Math.sin(i*1.3)*6+6))+'px';b.style.animationDelay=(i*.08)+'s';$('#lwave').appendChild(b)}
+for(let i=0;i<8;i++){const b=document.createElement('i');b.style.height=(10+Math.round(Math.sin(i*1.1)*7+7))+'px';b.style.animationDelay=(i*.1)+'s';$('#hfWave').appendChild(b)}
+
+async function startListening(hf){
+  if(rec)return;
+  handsFree=!!hf;
+  let stream;
+  try{stream=await navigator.mediaDevices.getUserMedia({audio:true})}
+  catch(e){micError('Microphone permission denied — allow mic access for this site in the browser, then retry.');return}
+  $('#micErr').classList.add('hidden');
+  recChunks=[];rec=new MediaRecorder(stream);
+  rec.ondataavailable=e=>recChunks.push(e.data);
+  rec.onstop=async()=>{
+    stream.getTracks().forEach(t=>t.stop());
+    clearInterval(recTimer);clearInterval(vadTimer);
+    const wasHF=handsFree;
+    uiListening(false);
+    const blob=new Blob(recChunks,{type:rec.mimeType||'audio/webm'});rec=null;
+    if(blob.size<1200){if(wasHF)exitHF();return}
+    try{
+      $('#input').placeholder='transcribing…';
+      const r=await fetch('/api/voice/transcribe',{method:'POST',body:blob});
+      const j=await r.json().catch(()=>({}));
+      $('#input').placeholder='Tell the story: "cut the first 4 seconds and caption what she says"';
+      if(!r.ok)throw new Error(j.error||'transcription failed');
+      if(wasHF&&handsFree!==null){$('#hfText').innerHTML=esc(j.text);exitHF();if(j.text.trim())send(j.text)}
+      else{$('#input').value=j.text;$('#input').focus()}
+    }catch(e){
+      $('#input').placeholder='Tell the story: "cut the first 4 seconds and caption what she says"';
+      if(wasHF)exitHF();
+      micError(e.message);
+    }
+  };
+  rec.start(100);recT0=Date.now();
+  uiListening(true);
+  recTimer=setInterval(()=>{
+    const s=Math.floor((Date.now()-recT0)/1000);
+    $('#listenTime').textContent='0:'+String(s).padStart(2,'0');
+  },250);
+  if(handsFree){
+    $('#hfOverlay').classList.remove('hidden');$('#hfText').innerHTML='listening…<span class="cursor"></span>';
+    audioCtx=new AudioContext();const src=audioCtx.createMediaStreamSource(stream);
+    analyser=audioCtx.createAnalyser();analyser.fftSize=512;src.connect(analyser);
+    const buf=new Uint8Array(analyser.fftSize);silenceT0=0;
+    vadTimer=setInterval(()=>{
+      analyser.getByteTimeDomainData(buf);
+      let sum=0;for(const v of buf)sum+=(v-128)*(v-128);
+      const rms=Math.sqrt(sum/buf.length)/128;
+      const now=Date.now();
+      if(rms<0.02){if(!silenceT0)silenceT0=now;const q=Math.min(0.8,(now-silenceT0)/1000);$('#hfCount').textContent=q.toFixed(1)+'s';
+        if(now-silenceT0>800&&now-recT0>1500)stopListening();}
+      else{silenceT0=0;$('#hfCount').textContent='0.0s'}
+    },100);
+  }
+}
+function stopListening(){if(rec&&rec.state!=='inactive')rec.stop();audioCtx?.close().catch(()=>{});audioCtx=null}
+function discardListening(){if(rec){rec.onstop=()=>{rec.stream?.getTracks?.().forEach(t=>t.stop());rec=null};rec.stop()}clearInterval(recTimer);clearInterval(vadTimer);uiListening(false);exitHF();audioCtx?.close().catch(()=>{});audioCtx=null}
+function uiListening(on){
+  $('#composeBar').classList.toggle('hidden',on);
+  $('#hints').classList.toggle('hidden',on);
+  $('#listenBar').classList.toggle('hidden',!on||handsFree);
+  $('#listenHint').classList.toggle('hidden',!on||handsFree);
+}
+function exitHF(){$('#hfOverlay').classList.add('hidden');handsFree=false}
+function micError(msg){
+  $('#micErr').classList.remove('hidden');
+  $('#micErrCmd').textContent=msg.length<160?msg:msg.slice(0,160)+'…';
+}
+$('#micRetry').onclick=()=>{$('#micErr').classList.add('hidden');startListening(false)};
+$('#micBtn').addEventListener('pointerdown',e=>{e.preventDefault();startListening(false)});
+$('#micBtn').addEventListener('pointerup',()=>{if(rec&&Date.now()-recT0>400)stopListening()});
+$('#listenStop').onclick=()=>stopListening();
+$('#hfBtn').onclick=()=>startListening(true);
+
+/* spoken replies */
+async function speak(text){
+  try{
+    const r=await fetch('/api/voice/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text.slice(0,600)})});
+    if(!r.ok)return; // silent: voice server not running
+    const blob=await r.blob();
+    S.audio?.pause();
+    S.audio=new Audio(URL.createObjectURL(blob));
+    const last=[...msgs.querySelectorAll('.mA')].pop();
+    let chip=null;
+    if(last){chip=document.createElement('div');chip.className='speakChip';
+      chip.innerHTML=`<span class="wave"><i></i><i></i><i></i><i></i></span>speaking · ${esc(S.state?.tts?.split(' ·')[0]||'tts')} <span class="mute">mute</span>`;
+      chip.querySelector('.mute').onclick=()=>{S.audio?.pause();chip.remove();$('#hdrWave').classList.add('hidden')};
+      last.appendChild(chip);scrollBot()}
+    $('#hdrWave').classList.remove('hidden');
+    S.audio.onended=()=>{chip?.remove();$('#hdrWave').classList.add('hidden')};
+    await S.audio.play();
+  }catch(e){}
+}
+$('#repliesPill').onclick=()=>{S.replies=!S.replies;localStorage.setItem('itan.replies',JSON.stringify(S.replies));renderReplies()};
+$('#repliesToggle').onclick=()=>$('#repliesPill').onclick();
+
+/* ---------- region select ---------- */
+let regionDrag=null;
+$('#regionBtn').onclick=()=>{
+  const layer=$('#regionLayer');
+  const on=layer.style.display!=='block';
+  layer.style.display=on?'block':'none';
+  $('#regionBox').classList.add('hidden');$('#regionPop').classList.add('hidden');
+  $('#regionBtn').style.color=on?'var(--plan)':'';
+  if(on)video.pause();
 };
-$('#undo').onclick=async()=>{
-  const r=await fetch('/api/undo',{method:'POST'});
-  const data=await r.json();
-  if(!r.ok){addMsg('bot','✗ '+(data.error||'nothing to undo'));return}
-  state=data; previewURL=null; setPreview(state.current||'', true);
+$('#regionLayer').addEventListener('pointerdown',e=>{
+  const r=$('#regionLayer').getBoundingClientRect();
+  regionDrag={x0:e.clientX-r.left,y0:e.clientY-r.top};
+  $('#regionPop').classList.add('hidden');
+});
+$('#regionLayer').addEventListener('pointermove',e=>{
+  if(!regionDrag)return;
+  const r=$('#regionLayer').getBoundingClientRect();
+  const x=e.clientX-r.left,y=e.clientY-r.top;
+  const bx=Math.min(x,regionDrag.x0),by=Math.min(y,regionDrag.y0),bw=Math.abs(x-regionDrag.x0),bh=Math.abs(y-regionDrag.y0);
+  const box=$('#regionBox');box.classList.remove('hidden');
+  Object.assign(box.style,{left:bx+'px',top:by+'px',width:bw+'px',height:bh+'px'});
+  const sc=sourceScale();
+  $('#regionLabel').textContent='region · '+Math.round(bw*sc)+'×'+Math.round(bh*sc)+' px · '+fmtT(video.currentTime||0);
+  regionDrag.box={bx,by,bw,bh};
+});
+$('#regionLayer').addEventListener('pointerup',()=>{
+  if(!regionDrag?.box||regionDrag.box.bw<12){regionDrag=null;return}
+  const {bx,by,bh}=regionDrag.box;
+  const pop=$('#regionPop');pop.classList.remove('hidden');
+  Object.assign(pop.style,{left:Math.max(8,bx-60)+'px',top:(by+bh+16)+'px'});
+  S.region=regionDrag.box;regionDrag=null;
+  setTimeout(()=>$('#regionText').focus(),40);
+});
+function sourceScale(){
+  const m=(S.state?.current_info||'').match(/(\d+)x(\d+)/);
+  if(!m||!video.clientHeight)return 1;
+  const vw=+m[1],vh=+m[2];
+  const scale=Math.min(video.clientWidth/vw,video.clientHeight/vh);
+  return scale?1/scale:1;
+}
+$('#regionPop .opts').addEventListener('click',e=>{
+  if(e.target.dataset.s!==undefined){$$('#regionPop .opts span[data-s]').forEach(x=>x.classList.remove('on'));e.target.classList.add('on')}
+});
+$('#regionSend').onclick=()=>{
+  const txt=$('#regionText').value.trim();if(!txt||!S.region)return;
+  const sc=sourceScale(),b=S.region;
+  const vr=video.getBoundingClientRect(),lr=$('#regionLayer').getBoundingClientRect();
+  const ox=vr.left-lr.left,oy=vr.top-lr.top;
+  const px=Math.max(0,Math.round((b.bx-ox)*sc)),py=Math.max(0,Math.round((b.by-oy)*sc));
+  const scope=$('#regionPop .opts span.on')?.dataset.s||'track it everywhere';
+  clearRegion();
+  send(`⌖ region ${Math.round(b.bw*sc)}×${Math.round(b.bh*sc)} px at (${px},${py}), t=${(video.currentTime||0).toFixed(1)}s (${scope}): ${txt}`);
 };
+$('#regionText').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#regionSend').onclick()}});
+function clearRegion(){$('#regionLayer').style.display='none';$('#regionBox').classList.add('hidden');$('#regionPop').classList.add('hidden');$('#regionBtn').style.color='';S.region=null;$('#regionText').value=''}
+
+/* ---------- overlays ---------- */
+function wireOverlay(btnSel,wrapSel,onOpen){
+  const open=()=>{closeOverlays();$(wrapSel).classList.remove('hidden');onOpen&&onOpen()};
+  $$(btnSel).forEach(b=>b.onclick=open);
+}
+function closeOverlays(){['#modelWrap','#skillsWrap','#cpWrap','#setWrap'].forEach(s=>$(s).classList.add('hidden'))}
+document.addEventListener('click',e=>{if(e.target.dataset?.close!==undefined)closeOverlays()});
+wireOverlay('#modelPill','#modelWrap',renderModels);
+wireOverlay('#skillsBtn','#skillsWrap',renderSkills);
+wireOverlay('#cpBtn,#cpBtn2','#cpWrap',renderCps);
+wireOverlay('#gear','#setWrap',()=>{
+  $('#setStt').textContent=S.state?.stt||'whisper';
+  $('#setTts').textContent='▶ '+(S.state?.tts||'kokoro');
+});
+function renderModels(){
+  const st=S.state,list=$('#modelList');list.innerHTML='';
+  st.models.forEach(m=>{
+    const d=document.createElement('div');d.className='mrow';
+    d.innerHTML=`<span class="dot" style="background:${m.active?'var(--accent)':(m.local?'var(--ok)':'var(--t3)')}"></span>
+      <div style="flex:1"><div class="nm">${esc(m.active?st.model.split('/')[1]:m.name)}</div><div class="via">${esc(m.via)}</div></div>
+      ${m.local?'<span class="badgeL">local</span>':''}${m.active?'<span class="mono" style="font-size:11px;color:var(--accent)">✓</span>':''}`;
+    d.onclick=async()=>{try{S.state=await api('/api/model',{spec:m.spec});closeOverlays();render();toast('now '+S.state.model)}catch(e){toast('✕ '+e.message)}};
+    list.appendChild(d);
+  });
+  const tok=((st.tokens_in+st.tokens_out)/1000).toFixed(1);
+  $('#modelFoot').innerHTML=`Context survives the switch: <span class="mono" style="font-size:10px;color:var(--t2)">${tok}k tok</span> carried over.`;
+}
+function renderSkills(){
+  const g=$('#skillsGrid');g.innerHTML='';
+  (S.state?.skills||[]).forEach(sk=>{
+    const d=document.createElement('div');d.className='skCard'+(sk.active?' active':'');
+    d.innerHTML=`<div><span class="nm">${esc(sk.name)}</span>${sk.active?'<span class="ab">◆ active</span>':''}</div>
+      <div class="ds">${esc(sk.desc)}</div><div class="src">${esc(sk.source)}</div>`;
+    g.appendChild(d);
+  });
+}
+function renderCps(){
+  const list=$('#cpList');list.innerHTML='';
+  const cps=S.state?.checkpoints||[];
+  if(!cps.length)list.innerHTML='<div style="font-size:12px;color:var(--t3);padding:8px">no checkpoints yet — each request creates one</div>';
+  cps.forEach((cp,i)=>{
+    const d=document.createElement('div');d.className='cpRow';
+    d.innerHTML=`<span class="num">#${cp.num}</span><div style="flex:1;min-width:0"><div class="lb">‘${esc(cp.label)}’</div><div class="wh">${esc(cp.when)} · ${cp.edits} edit${cp.edits===1?'':'s'}</div></div><span class="go">⟲ revert</span>`;
+    d.querySelector('.go').onclick=async()=>{
+      try{S.state=await api('/api/revert',{n:i+1});S.previewURL=null;closeOverlays();render();addA('⟲ reverted to before ‘'+cp.label+'’ — renders stay on disk, so this is itself reversible.')}
+      catch(e){toast('✕ '+e.message)}
+    };
+    list.appendChild(d);
+  });
+}
+$('#undoBtn').onclick=async()=>{try{S.state=await api('/api/undo');S.previewURL=null;render()}catch(e){toast('✕ '+e.message)}};
+
+/* mode */
+const MODES=['ask','auto','plan'];
+async function setMode(m){try{S.state=await api('/api/mode',{mode:m});renderMode(m)}catch(e){toast('✕ '+e.message)}}
+$('#modePill').onclick=()=>{const cur=S.state?.mode||'auto';setMode(MODES[(MODES.indexOf(cur)+1)%MODES.length])};
+$('#modeSeg').onclick=e=>{if(e.target.dataset.m)setMode(e.target.dataset.m)};
+
+/* keyboard */
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    if(S.perm){answerPerm('deny');return}
+    if(handsFree||rec){discardListening();return}
+    if(S.region!==null||$('#regionLayer').style.display==='block'){clearRegion();return}
+    if(S.busy){S.abort?.abort();return}
+    closeOverlays();
+  }
+  if(e.key==='Tab'&&e.shiftKey){e.preventDefault();$('#modePill').onclick()}
+  if(e.key==='/'&&document.activeElement!==$('#input')&&document.activeElement!==$('#permSteer')&&document.activeElement!==$('#regionText')){e.preventDefault();$('#input').focus()}
+});
+
+/* boot */
+addA('Tell ìtàn the story this footage should become. Type it, or hold the mic and just say it. Everything runs on this machine; nothing uploads.');
 refresh();
 </script>
 </body>

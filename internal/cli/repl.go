@@ -78,6 +78,18 @@ func (s *Session) rebuildAgent() error {
 	return nil
 }
 
+// SwitchModel changes the active model and rebuilds the agent, preserving
+// conversation state. Used by the /model command and the UI's model picker.
+func (s *Session) SwitchModel(spec string) error {
+	if err := s.Cfg.UseModel(spec); err != nil {
+		return err
+	}
+	if err := config.SaveGlobal(s.Cfg); err != nil {
+		return err
+	}
+	return s.rebuildAgent()
+}
+
 // terminalAsker is the blocking permission prompt: y / n / a(lways) / or free
 // text, which becomes deny-with-feedback the model can act on.
 func terminalAsker(req permission.Request) permission.Decision {

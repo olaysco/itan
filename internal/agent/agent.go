@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -101,6 +102,16 @@ func New(cfg *config.Config, p provider.Provider, proj *media.Project, sk *skill
 		system:       buildSystemPrompt(proj.Dir, sk),
 		activeSkills: map[string]bool{},
 	}
+}
+
+// ActiveSkills lists skills whose playbooks have been injected this session.
+func (a *Agent) ActiveSkills() []string {
+	names := make([]string, 0, len(a.activeSkills))
+	for n := range a.activeSkills {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // AdoptState carries conversation state over from a previous agent instance
