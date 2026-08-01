@@ -65,6 +65,10 @@ type Context struct {
 	CompactAt          float64 `yaml:"compact_at"`            // fraction of budget that triggers compaction
 	ToolResultMaxChars int     `yaml:"tool_result_max_chars"` // hard cap per tool result fed back to the model
 	MaxTurns           int     `yaml:"max_turns"`             // tool-use iterations per user request
+	// ReplyMaxTokens caps one model response. Reasoning models (Kimi K2.5+,
+	// DeepSeek) spend from this budget on thinking BEFORE visible output —
+	// too small and they hit the cap with nothing to show.
+	ReplyMaxTokens int `yaml:"reply_max_tokens"`
 }
 
 type Config struct {
@@ -127,6 +131,7 @@ func Default() *Config {
 			CompactAt:          0.7,
 			ToolResultMaxChars: 1600,
 			MaxTurns:           16,
+			ReplyMaxTokens:     8192,
 		},
 	}
 }

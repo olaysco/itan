@@ -36,6 +36,27 @@ func TestTriggerMatching(t *testing.T) {
 	}
 }
 
+// Triggers match whole words only: "ig" inside "designed" or "insta" inside
+// "instantly" must not inject a playbook.
+func TestTriggerWordBoundaries(t *testing.T) {
+	s := Load(config.Default(), t.TempDir())
+	for _, msg := range []string{
+		"make this well designed and sharp",
+		"do it instantly please",
+		"configure the settings",
+	} {
+		if hits := s.Match(msg); len(hits) != 0 {
+			t.Fatalf("Match(%q) = %v, want none", msg, hits)
+		}
+	}
+	if hits := s.Match("post this on IG tonight"); len(hits) != 1 || hits[0].Name != "instagram-reel" {
+		t.Fatalf("whole-word ig should still match: %v", hits)
+	}
+	if hits := s.Match("make me a product launch video"); len(hits) == 0 {
+		t.Fatal("multi-word trigger lost")
+	}
+}
+
 func TestProjectSkillOverridesBuiltin(t *testing.T) {
 	dir := t.TempDir()
 	skillDir := filepath.Join(dir, ".itan", "skills", "tiktok")

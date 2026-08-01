@@ -62,6 +62,45 @@ func TestAnthropicToolResultImages(t *testing.T) {
 	}
 }
 
+// Multimodal hosts may return assistant content as an array of parts; the
+// text inside must survive parsing — dropping it loses the whole reply.
+func TestOpenAIArrayContent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":[{"type":"text","text":"part one. "},{"type":"text","text":"part two."}]},"finish_reason":"stop"}],"usage":{}}`))
+	}))
+	defer srv.Close()
+
+	p := NewOpenAI(srv.URL, "k", "test")
+	resp, err := p.Complete(context.Background(), Request{Model: "m", Messages: []Message{UserText("hi")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Text() != "part one. part two." {
+		t.Fatalf("array content lost: %q", resp.Text())
+	}
+}
+
+// Same for streaming: delta content may arrive in array form.
+func TestOpenAIStreamArrayContent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(
+			"data: {\"choices\":[{\"delta\":{\"content\":[{\"type\":\"text\",\"text\":\"hello \"}]}}]}\n\n" +
+				"data: {\"choices\":[{\"delta\":{\"content\":\"world\"},\"finish_reason\":\"stop\"}]}\n\n" +
+				"data: [DONE]\n\n"))
+	}))
+	defer srv.Close()
+
+	p := NewOpenAI(srv.URL, "k", "test")
+	resp, err := p.CompleteStream(context.Background(), Request{Model: "m", Messages: []Message{UserText("hi")}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Text() != "hello world" {
+		t.Fatalf("stream array content lost: %q", resp.Text())
+	}
+}
+
 // The OpenAI dialect can't put images on the tool role, so frames ride a
 // follow-up user message as data URIs.
 func TestOpenAIToolResultImages(t *testing.T) {

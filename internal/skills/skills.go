@@ -126,19 +126,43 @@ func (s *Set) Index() string {
 	return b.String()
 }
 
-// Match returns skills whose triggers appear in the message.
+// Match returns skills whose triggers appear in the message as whole words.
+// Word boundaries matter: the trigger "ig" must not fire on "designed", nor
+// "insta" on "instantly" — a wrongly injected playbook actively misleads.
 func (s *Set) Match(message string) []Skill {
 	m := strings.ToLower(message)
 	var hits []Skill
 	for _, sk := range s.All() {
 		for _, trig := range sk.Triggers {
-			if trig != "" && strings.Contains(m, trig) {
+			if trig != "" && containsWord(m, trig) {
 				hits = append(hits, sk)
 				break
 			}
 		}
 	}
 	return hits
+}
+
+// containsWord reports whether trig occurs in m with non-alphanumeric (or
+// string edge) on both sides. Multi-word triggers match phrase-wise.
+func containsWord(m, trig string) bool {
+	for start := 0; ; {
+		i := strings.Index(m[start:], trig)
+		if i < 0 {
+			return false
+		}
+		i += start
+		before := i == 0 || !isWordChar(m[i-1])
+		after := i+len(trig) == len(m) || !isWordChar(m[i+len(trig)])
+		if before && after {
+			return true
+		}
+		start = i + 1
+	}
+}
+
+func isWordChar(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
 }
 
 func parse(raw, source string) (Skill, bool) {

@@ -228,6 +228,7 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 	tctx := &tools.Ctx{Context: ctx, Project: a.Project, Config: a.Cfg, TTS: a.TTS, STT: a.STT}
 	var finalText strings.Builder
 	doom := doomDetector{}
+	nudged := false
 
 	for turn := 0; turn < a.Cfg.Context.MaxTurns; turn++ {
 		callProv, model, msgs := prov, a.Cfg.Model.ID, a.History
@@ -247,7 +248,7 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 			System:    a.system,
 			Messages:  msgs,
 			Tools:     a.toolDefs(),
-			MaxTokens: 2048,
+			MaxTokens: a.replyMaxTokens(),
 		}, func(d provider.Delta) {
 			streamed = true
 			emit(Event{Kind: "text_delta", Text: d.Text})
@@ -258,7 +259,11 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 		a.InputTokens += resp.InputTokens
 		a.OutputTokens += resp.OutputTokens
 
-		a.History = append(a.History, provider.Message{Role: "assistant", Blocks: resp.Blocks})
+		blocks := resp.Blocks
+		if len(blocks) == 0 { // an empty assistant message would corrupt the transcript for some APIs
+			blocks = []provider.Block{provider.TextBlock("(no output)")}
+		}
+		a.History = append(a.History, provider.Message{Role: "assistant", Blocks: blocks})
 		if text := resp.Text(); text != "" {
 			finalText.Reset() // only the last assistant text is the reply
 			finalText.WriteString(text)
@@ -269,6 +274,14 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 
 		uses := resp.ToolUses()
 		if resp.StopReason != "tool_use" || len(uses) == 0 {
+			// Some models stall: they end the turn with no reply at all mid-task.
+			// Push back exactly once instead of accepting the empty turn.
+			if strings.TrimSpace(finalText.String()) == "" && !nudged {
+				nudged = true
+				a.History = append(a.History, provider.UserText(
+					"(You ended your turn without any reply. If the task is unfinished, continue it now with tool calls; otherwise summarize what changed in one short paragraph.)"))
+				continue
+			}
 			return a.finishReply(finalText.String(), lastToolSummary), StopEndTurn, nil
 		}
 
@@ -276,11 +289,11 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 
 		// Attach a ledger delta to the tool-result message when the edits
 		// changed project state, so the model never works from stale facts.
-		blocks := results
+		resultBlocks := results
 		if delta := a.ledgerDelta(ctx); delta != "" {
-			blocks = append(blocks, provider.TextBlock(delta))
+			resultBlocks = append(resultBlocks, provider.TextBlock(delta))
 		}
-		a.History = append(a.History, provider.Message{Role: "user", Blocks: blocks})
+		a.History = append(a.History, provider.Message{Role: "user", Blocks: resultBlocks})
 		a.History = Compact(a.History, budget)
 	}
 
@@ -329,6 +342,15 @@ func stripImages(msgs []provider.Message, keepLast bool) []provider.Message {
 		out[i] = provider.Message{Role: m.Role, Blocks: blocks}
 	}
 	return out
+}
+
+// replyMaxTokens is the per-response cap; older configs without the field
+// fall back to the default rather than a broken 0.
+func (a *Agent) replyMaxTokens() int {
+	if n := a.Cfg.Context.ReplyMaxTokens; n > 0 {
+		return n
+	}
+	return 8192
 }
 
 // finishReply never fabricates success: when the model ends without a final

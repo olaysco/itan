@@ -287,6 +287,37 @@ func TestDoomRepeatedFailureBlocking(t *testing.T) {
 	}
 }
 
+// A model that ends its turn with no reply at all gets pushed back exactly
+// once — models stall mid-task, and accepting the empty turn strands the
+// user with nothing.
+func TestEmptyTurnNudge(t *testing.T) {
+	fake := &scripted{responses: []*provider.Response{
+		{Blocks: nil, StopReason: "end_turn"}, // the stall
+		{Blocks: []provider.Block{provider.TextBlock("finished after nudge")}, StopReason: "end_turn"},
+	}}
+	a, _ := newTestAgent(t, fake)
+	reply, err := a.Run(context.Background(), "do the thing", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply != "finished after nudge" {
+		t.Fatalf("reply = %q", reply)
+	}
+	if fake.calls != 2 {
+		t.Fatalf("calls = %d, want 2 (stall + nudged retry)", fake.calls)
+	}
+	second := fake.requests[1]
+	last := second.Messages[len(second.Messages)-1]
+	if last.Role != "user" || !strings.Contains(last.Blocks[0].Text, "ended your turn") {
+		t.Fatalf("nudge message missing: %+v", last)
+	}
+	// The stalled assistant turn must not enter history as an empty message.
+	prev := second.Messages[len(second.Messages)-2]
+	if prev.Role != "assistant" || len(prev.Blocks) == 0 {
+		t.Fatalf("empty assistant message reached history: %+v", prev)
+	}
+}
+
 // finishReply must never claim success the model didn't state.
 func TestFinishReplyHonest(t *testing.T) {
 	a := &Agent{}

@@ -120,7 +120,7 @@ func (o *OpenAI) Complete(ctx context.Context, req Request) (*Response, error) {
 		InputTokens:  out.Usage.PromptTokens,
 		OutputTokens: out.Usage.CompletionTokens,
 	}
-	if s, ok := choice.Message.Content.(string); ok && s != "" {
+	if s := contentText(choice.Message.Content); s != "" {
 		res.Blocks = append(res.Blocks, TextBlock(s))
 	}
 	for _, tc := range choice.Message.ToolCalls {
@@ -221,7 +221,7 @@ func (o *OpenAI) CompleteStream(ctx context.Context, req Request, onDelta func(D
 		var chunk struct {
 			Choices []struct {
 				Delta struct {
-					Content   string `json:"content"`
+					Content   any `json:"content"`
 					ToolCalls []struct {
 						Index    int    `json:"index"`
 						ID       string `json:"id"`
@@ -252,10 +252,10 @@ func (o *OpenAI) CompleteStream(ctx context.Context, req Request, onDelta func(D
 		if choice.FinishReason != "" {
 			finishReason = choice.FinishReason
 		}
-		if choice.Delta.Content != "" {
-			text.WriteString(choice.Delta.Content)
+		if s := contentText(choice.Delta.Content); s != "" {
+			text.WriteString(s)
 			if onDelta != nil {
-				onDelta(Delta{Text: choice.Delta.Content})
+				onDelta(Delta{Text: s})
 			}
 		}
 		for _, tc := range choice.Delta.ToolCalls {
@@ -302,6 +302,28 @@ func (o *OpenAI) CompleteStream(ctx context.Context, req Request, onDelta func(D
 		res.StopReason = "tool_use"
 	}
 	return res, nil
+}
+
+// contentText extracts assistant text whether the host returned a plain
+// string or the multi-part array form ([{type:"text",text:"..."}...]) that
+// multimodal models frequently use. Dropping array content silently loses
+// the model's whole reply.
+func contentText(c any) string {
+	switch v := c.(type) {
+	case string:
+		return v
+	case []any:
+		var b strings.Builder
+		for _, p := range v {
+			if m, ok := p.(map[string]any); ok {
+				if t, ok := m["text"].(string); ok {
+					b.WriteString(t)
+				}
+			}
+		}
+		return b.String()
+	}
+	return ""
 }
 
 func toOAMessages(msgs []Message) []oaMessage {
