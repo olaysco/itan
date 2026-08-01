@@ -34,10 +34,13 @@ func videoTools() []Tool {
 			Run: runTrim, Mutating: true,
 		},
 		{
-			Name:        "concat",
-			Description: "Join multiple clips into one video, normalized to the first clip's dimensions/fps.",
+			Name: "concat",
+			Description: "Join multiple clips into one video, normalized to the first clip's dimensions/fps. " +
+				"Pass transition for a crossfade between every pair instead of a hard cut.",
 			Schema: schema([]string{"inputs"}, map[string]map[string]any{
-				"inputs": {"type": "array", "items": map[string]any{"type": "string"}, "description": "Ordered asset ids or paths (2+)."},
+				"inputs":              {"type": "array", "items": map[string]any{"type": "string"}, "description": "Ordered asset ids or paths (2+)."},
+				"transition":          prop("string", "'cut' (default), or an xfade style: fade, fadeblack, fadewhite, wipeleft, wiperight, slideup, slidedown, circleopen."),
+				"transition_duration": prop("number", "Crossfade length in seconds (default 0.5)."),
 			}),
 			Run: runConcat, Mutating: true,
 		},
@@ -172,6 +175,9 @@ func runConcat(c *Ctx, args Args) Result {
 	if !ok || len(rawList) < 2 {
 		return fail("concat needs an `inputs` array of 2+ clips")
 	}
+	if tr := args.Str("transition"); tr != "" && tr != "cut" && !xfadeStyles[tr] {
+		return fail("unknown transition %q — use cut, fade, fadeblack, fadewhite, wipeleft, wiperight, slideup, slidedown, or circleopen", tr)
+	}
 	var paths []string
 	for _, item := range rawList {
 		p, err := resolveInput(c, Args{"input": item})
@@ -199,6 +205,45 @@ func runConcat(c *Ctx, args Args) Result {
 			fmt.Fprintf(&fc, "anullsrc=r=44100:cl=stereo:d=%.3f[a%d];", maxf(info.Duration, 0.1), i)
 		}
 	}
+	transition := args.Str("transition")
+	td := args.Float("transition_duration", 0.5)
+	summary := fmt.Sprintf("joined %d clips at %dx%d", len(paths), w, h)
+
+	if transition != "" && transition != "cut" {
+		if !xfadeStyles[transition] {
+			return fail("unknown transition %q — use cut, fade, fadeblack, fadewhite, wipeleft, wiperight, slideup, slidedown, or circleopen", transition)
+		}
+		durs := make([]float64, len(paths))
+		for i, p := range paths {
+			info, perr := media.Probe(c.Context, p)
+			if perr != nil {
+				return Result{Err: perr}
+			}
+			if info.Duration <= td {
+				return fail("clip %d is %.1fs — shorter than the %.1fs transition; trim the transition_duration", i+1, info.Duration, td)
+			}
+			durs[i] = info.Duration
+		}
+		offsets := xfadeOffsets(durs, td)
+		cur, acur := "[v0]", "[a0]"
+		for k := 1; k < len(paths); k++ {
+			vout, aout := fmt.Sprintf("[vx%d]", k), fmt.Sprintf("[ax%d]", k)
+			fmt.Fprintf(&fc, "%s[v%d]xfade=transition=%s:duration=%.3f:offset=%.3f%s;", cur, k, transition, td, offsets[k-1], vout)
+			fmt.Fprintf(&fc, "%s[a%d]acrossfade=d=%.3f%s;", acur, k, td, aout)
+			cur, acur = vout, aout
+		}
+		summary = fmt.Sprintf("joined %d clips at %dx%d with %s transitions", len(paths), w, h, transition)
+		out := c.Project.NextOutput("concat", ".mp4")
+		ff = append(ff, "-filter_complex", strings.TrimSuffix(fc.String(), ";"),
+			"-map", cur, "-map", acur,
+			"-c:v", "libx264", "-preset", "medium", "-crf", "18",
+			"-pix_fmt", "yuv420p", "-c:a", "aac", out)
+		if err := media.Run(c.Context, ff...); err != nil {
+			return Result{Err: err}
+		}
+		return Result{Summary: summary, Output: out}
+	}
+
 	for i := range paths {
 		fmt.Fprintf(&fc, "[v%d][a%d]", i, i)
 	}
@@ -206,11 +251,32 @@ func runConcat(c *Ctx, args Args) Result {
 
 	out := c.Project.NextOutput("concat", ".mp4")
 	ff = append(ff, "-filter_complex", fc.String(), "-map", "[v]", "-map", "[a]",
-		"-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", out)
+		"-c:v", "libx264", "-preset", "medium", "-crf", "18",
+		"-pix_fmt", "yuv420p", "-c:a", "aac", out)
 	if err := media.Run(c.Context, ff...); err != nil {
 		return Result{Err: err}
 	}
-	return Result{Summary: fmt.Sprintf("joined %d clips at %dx%d", len(paths), w, h), Output: out}
+	return Result{Summary: summary, Output: out}
+}
+
+// xfadeStyles is the whitelist of transitions the concat tool accepts.
+var xfadeStyles = map[string]bool{
+	"fade": true, "fadeblack": true, "fadewhite": true,
+	"wipeleft": true, "wiperight": true, "slideup": true, "slidedown": true,
+	"circleopen": true,
+}
+
+// xfadeOffsets computes the xfade offset for each chained transition: every
+// crossfade overlaps the running output's tail by td, so the running length
+// after clip k is sum(d_0..d_k) - k*td and each offset is that length minus td.
+func xfadeOffsets(durs []float64, td float64) []float64 {
+	offsets := make([]float64, 0, len(durs)-1)
+	running := durs[0]
+	for k := 1; k < len(durs); k++ {
+		offsets = append(offsets, running-td)
+		running += durs[k] - td
+	}
+	return offsets
 }
 
 func runSpeed(c *Ctx, args Args) Result {
@@ -462,14 +528,24 @@ func runExport(c *Ctx, args Args) Result {
 	if err != nil {
 		return Result{Err: err}
 	}
-	if err := media.Run(c.Context, "-i", c.Project.Current, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", dest); err != nil {
+	// Renders are already H.264/yuv420p, so exporting is a stream copy —
+	// no third transcode softening the picture. Re-encode only when the
+	// source is something else.
+	summary := "exported to " + dest + " (stream copy, no re-encode)"
+	if info, perr := media.Probe(c.Context, c.Project.Current); perr == nil && info.Codec == "h264" {
+		err = media.Run(c.Context, "-i", c.Project.Current, "-c", "copy", "-movflags", "+faststart", dest)
+	} else {
+		summary = "exported to " + dest
+		err = media.Run(c.Context, "-i", c.Project.Current, "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", dest)
+	}
+	if err != nil {
 		return Result{Err: err}
 	}
 	data := map[string]any{"path": dest}
 	if backup != "" {
 		data["previous_version"] = backup
 	}
-	return Result{Summary: "exported to " + dest, Data: data}
+	return Result{Summary: summary, Data: data}
 }
 
 // backupIfExists copies an about-to-be-overwritten file into .itan/backup.

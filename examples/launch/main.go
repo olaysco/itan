@@ -151,7 +151,7 @@ func main() {
 		ids = append(ids, res.Data["asset"])
 		fmt.Printf("  scene %d/%d done\n", i+1, len(scenes))
 	}
-	exec("concat", map[string]any{"inputs": ids})
+	exec("concat", map[string]any{"inputs": ids, "transition": "fade", "transition_duration": 0.6})
 	exec("export", map[string]any{"path": "itan-launch.mp4"})
 	fmt.Printf("\nrendered %d scenes in %s → %s/itan-launch.mp4\n", len(scenes), time.Since(start).Round(time.Second), dir)
 }

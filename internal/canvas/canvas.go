@@ -43,6 +43,10 @@ type Opts struct {
 	FPS      int     // default 30
 	Duration float64 // seconds, required
 	OutPath  string  // .mp4 destination
+	// Scale supersamples the capture (default 2): the page renders at
+	// Scale× device pixels and ffmpeg downscales with Lanczos, which is
+	// what keeps text crisp through 4:2:0 encoding. 1–3.
+	Scale int
 }
 
 // seekRuntime is injected once per render. __itanSeek(ms) makes the page
@@ -99,10 +103,17 @@ func Render(ctx context.Context, opts Opts) error {
 		return err
 	}
 
+	scale := opts.Scale
+	if scale <= 0 {
+		scale = 2
+	}
+	if scale > 3 {
+		scale = 3
+	}
+
 	allocOpts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.ExecPath(chrome),
 		chromedp.WindowSize(opts.Width, opts.Height),
-		chromedp.Flag("force-device-scale-factor", "1"),
 		chromedp.Flag("hide-scrollbars", true),
 		chromedp.Flag("mute-audio", true),
 	)
@@ -117,7 +128,7 @@ func Render(ctx context.Context, opts Opts) error {
 		return p.WithAwaitPromise(true)
 	}
 	if err := chromedp.Run(cctx,
-		chromedp.EmulateViewport(int64(opts.Width), int64(opts.Height)),
+		chromedp.EmulateViewport(int64(opts.Width), int64(opts.Height), chromedp.EmulateScale(float64(scale))),
 		chromedp.Navigate("file://"+htmlPath),
 		chromedp.WaitReady("body"),
 		chromedp.Evaluate(`document.fonts.ready.then(() => true)`, nil, awaitFonts),
@@ -141,9 +152,13 @@ func Render(ctx context.Context, opts Opts) error {
 		}
 	}
 
+	// Lanczos downscale from the supersampled capture keeps text edges
+	// crisp through 4:2:0; CRF 18 keeps them crisp through encoding.
 	return media.Run(ctx,
 		"-framerate", fmt.Sprintf("%d", opts.FPS),
 		"-i", filepath.Join(work, "f_%05d.png"),
-		"-c:v", "libx264", "-pix_fmt", "yuv420p",
+		"-vf", fmt.Sprintf("scale=%d:%d:flags=lanczos", opts.Width, opts.Height),
+		"-c:v", "libx264", "-preset", "medium", "-crf", "18",
+		"-pix_fmt", "yuv420p", "-movflags", "+faststart",
 		opts.OutPath)
 }
