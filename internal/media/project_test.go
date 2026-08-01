@@ -28,18 +28,62 @@ func TestRemoveAsset(t *testing.T) {
 		t.Fatal("expected error for unknown asset")
 	}
 
-	// With edits on record, the newest op output wins the fallback.
+	// NO cascade: op outputs are immutable rendered files, so edits built
+	// from a removed source stay valid and CURRENT (an op output) stays put.
 	p2 := &Project{
+		Dir: dir,
+		Assets: []Asset{
+			{ID: "a1", Path: "/x/one.mp4"},
+			{ID: "a2", Path: "/x/two.mp4"},
+		},
+		Ops: []EditOp{
+			{Tool: "trim", Input: "/x/one.mp4", Output: "/x/001-trim.mp4"},
+			{Tool: "crop", Input: "/x/001-trim.mp4", Output: "/x/002-crop.mp4"},
+		},
+		Current: "/x/002-crop.mp4",
+	}
+	if _, err := p2.RemoveAsset("a1"); err != nil {
+		t.Fatal(err)
+	}
+	if len(p2.Ops) != 2 {
+		t.Fatalf("removing a source must keep its edits, got %+v", p2.Ops)
+	}
+	if p2.Current != "/x/002-crop.mp4" {
+		t.Fatalf("current must stay on the op output, got %q", p2.Current)
+	}
+
+	// When the removed source WAS current, fall back to the newest output.
+	p3 := &Project{
 		Dir:     dir,
 		Assets:  []Asset{{ID: "a1", Path: "/x/one.mp4"}},
 		Ops:     []EditOp{{Output: "/x/out1.mp4"}, {Output: "/x/out2.mp4"}},
 		Current: "/x/one.mp4",
 	}
-	if _, err := p2.RemoveAsset("a1"); err != nil {
+	if _, err := p3.RemoveAsset("a1"); err != nil {
 		t.Fatal(err)
 	}
-	if p2.Current != "/x/out2.mp4" {
-		t.Fatalf("current must fall back to newest output, got %q", p2.Current)
+	if p3.Current != "/x/out2.mp4" {
+		t.Fatalf("current must fall back to newest output, got %q", p3.Current)
+	}
+
+	// Removing the newest edit is Undo: current moves back one step.
+	p4 := &Project{
+		Dir:     dir,
+		Assets:  []Asset{{ID: "a1", Path: "/x/one.mp4"}},
+		Ops:     []EditOp{{Output: "/x/out1.mp4"}, {Output: "/x/out2.mp4"}},
+		Current: "/x/out2.mp4",
+	}
+	if _, err := p4.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	if p4.Current != "/x/out1.mp4" {
+		t.Fatalf("undo must move current back, got %q", p4.Current)
+	}
+	if _, err := p4.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	if p4.Current != "/x/one.mp4" {
+		t.Fatalf("undoing the last edit must return to the source, got %q", p4.Current)
 	}
 }
 

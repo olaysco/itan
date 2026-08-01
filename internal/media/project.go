@@ -107,10 +107,12 @@ func (p *Project) AddAsset(ctx context.Context, path string) (*Asset, error) {
 	return &a, p.Save()
 }
 
-// RemoveAsset unregisters a source file from the project; the file on disk is
-// kept. Remaining ids are unchanged — the ledger may still reference them.
-// When the removed asset was the working video, Current falls back to the
-// newest op output, then the first remaining asset.
+// RemoveAsset unregisters a source file from the project; files on disk are
+// kept and edits are NOT cascaded — every op output is an immutable rendered
+// file, so edits stay valid without their source registered. Remaining ids
+// are unchanged — the ledger may still reference them. When the removed
+// source was the working video, Current falls back to the newest op output,
+// then the first remaining source.
 func (p *Project) RemoveAsset(id string) (*Asset, error) {
 	idx := -1
 	for i, a := range p.Assets {

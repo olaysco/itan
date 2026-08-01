@@ -547,7 +547,7 @@ async function api(path,body){const r=await fetch(path,{method:'POST',headers:{'
 async function refresh(){try{S.state=await (await fetch('/api/state')).json();render()}catch(e){toast('backend unreachable')}}
 function render(){
   const st=S.state;if(!st)return;
-  const has=st.assets.length>0;
+  const has=st.assets.length>0||st.ops.length>0;
   $('#modelName').textContent=st.model.split('/')[1]||st.model;
   $('#projChip').innerHTML='<span style="color:var(--t4)">project</span> '+esc(st.project||'?')+' <span style="color:var(--t4)">▾</span>';
   $('#ffdot').classList.toggle('bad',!st.ffmpeg);
@@ -593,7 +593,7 @@ function renderStrip(){
   const st=S.state,strip=$('#strip');strip.innerHTML='';
   const items=[];
   st.assets.forEach((a,i)=>items.push({num:'00'+i,name:'source',sum:a.name,meta:a.info,url:a.url,id:a.id}));
-  st.ops.forEach(op=>items.push({num:String(op.seq).padStart(3,'0'),name:op.tool,sum:op.summary,meta:'',url:op.url}));
+  st.ops.forEach((op,i)=>items.push({num:String(op.seq).padStart(3,'0'),name:op.tool,sum:op.summary,meta:'',url:op.url,undo:i===st.ops.length-1}));
   const activeURL=S.previewURL??st.current;
   items.forEach(it=>{
     const d=document.createElement('div');
@@ -601,6 +601,7 @@ function renderStrip(){
     d.className='step'+(isSel?' active':'');
     d.innerHTML=`<div class="row"><span class="num">${it.num}</span><span class="nm">${esc(it.name)}</span>${isCur?'<span class="tag">CURRENT</span>':''}</div><div class="sum">${esc(it.sum)}</div><div class="meta">${esc(it.meta)}</div>`;
     if(it.id){const x=document.createElement('span');x.className='rmx';x.textContent='✕';x.title='remove from project (file on disk is kept)';x.onclick=ev=>{ev.stopPropagation();removeAsset(it.id,it.sum)};d.querySelector('.row').appendChild(x)}
+    if(it.undo){const x=document.createElement('span');x.className='rmx';x.textContent='✕';x.title='remove this step — moves back one (render file is kept)';x.onclick=ev=>{ev.stopPropagation();undoStep()};d.querySelector('.row').appendChild(x)}
     if(it.url)d.onclick=()=>setPreview(it.url,it.url===st.current);
     strip.appendChild(d);
   });
@@ -815,7 +816,7 @@ function renderPlanCard(reply){
 /* ---------- send / stream ---------- */
 async function send(text){
   text=(text??$('#input').value).trim();if(!text||S.busy)return;
-  if(!S.state?.assets.length&&!/demo/i.test(text)){addA('Add a video first — drop one on the stage or try the demo clip.');return}
+  if(!S.state?.assets.length&&!S.state?.ops.length&&!/demo/i.test(text)){addA('Add a video first — drop one on the stage or try the demo clip.');return}
   $('#input').value='';S.busy=true;setSendStop(true);
   addU(text);trace=null;liveA=null;
   startWork();
@@ -1090,8 +1091,14 @@ async function switchProject(dir){
 }
 $('#projOpen').onclick=()=>{const v=$('#projPath').value.trim();if(v)switchProject(v)};
 $('#projPath').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#projOpen').onclick()}});
+async function undoStep(){
+  const r=await fetch('/api/undo',{method:'POST'});
+  const j=await r.json();
+  if(!r.ok){toast('✕ '+(j.error||'undo failed'));return}
+  S.state=j;S.previewURL=null;render();toast('step removed — moved back');
+}
 async function removeAsset(id,name){
-  if(!confirm('Remove '+name+' from this project?\nThe file on disk is kept.'))return;
+  if(!confirm('Remove '+name+' from this project?\nEdits stay; the file on disk is kept.'))return;
   const r=await fetch('/api/asset/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
   const j=await r.json();
   if(!r.ok){toast('✕ '+(j.error||'remove failed'));return}
