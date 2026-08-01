@@ -129,9 +129,26 @@ func (s *Server) Handler() http.Handler {
 	return mux
 }
 
-func (s *Server) Listen(addr string) error {
-	fmt.Printf("Itan UI on http://%s\n", addr)
-	return http.ListenAndServe(addr, s.Handler())
+// Listen serves the UI until the listener fails or ctx is canceled (Ctrl+C).
+// Shutdown saves the session first — closing the terminal must never cost the
+// user their conversation.
+func (s *Server) Listen(ctx context.Context, addr string) error {
+	srv := &http.Server{Addr: addr, Handler: s.Handler()}
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.ListenAndServe() }()
+	fmt.Printf("Itan UI on http://%s (ctrl+c to quit)\n", addr)
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		fmt.Println("\nshutting down — session saved")
+		if s.Session.Agent != nil {
+			_ = s.Session.Agent.SaveSession()
+		}
+		shutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		return srv.Shutdown(shutCtx)
+	}
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {

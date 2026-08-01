@@ -109,7 +109,7 @@ func run(args []string) error {
 			return err
 		}
 		go openBrowser("http://" + addr)
-		return server.New(session).Listen(addr)
+		return server.New(session).Listen(ctx, addr)
 
 	case "app":
 		addr := "127.0.0.1:4141"
@@ -123,7 +123,7 @@ func run(args []string) error {
 			return err
 		}
 		go openAppWindow("http://" + addr)
-		return server.New(session).Listen(addr)
+		return server.New(session).Listen(ctx, addr)
 
 	case "model":
 		return cmdModel(dir, args[1:])
