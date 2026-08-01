@@ -137,6 +137,9 @@ func NewRegistry() *Registry {
 	for _, t := range composeTools() {
 		r.add(t)
 	}
+	for _, t := range webTools() {
+		r.add(t)
+	}
 	for _, t := range miscTools() {
 		r.add(t)
 	}

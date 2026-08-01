@@ -89,8 +89,8 @@ permissions:         # last match wins; '*' and 'prefix*' wildcards
 
 `probe · trim · concat · set_speed · crop · expand_frame · change_background ·
 overlay_text · blur_region · pixelate_region · zoom_region · compose ·
-overlay_video · render · export · transcribe · tts · extract_audio ·
-replace_audio · mix_audio · read_text`
+overlay_video · fetch_page · capture_page · render · export · transcribe ·
+tts · extract_audio · replace_audio · mix_audio · read_text`
 
 ### Motion graphics without Node
 
