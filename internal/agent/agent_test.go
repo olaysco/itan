@@ -332,6 +332,46 @@ func TestFinishReplyHonest(t *testing.T) {
 	}
 }
 
+// Frames must not outlive the request that looked at them: a new Run starts
+// with all previous images stripped from history.
+func TestStaleFramesDroppedAcrossRuns(t *testing.T) {
+	fake := &scripted{responses: []*provider.Response{
+		{Blocks: []provider.Block{toolUse("t1", "view_frames", `{"times":[0.5]}`)}, StopReason: "tool_use"},
+		{Blocks: []provider.Block{provider.TextBlock("looked")}, StopReason: "end_turn"},
+		{Blocks: []provider.Block{provider.TextBlock("second run")}, StopReason: "end_turn"},
+	}}
+	a, proj := newTestAgent(t, fake)
+	clip := makeClip(t, proj.Dir)
+	if _, err := proj.AddAsset(context.Background(), clip); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := a.Run(context.Background(), "look at it", nil); err != nil {
+		t.Fatal(err)
+	}
+	// Within run 1, the follow-up request must carry the frames.
+	withFrames := fake.requests[1]
+	found := false
+	for _, m := range withFrames.Messages {
+		if hasImages(m) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("frames missing within the run that created them")
+	}
+
+	if _, err := a.Run(context.Background(), "now trim it", nil); err != nil {
+		t.Fatal(err)
+	}
+	secondRun := fake.requests[2]
+	for _, m := range secondRun.Messages {
+		if hasImages(m) {
+			t.Fatal("stale frames re-sent in a later run")
+		}
+	}
+}
+
 func TestStripImages(t *testing.T) {
 	withImg := func() provider.Message {
 		b := provider.ToolResultBlock("t1", "frames", false)

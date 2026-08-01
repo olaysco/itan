@@ -222,6 +222,10 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 	}
 
 	a.pushCheckpoint(userMsg)
+	// Frames from previous requests are stale working data, not context:
+	// drop them so image tokens are paid only within the run that looked at
+	// them, not on every turn for the rest of the session.
+	a.History = stripImages(a.History, false)
 	budget := int(float64(a.Cfg.Context.MaxTokens) * a.Cfg.Context.CompactAt)
 	a.History = Compact(append(a.History, a.composeUserMessage(ctx, userMsg)), budget)
 
