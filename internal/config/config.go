@@ -110,8 +110,10 @@ var TTSPresets = map[string]TTS{
 }
 
 var STTPresets = map[string]STT{
-	// Any OpenAI-compatible Whisper server (faster-whisper-server,
-	// whisper.cpp `server`, speaches, ...). Open source by default.
+	// Any OpenAI-compatible Whisper server. Open source by default; the
+	// reference server is Speaches (formerly faster-whisper-server):
+	//   docker run -p 8000:8000 ghcr.io/speaches-ai/speaches:latest-cpu
+	// whisper.cpp `server` and compatible hosts work too.
 	"whisper": {Provider: "whisper", BaseURL: "http://localhost:8000/v1", Model: "Systran/faster-whisper-large-v3"},
 	"openai":  {Provider: "openai", BaseURL: "https://api.openai.com/v1", Model: "whisper-1", KeyEnv: "OPENAI_API_KEY"},
 }
