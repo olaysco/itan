@@ -12,6 +12,7 @@ import (
 	"github.com/olaysco/heydit/internal/agent"
 	"github.com/olaysco/heydit/internal/config"
 	"github.com/olaysco/heydit/internal/media"
+	"github.com/olaysco/heydit/internal/permission"
 	"github.com/olaysco/heydit/internal/provider"
 	"github.com/olaysco/heydit/internal/skills"
 )
@@ -34,7 +35,9 @@ type Session struct {
 	Agent   *agent.Agent
 }
 
-func NewSession(projectDir string) (*Session, error) {
+// NewSession builds a session. When resume is true, a previously saved
+// conversation (.heydit/session.json) is restored.
+func NewSession(projectDir string, resume bool) (*Session, error) {
 	cfg, err := config.Load(projectDir)
 	if err != nil {
 		return nil, err
@@ -48,6 +51,14 @@ func NewSession(projectDir string) (*Session, error) {
 		// A missing API key shouldn't block the REPL from starting; commands
 		// like /model and /config are exactly how the user fixes it.
 		fmt.Fprintf(os.Stderr, "%s! %v%s\n", yellow, err, reset)
+	}
+	if resume && s.Agent != nil {
+		ok, lerr := s.Agent.LoadSession()
+		if lerr != nil {
+			fmt.Fprintf(os.Stderr, "%s! %v%s\n", yellow, lerr, reset)
+		} else if ok {
+			fmt.Printf("%s✓ resumed previous session (%d messages)%s\n", green, len(s.Agent.History), reset)
+		}
 	}
 	return s, nil
 }
@@ -65,9 +76,35 @@ func (s *Session) rebuildAgent() error {
 		fresh.History = s.Agent.History
 		fresh.InputTokens = s.Agent.InputTokens
 		fresh.OutputTokens = s.Agent.OutputTokens
+		fresh.Gate.SetMode(s.Agent.Gate.Mode())
 	}
+	fresh.Gate.SetAsker(terminalAsker)
 	s.Agent = fresh
 	return nil
+}
+
+// terminalAsker is the blocking permission prompt: y / n / a(lways) / or free
+// text, which becomes deny-with-feedback the model can act on.
+func terminalAsker(req permission.Request) permission.Decision {
+	why := ""
+	if req.Safety != "" {
+		why = yellow + " — " + req.Safety + reset
+	}
+	fmt.Printf("%s? allow %s?%s %s[y]es / [n]o / [a]lways / type feedback:%s ", yellow, req.Tool, why, dim, reset)
+	sc := bufio.NewScanner(os.Stdin)
+	if !sc.Scan() {
+		return permission.Decision{Action: permission.Deny}
+	}
+	switch strings.ToLower(strings.TrimSpace(sc.Text())) {
+	case "y", "yes", "":
+		return permission.Decision{Action: permission.Allow}
+	case "a", "always":
+		return permission.Decision{Action: permission.Allow, AlwaysAllow: true}
+	case "n", "no":
+		return permission.Decision{Action: permission.Deny}
+	default:
+		return permission.Decision{Action: permission.Deny, Feedback: strings.TrimSpace(sc.Text())}
+	}
 }
 
 // Ask runs one request through the agent with terminal progress rendering.
@@ -80,6 +117,9 @@ func (s *Session) Ask(ctx context.Context, msg string) error {
 	reply, err := s.Agent.Run(ctx, msg, RenderEvent)
 	if err != nil {
 		return err
+	}
+	if serr := s.Agent.SaveSession(); serr != nil {
+		fmt.Printf("%s! session not saved: %v%s\n", yellow, serr, reset)
 	}
 	fmt.Printf("\n%s%s%s\n", bold, reply, reset)
 	return nil
@@ -107,6 +147,10 @@ func RenderEvent(e agent.Event) {
 			out = " → " + filepath.Base(e.Output)
 		}
 		fmt.Printf("%s✓ %s%s — %s%s (%s)%s\n", green, e.Tool, reset, e.Summary, out, e.Duration, reset)
+	case "retry":
+		fmt.Printf("%s↻ %s%s\n", yellow, e.Text, reset)
+	case "permission":
+		fmt.Printf("%s⊘ %s — %s%s\n", yellow, e.Tool, e.Err, reset)
 	}
 }
 
@@ -139,7 +183,11 @@ func (s *Session) Repl(ctx context.Context) error {
 
 func (s *Session) banner() {
 	fmt.Printf("%s%sHeydit%s — agentic video editor\n", bold, cyan, reset)
-	fmt.Printf("%smodel: %s/%s · project: %s%s\n", dim, s.Cfg.Model.Provider, s.Cfg.Model.ID, s.Project.Dir, reset)
+	mode := "auto"
+	if s.Agent != nil {
+		mode = string(s.Agent.Gate.Mode())
+	}
+	fmt.Printf("%smodel: %s/%s · mode: %s · project: %s%s\n", dim, s.Cfg.Model.Provider, s.Cfg.Model.ID, mode, s.Project.Dir, reset)
 	if !media.Available() {
 		fmt.Printf("%s! ffmpeg not found on PATH — install it before editing%s\n", yellow, reset)
 	}
@@ -160,6 +208,9 @@ func (s *Session) slash(ctx context.Context, line string) (quit bool) {
   /model [spec]       show or switch model: /model kimi/kimi-k3, /model anthropic
   /models             list provider presets
   /config [k [v]]     show config, get a key, or set key value (saved globally)
+  /mode [auto|ask|plan]  show or set the permission mode
+  /plan               toggle plan mode (agent proposes, doesn't edit)
+  /compact            compress history into a structured summary
   /ops                show the edit stack
   /undo               undo the last edit
   /skills             list skills; /skill <name> shows one
@@ -217,6 +268,48 @@ func (s *Session) slash(ctx context.Context, line string) (quit bool) {
 		} else {
 			fmt.Printf("%s✗ no skill %q%s\n", red, arg, reset)
 		}
+	case "mode":
+		if s.Agent == nil {
+			fmt.Printf("%s✗ no agent yet%s\n", red, reset)
+			break
+		}
+		if arg == "" {
+			fmt.Printf("  mode: %s\n", s.Agent.Gate.Mode())
+			break
+		}
+		switch permission.Mode(arg) {
+		case permission.ModeAuto, permission.ModeAsk, permission.ModePlan:
+			s.Agent.Gate.SetMode(permission.Mode(arg))
+			fmt.Printf("%s✓ mode: %s%s\n", green, arg, reset)
+		default:
+			fmt.Printf("%s✗ modes: auto, ask, plan%s\n", red, reset)
+		}
+	case "plan":
+		if s.Agent == nil {
+			fmt.Printf("%s✗ no agent yet%s\n", red, reset)
+			break
+		}
+		if s.Agent.Gate.Mode() == permission.ModePlan {
+			s.Agent.Gate.SetMode(permission.ModeAuto)
+			fmt.Printf("%s✓ plan mode off — edits enabled%s\n", green, reset)
+		} else {
+			s.Agent.Gate.SetMode(permission.ModePlan)
+			fmt.Printf("%s✓ plan mode ON — the agent will propose, not edit%s\n", green, reset)
+		}
+	case "compact":
+		if s.Agent == nil {
+			fmt.Printf("%s✗ no agent yet%s\n", red, reset)
+			break
+		}
+		fmt.Printf("%scompacting…%s\n", dim, reset)
+		if err := s.Agent.CompactNow(ctx); err != nil {
+			fmt.Printf("%s✗ %v%s\n", red, err, reset)
+			break
+		}
+		if err := s.Agent.SaveSession(); err != nil {
+			fmt.Printf("%s! session not saved: %v%s\n", yellow, err, reset)
+		}
+		fmt.Printf("%s✓ history compacted to a structured summary%s\n", green, reset)
 	case "cost":
 		if s.Agent != nil {
 			fmt.Println("  " + s.Agent.CostLine())

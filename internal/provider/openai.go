@@ -89,7 +89,10 @@ func (o *OpenAI) Complete(ctx context.Context, req Request) (*Response, error) {
 	defer resp.Body.Close()
 	payload, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("%s: %s: %s", o.Label, resp.Status, truncate(string(payload), 400))
+		return nil, &HTTPError{
+			Provider: o.Label, Status: resp.StatusCode,
+			Body: truncate(string(payload), 400), RetryAfter: retryAfter(resp.Header),
+		}
 	}
 
 	var out struct {

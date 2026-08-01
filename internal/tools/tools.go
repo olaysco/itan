@@ -61,6 +61,10 @@ func (r Result) Compact(maxChars int) string {
 	return clip(out, maxChars)
 }
 
+// Full renders the complete, uncapped result text (used for disk spill when
+// the compact form had to truncate).
+func (r Result) Full() string { return r.Compact(0) }
+
 func clip(s string, n int) string {
 	if n <= 0 || len(s) <= n {
 		return s
@@ -76,6 +80,8 @@ type Tool struct {
 	Run         func(c *Ctx, args Args) Result
 	// Mutating tools commit an EditOp and advance CURRENT.
 	Mutating bool
+	// ConcurrencySafe tools (pure reads) may run in parallel with each other.
+	ConcurrencySafe bool
 }
 
 // Args wraps decoded tool arguments with forgiving accessors: models
@@ -125,6 +131,9 @@ func NewRegistry() *Registry {
 	for _, t := range audioTools() {
 		r.add(t)
 	}
+	for _, t := range miscTools() {
+		r.add(t)
+	}
 	return r
 }
 
@@ -164,6 +173,17 @@ func (r *Registry) Execute(c *Ctx, name string, rawInput json.RawMessage) Result
 		})
 		if commitErr != nil {
 			res.Err = fmt.Errorf("edit rendered but could not be committed: %w", commitErr)
+		}
+		// Probe-after-edit feedback: the model immediately sees the concrete
+		// effect of its edit (dimensions/duration/audio), the way a coding
+		// agent sees compiler diagnostics after a write.
+		if res.Err == nil {
+			if info, perr := media.Probe(c.Context, res.Output); perr == nil {
+				if res.Data == nil {
+					res.Data = map[string]any{}
+				}
+				res.Data["now"] = info.Compact()
+			}
 		}
 	}
 	return res

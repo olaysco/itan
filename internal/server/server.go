@@ -28,7 +28,14 @@ type Server struct {
 	mu      sync.Mutex // one agent run at a time; edits are sequential by nature
 }
 
-func New(session *cli.Session) *Server { return &Server{Session: session} }
+func New(session *cli.Session) *Server {
+	// Headless: there is no blocking terminal prompt in the browser flow, so
+	// "ask" degrades to deny-with-feedback and the model explains itself.
+	if session.Agent != nil {
+		session.Agent.Gate.SetAsker(nil)
+	}
+	return &Server{Session: session}
+}
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -130,6 +137,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, 500, err.Error())
 		return
 	}
+	_ = s.Session.Agent.SaveSession()
 	writeJSON(w, map[string]any{"reply": reply, "events": events, "state": s.state()})
 }
 

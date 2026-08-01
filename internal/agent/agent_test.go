@@ -148,10 +148,15 @@ func TestAgentToolErrorSurvives(t *testing.T) {
 	}
 }
 
-// TestSystemPromptCarriesLedgerAndSkills: the ledger and skill index ride in
-// the system prompt; a "tiktok" message activates the tiktok playbook.
-func TestSystemPromptCarriesLedgerAndSkills(t *testing.T) {
-	fake := &scripted{}
+// TestPromptCacheHygiene: the system prompt is static (identity + skill
+// index only) while volatile state — the project ledger and activated skill
+// playbooks — arrives as reminder blocks on the user message. The ledger is
+// only re-sent when it changes.
+func TestPromptCacheHygiene(t *testing.T) {
+	fake := &scripted{responses: []*provider.Response{
+		{Blocks: []provider.Block{provider.TextBlock("plan follows")}, StopReason: "end_turn"},
+		{Blocks: []provider.Block{provider.TextBlock("ok")}, StopReason: "end_turn"},
+	}}
 	a, proj := newTestAgent(t, fake)
 	clip := makeClip(t, proj.Dir)
 	if _, err := proj.AddAsset(context.Background(), clip); err != nil {
@@ -160,11 +165,40 @@ func TestSystemPromptCarriesLedgerAndSkills(t *testing.T) {
 	if _, err := a.Run(context.Background(), "make this a tiktok", nil); err != nil {
 		t.Fatal(err)
 	}
+
 	sys := fake.requests[0].System
-	for _, want := range []string{"CURRENT working video", "clip.mp4", "## Skills", "Active skill: tiktok"} {
-		if !contains(sys, want) {
-			t.Errorf("system prompt missing %q", want)
+	if !contains(sys, "## Skills") {
+		t.Error("system prompt missing skill index")
+	}
+	for _, leaked := range []string{"clip.mp4", "320x240"} {
+		if contains(sys, leaked) {
+			t.Errorf("volatile state %q leaked into the static system prompt", leaked)
 		}
+	}
+
+	userText := fake.requests[0].Messages[0].Blocks[0].Text
+	for _, want := range []string{"<project-state>", "clip.mp4", "<skill-playbook", "9:16"} {
+		if !contains(userText, want) {
+			t.Errorf("user message missing reminder content %q", want)
+		}
+	}
+
+	// Second run with unchanged project state: no duplicate ledger, no
+	// duplicate playbook.
+	if _, err := a.Run(context.Background(), "another tiktok tweak please", nil); err != nil {
+		t.Fatal(err)
+	}
+	second := fake.requests[1].Messages[len(fake.requests[1].Messages)-1].Blocks[0].Text
+	if contains(second, "<project-state>") {
+		t.Error("unchanged ledger was re-sent — cache-busting")
+	}
+	if contains(second, "<skill-playbook") {
+		t.Error("already-active skill body was re-injected")
+	}
+
+	// System prompt must be byte-identical across turns (cacheable prefix).
+	if fake.requests[0].System != fake.requests[1].System {
+		t.Error("system prompt changed between turns")
 	}
 }
 

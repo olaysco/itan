@@ -45,8 +45,21 @@ func run(args []string) error {
 		return err
 	}
 
+	// `heydit -c` / `--continue` resumes the saved conversation; it may be
+	// combined with the REPL (default) or -p.
+	resume := false
+	filtered := args[:0:0]
+	for _, a := range args {
+		if a == "-c" || a == "--continue" {
+			resume = true
+			continue
+		}
+		filtered = append(filtered, a)
+	}
+	args = filtered
+
 	if len(args) == 0 {
-		session, err := cli.NewSession(dir)
+		session, err := cli.NewSession(dir, resume)
 		if err != nil {
 			return err
 		}
@@ -58,7 +71,7 @@ func run(args []string) error {
 		if len(args) < 2 {
 			return fmt.Errorf("usage: heydit -p \"request\"")
 		}
-		session, err := cli.NewSession(dir)
+		session, err := cli.NewSession(dir, resume)
 		if err != nil {
 			return err
 		}
@@ -88,7 +101,7 @@ func run(args []string) error {
 				addr = args[i+1]
 			}
 		}
-		session, err := cli.NewSession(dir)
+		session, err := cli.NewSession(dir, resume)
 		if err != nil {
 			return err
 		}
@@ -137,6 +150,7 @@ func run(args []string) error {
 const usage = `heydit — agentic AI video editor
 
   heydit                        interactive session (current dir = project)
+  heydit -c | --continue        resume the previous conversation
   heydit -p "request"           one-shot edit, then exit
   heydit add <video...>         register source videos with the project
   heydit ui [--addr host:port]  open the desktop editing screen

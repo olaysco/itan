@@ -17,7 +17,8 @@ func videoTools() []Tool {
 			Schema: schema(nil, map[string]map[string]any{
 				"input": prop("string", "Asset id (a1) or path. Defaults to CURRENT."),
 			}),
-			Run: runProbe,
+			Run:             runProbe,
+			ConcurrencySafe: true,
 		},
 		{
 			Name:        "trim",

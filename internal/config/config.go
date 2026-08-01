@@ -19,6 +19,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/olaysco/heydit/internal/permission"
 )
 
 // Model selects the LLM that drives the harness.
@@ -64,6 +66,11 @@ type Config struct {
 	Model   Model   `yaml:"model"`
 	Audio   Audio   `yaml:"audio"`
 	Context Context `yaml:"context"`
+	// Mode is the permission mode: auto (default), ask, or plan.
+	Mode string `yaml:"mode,omitempty"`
+	// Permissions are tool rules evaluated last-match-wins, e.g.
+	//   permissions: [{tool: "render", action: ask}, {tool: "*", action: allow}]
+	Permissions []permission.Rule `yaml:"permissions,omitempty"`
 	// SkillDirs are extra directories scanned for skills, beyond the
 	// built-ins and ~/.heydit/skills.
 	SkillDirs []string `yaml:"skill_dirs,omitempty"`

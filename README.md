@@ -46,22 +46,47 @@ Heydit's harness is built for long editing sessions on small token budgets:
 
 | Mechanism | What it does |
 |---|---|
-| **State ledger, not transcripts** | The full project state — sources, every edit applied, the current working video and its metadata — is serialized into a compact block re-injected each turn. The model never depends on old conversation turns to know where the video stands. |
-| **Aggressive history compaction** | Because the ledger carries state, old `tool_use`/`tool_result` exchanges are redundant; past a budget threshold they collapse to one-line notes, oldest first, deterministically (no summarizer call). The first user message (session intent) always survives. |
-| **Compact tool results** | Tools return one summary line plus a few structured facts, hard-capped by `context.tool_result_max_chars`. Raw ffmpeg logs never reach the model. |
-| **Progressive skill disclosure** | Only a one-line index of every skill is always visible; a skill's full playbook enters context only when the request triggers it. |
-| **Everything undoable** | Each mutating tool renders to a numbered file and commits an op to the ledger. `/undo` pops it; clicking any step in the UI previews that intermediate. |
-| **Bounded by construction** | Every ffmpeg run has a hard timeout; every render is normalized (even dims, yuv420p); tool arguments are coerced forgivingly (string numbers etc.) so model quirks don't crash the loop. |
+| **Prompt-cache hygiene** | The system prompt is byte-stable for the whole session (identity + memory files + skill index). Volatile state travels as tagged reminder blocks on user messages — and the project ledger is a **delta**: re-sent only when it actually changed. Providers cache the prefix across every turn. |
+| **State ledger, not transcripts** | The full project state — sources, every edit applied, the current working video and its metadata — lives in one compact `<project-state>` block. The model never depends on old conversation turns to know where the video stands. |
+| **Layered compaction** | Old `tool_use`/`tool_result` exchanges collapse to one-line notes past a budget threshold, deterministically (no summarizer call); the session-intent message always survives. `/compact` additionally does a model-written structured summary (creative direction with verbatim quotes, timeline state, assets, failures, pending work). |
+| **Compact results + disk spill** | Tools return one summary line plus structured facts, hard-capped by `context.tool_result_max_chars`. Anything truncated is spilled in full to `.heydit/out/tool-results/` and readable back via the `read_text` tool — the cap can't destroy information. |
+| **Probe-after-edit feedback** | Every mutating tool's result carries a fresh probe of its output (`now=1080x1920 30fps 12.1s audio:yes`), so the model immediately sees the concrete effect of each edit — the video analogue of a coding agent seeing compiler diagnostics after a write. |
+| **Permission gate** | Rules (`{tool, action}`) evaluated last-match-wins, three modes (`auto`/`ask`/`plan`), interactive approve with `always`, and **deny-with-feedback**: type a correction instead of "no" and it reaches the model as guidance. A bypass-immune safety tier prompts for destructive writes (e.g. export over an existing file) even when rules allow. |
+| **Plan mode** | `/plan` flips the agent to propose-only: mutating tools are hard-denied regardless of rules, and a reminder instructs the model to present a numbered plan. |
+| **Doom-loop detection** | The third byte-identical tool call in a row is refused with corrective feedback instead of burning another render. |
+| **Visible retries** | Provider failures are classified (429/5xx/network retry; 4xx never), honor `Retry-After`, back off exponentially with jitter — and each wait is emitted as an event, so the CLI shows `↻ attempt 2/5, retrying in 4s` instead of silently hanging. |
+| **Parallel-safe tool batches** | Consecutive read-only calls (probe, read_text) run concurrently with results emitted in call order; mutating renders stay strictly serial. |
+| **Sessions that survive** | History persists to `.heydit/session.json` after every turn; `heydit -c` resumes the conversation — after a crash, a reboot, or a model switch. |
+| **Progressive skill disclosure** | Only a one-line index of every skill is always visible; a skill's full playbook is injected once, on trigger. |
+| **Everything undoable** | Each mutating tool renders to a numbered file and commits a ledger op. `/undo` pops it; clicking any step in the UI previews that intermediate. |
+| **Bounded by construction** | Hard timeout on every ffmpeg run; normalized renders (even dims, yuv420p); forgiving argument coercion so model quirks don't crash the loop. |
 
 The agent's contract is small: work on CURRENT, chain mutating tools (each output
-becomes the new CURRENT), trust the ledger over memory, use `render` (raw
-filtergraph escape hatch) only when no dedicated tool fits.
+becomes the new CURRENT), trust the newest `<project-state>` over memory, use
+`render` (raw filtergraph escape hatch) only when no dedicated tool fits.
+
+### Memory files
+
+Drop a `HEYDIT.md` in the project root (or `~/.heydit/HEYDIT.md` globally) with
+standing instructions — house style, caption fonts, export conventions. It is
+loaded into the static system prompt every session, project file last so it
+wins.
+
+### Permissions in config
+
+```yaml
+mode: ask            # auto (default) | ask | plan
+permissions:         # last match wins; '*' and 'prefix*' wildcards
+  - {tool: "*", action: allow}
+  - {tool: "render", action: ask}
+  - {tool: "change_*", action: deny}
+```
 
 ### Tools
 
 `probe · trim · concat · set_speed · crop · expand_frame · change_background ·
 overlay_text · render · export · transcribe · tts · extract_audio ·
-replace_audio · mix_audio`
+replace_audio · mix_audio · read_text`
 
 ## Models are configuration, not code
 
@@ -132,6 +157,7 @@ server unchanged.
 
 ```
 heydit                        interactive session (current dir = project)
+heydit -c | --continue        resume the previous conversation
 heydit -p "request"           one-shot edit
 heydit add <video...>         register source videos
 heydit ui [--addr host:port]  desktop editing screen
@@ -142,21 +168,22 @@ heydit skills                 list skills
 heydit doctor                 environment checkup
 ```
 
-REPL: `/model /models /config /ops /undo /skills /skill <name> /cost /export /help /quit`
+REPL: `/model /models /config /mode /plan /compact /ops /undo /skills /skill <name> /cost /export /help /quit`
 
 ## Layout
 
 ```
 cmd/heydit/            CLI entry + subcommands
-internal/agent/        the harness: loop, system prompt, compaction
-internal/provider/     Anthropic + OpenAI-compatible adapters
-internal/tools/        tool registry, video + audio tools
+internal/agent/        the harness: loop, reminders, compaction, sessions
+internal/permission/   rule engine, modes, safety tier
+internal/provider/     Anthropic + OpenAI-compatible adapters + retry
+internal/tools/        tool registry, video + audio + text tools
 internal/media/        ffmpeg wrappers, project ledger, undo
 internal/voice/        TTS/STT clients (Kokoro, ElevenLabs, Whisper, …)
 internal/skills/       skill loading + built-in playbooks (embedded)
 internal/config/       layered config, presets, dotted-path access
 internal/server/       desktop UI server + embedded frontend
-internal/cli/          REPL + terminal rendering
+internal/cli/          REPL, permission prompts, terminal rendering
 ```
 
 ## Testing
@@ -167,13 +194,17 @@ go test ./...
 
 Covers: the full agent loop against a scripted model with **real ffmpeg
 renders** (trim commits an op, CURRENT advances, results stay compact, errors
-survive as `is_error`), both provider wire formats via local fake servers,
-history compaction invariants, skill loading/triggering/overriding, config
-layering and model switching, and tool argument/aspect parsing.
+survive as `is_error`), prompt-cache hygiene (static system prompt, ledger
+deltas, no duplicate skill injection), permission rules/modes/safety tier,
+doom-loop refusal, plan mode blocking real renders, session save/load,
+max-turns honesty, retry classification with fake 429/400 servers, both
+provider wire formats, compaction invariants, skill loading/overriding, and
+config layering.
 
 ## Roadmap
 
 - Streaming responses and cancellable renders
+- Shadow-git snapshots of the project dir for multi-turn revert (opencode-style)
 - Cloud generative tools (outpainting for `expand_frame`, matting for
   `change_background`) behind the same tool contracts
 - Native desktop packaging (Wails) around `internal/server`

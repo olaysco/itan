@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -22,6 +23,9 @@ type Project struct {
 	Assets  []Asset  `json:"assets"`
 	Ops     []EditOp `json:"ops"`
 	Current string   `json:"current"` // path of the working video
+
+	mu  sync.Mutex
+	seq int // in-memory output counter; survives parallel tools without collisions
 }
 
 type Asset struct {
@@ -94,10 +98,19 @@ func (p *Project) AddAsset(ctx context.Context, path string) (*Asset, error) {
 	return &a, p.Save()
 }
 
-// NextOutput reserves a numbered output path for a tool run.
+// NextOutput reserves a numbered output path for a tool run. The counter is
+// monotonic and mutex-guarded so concurrency-safe tools running in parallel
+// never collide on a filename.
 func (p *Project) NextOutput(tool, ext string) string {
 	_ = os.MkdirAll(p.OutDir(), 0o755)
-	return filepath.Join(p.OutDir(), fmt.Sprintf("%03d-%s%s", len(p.Ops)+1, tool, ext))
+	p.mu.Lock()
+	if p.seq < len(p.Ops) {
+		p.seq = len(p.Ops)
+	}
+	p.seq++
+	n := p.seq
+	p.mu.Unlock()
+	return filepath.Join(p.OutDir(), fmt.Sprintf("%03d-%s%s", n, tool, ext))
 }
 
 // Commit records a completed edit and advances the working video when the

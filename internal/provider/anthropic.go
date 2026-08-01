@@ -78,7 +78,10 @@ func (a *Anthropic) Complete(ctx context.Context, req Request) (*Response, error
 	defer resp.Body.Close()
 	payload, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("anthropic: %s: %s", resp.Status, truncate(string(payload), 400))
+		return nil, &HTTPError{
+			Provider: "anthropic", Status: resp.StatusCode,
+			Body: truncate(string(payload), 400), RetryAfter: retryAfter(resp.Header),
+		}
 	}
 
 	var out struct {

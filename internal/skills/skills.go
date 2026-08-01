@@ -122,7 +122,7 @@ func (s *Set) Index() string {
 	for _, sk := range s.All() {
 		b.WriteString("- " + sk.Name + ": " + sk.Description + "\n")
 	}
-	b.WriteString("A matching skill's full playbook, when provided below, MUST guide your edits.\n")
+	b.WriteString("When a skill's playbook arrives in a <skill-playbook> block, it MUST guide your edits.\n")
 	return b.String()
 }
 
