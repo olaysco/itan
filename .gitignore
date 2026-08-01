@@ -4,10 +4,11 @@ heydit.exe
 dist/
 
 # Project/session state and rendered media
-.heydit/
+.itan/
 
 # Editor / OS
 .DS_Store
 .idea/
 .vscode/
 *.log
+launch-build/
