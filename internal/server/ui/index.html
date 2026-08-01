@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Clipwright</title>
+<title>Itan</title>
 <style>
 :root{--bg:#0b0f1a;--panel:#121827;--panel2:#1a2236;--line:#26304a;--text:#e8edf7;--muted:#8a97b1;
 --accent:#6d8bff;--accent2:#9b6dff;--good:#37d39a;--bad:#ff6b6b;--r:12px}
@@ -64,7 +64,7 @@ border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px}
 </head>
 <body>
 <header>
-  <h1>🎬 Clipwright</h1>
+  <h1>🎬 Itan</h1>
   <span class="model" id="model">…</span>
 </header>
 <main>
@@ -95,7 +95,7 @@ border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px}
       <button data-q="Fix the grammar in the spoken audio">Fix speech grammar</button>
     </div>
     <form class="compose" id="form">
-      <input id="input" placeholder="Ask Clipwright to edit…" autocomplete="off">
+      <input id="input" placeholder="Ask Itan to edit…" autocomplete="off">
       <button class="primary" id="send">Send</button>
     </form>
   </section>
@@ -117,7 +117,7 @@ function setPreview(url, isCurrent){
   if(!src){v.style.display='none';$('#empty').style.display='block';return}
   $('#empty').style.display='none'; v.style.display='block';
   if(v.dataset.src!==src){v.dataset.src=src;v.src=src+'&t='+Date.now();}
-  $('#download').href=src; $('#download').download='clipwright.mp4';
+  $('#download').href=src; $('#download').download='itan.mp4';
   renderStrip();
 }
 function renderStrip(){

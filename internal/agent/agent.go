@@ -21,13 +21,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/olaysco/clipwright/internal/config"
-	"github.com/olaysco/clipwright/internal/media"
-	"github.com/olaysco/clipwright/internal/permission"
-	"github.com/olaysco/clipwright/internal/provider"
-	"github.com/olaysco/clipwright/internal/skills"
-	"github.com/olaysco/clipwright/internal/tools"
-	"github.com/olaysco/clipwright/internal/voice"
+	"github.com/olaysco/itan/internal/config"
+	"github.com/olaysco/itan/internal/media"
+	"github.com/olaysco/itan/internal/permission"
+	"github.com/olaysco/itan/internal/provider"
+	"github.com/olaysco/itan/internal/skills"
+	"github.com/olaysco/itan/internal/tools"
+	"github.com/olaysco/itan/internal/voice"
 )
 
 // Event streams progress to the CLI/UI while a request runs.
@@ -355,14 +355,14 @@ func (a *Agent) checkPermission(use provider.Block) (permission.Decision, permis
 }
 
 // safetyReason flags the bypass-immune tier: writes that clobber files
-// outside Clipwright's managed output directory.
+// outside Itan's managed output directory.
 func (a *Agent) safetyReason(tool string, args map[string]any) string {
 	if tool != "export" {
 		return ""
 	}
 	dest, _ := args["path"].(string)
 	if dest == "" {
-		dest = filepath.Join(a.Project.Dir, "clipwright-export.mp4")
+		dest = filepath.Join(a.Project.Dir, "itan-export.mp4")
 	} else if !filepath.IsAbs(dest) {
 		dest = filepath.Join(a.Project.Dir, dest)
 	}
@@ -459,10 +459,10 @@ type sessionState struct {
 }
 
 func (a *Agent) sessionPath() string {
-	return filepath.Join(a.Project.Dir, ".clipwright", "session.json")
+	return filepath.Join(a.Project.Dir, ".itan", "session.json")
 }
 
-// SaveSession persists conversation history so `clipwright --continue` can resume
+// SaveSession persists conversation history so `itan --continue` can resume
 // after a restart or crash.
 func (a *Agent) SaveSession() error {
 	if err := os.MkdirAll(filepath.Dir(a.sessionPath()), 0o755); err != nil {

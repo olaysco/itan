@@ -1,13 +1,13 @@
-// Package config implements Clipwright's layered configuration.
+// Package config implements Itan's layered configuration.
 //
 // Precedence (lowest → highest):
 //  1. built-in defaults
-//  2. global   ~/.clipwright/config.yaml
-//  3. project  <project>/.clipwright/config.yaml
+//  2. global   ~/.itan/config.yaml
+//  3. project  <project>/.itan/config.yaml
 //  4. process environment (API keys are only ever read from env)
 //
 // Any value is addressable by a dotted path (e.g. "model.id",
-// "audio.tts.provider") for `clipwright config get|set` and the /config command.
+// "audio.tts.provider") for `itan config get|set` and the /config command.
 package config
 
 import (
@@ -20,7 +20,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/olaysco/clipwright/internal/permission"
+	"github.com/olaysco/itan/internal/permission"
 )
 
 // Model selects the LLM that drives the harness.
@@ -72,12 +72,12 @@ type Config struct {
 	//   permissions: [{tool: "render", action: ask}, {tool: "*", action: allow}]
 	Permissions []permission.Rule `yaml:"permissions,omitempty"`
 	// SkillDirs are extra directories scanned for skills, beyond the
-	// built-ins and ~/.clipwright/skills.
+	// built-ins and ~/.itan/skills.
 	SkillDirs []string `yaml:"skill_dirs,omitempty"`
 }
 
 // ProviderPreset describes a known model host so users can switch with
-// `clipwright model use kimi/kimi-k3` without hand-writing base URLs.
+// `itan model use kimi/kimi-k3` without hand-writing base URLs.
 type ProviderPreset struct {
 	Kind         string // wire protocol: "anthropic" or "openai"
 	BaseURL      string
@@ -122,18 +122,18 @@ func Default() *Config {
 	}
 }
 
-// GlobalDir returns ~/.clipwright (created on demand by Save).
+// GlobalDir returns ~/.itan (created on demand by Save).
 func GlobalDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return ".clipwright"
+		return ".itan"
 	}
-	return filepath.Join(home, ".clipwright")
+	return filepath.Join(home, ".itan")
 }
 
 func globalPath() string { return filepath.Join(GlobalDir(), "config.yaml") }
 func projectPath(dir string) string {
-	return filepath.Join(dir, ".clipwright", "config.yaml")
+	return filepath.Join(dir, ".itan", "config.yaml")
 }
 
 // Load merges defaults ← global ← project config for the given project dir.
@@ -166,8 +166,8 @@ func SaveGlobal(cfg *Config) error {
 // UseModel switches the active model, accepting "preset", "preset/model-id",
 // or a bare model id (provider kept). Examples:
 //
-//	clipwright model use kimi/kimi-k3
-//	clipwright model use anthropic
+//	itan model use kimi/kimi-k3
+//	itan model use anthropic
 //	/model claude-sonnet-4.5
 func (c *Config) UseModel(spec string) error {
 	provider, id, hasSlash := strings.Cut(spec, "/")
@@ -290,7 +290,7 @@ func coerce(v string) any {
 	return v
 }
 
-// Dump renders the effective config as YAML for `clipwright config list`.
+// Dump renders the effective config as YAML for `itan config list`.
 func (c *Config) Dump() string {
 	raw, _ := yaml.Marshal(c)
 	return string(raw)

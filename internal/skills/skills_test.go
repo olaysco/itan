@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/olaysco/clipwright/internal/config"
+	"github.com/olaysco/itan/internal/config"
 )
 
 func TestBuiltinsLoad(t *testing.T) {
@@ -38,7 +38,7 @@ func TestTriggerMatching(t *testing.T) {
 
 func TestProjectSkillOverridesBuiltin(t *testing.T) {
 	dir := t.TempDir()
-	skillDir := filepath.Join(dir, ".clipwright", "skills", "tiktok")
+	skillDir := filepath.Join(dir, ".itan", "skills", "tiktok")
 	if err := os.MkdirAll(skillDir, 0o755); err != nil {
 		t.Fatal(err)
 	}

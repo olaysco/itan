@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/olaysco/clipwright/internal/permission"
-	"github.com/olaysco/clipwright/internal/provider"
+	"github.com/olaysco/itan/internal/permission"
+	"github.com/olaysco/itan/internal/provider"
 )
 
 // TestDoomLoopDetection: the third byte-identical tool call is refused with
@@ -104,7 +104,7 @@ func TestSessionPersistence(t *testing.T) {
 	if len(b.History) != len(a.History) || b.InputTokens != 11 || b.OutputTokens != 7 {
 		t.Fatalf("state lost: msgs=%d tokens=%d/%d", len(b.History), b.InputTokens, b.OutputTokens)
 	}
-	if _, err := os.Stat(filepath.Join(proj.Dir, ".clipwright", "session.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(proj.Dir, ".itan", "session.json")); err != nil {
 		t.Fatal("session file missing")
 	}
 }

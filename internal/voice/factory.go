@@ -3,7 +3,7 @@ package voice
 import (
 	"os"
 
-	"github.com/olaysco/clipwright/internal/config"
+	"github.com/olaysco/itan/internal/config"
 )
 
 // TTSFromConfig builds the active TTS client from config.

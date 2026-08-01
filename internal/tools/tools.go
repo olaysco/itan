@@ -3,7 +3,7 @@
 // Tools follow two harness rules that keep the loop token-efficient and safe:
 //  1. Results are compact: one summary line plus a few structured facts —
 //     never raw ffmpeg logs or file dumps.
-//  2. Every render lands in a numbered file under .clipwright/out and is
+//  2. Every render lands in a numbered file under .itan/out and is
 //     committed to the project ledger, so state lives in the ledger rather
 //     than in conversation history, and any step can be undone or previewed.
 package tools
@@ -15,9 +15,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/olaysco/clipwright/internal/config"
-	"github.com/olaysco/clipwright/internal/media"
-	"github.com/olaysco/clipwright/internal/voice"
+	"github.com/olaysco/itan/internal/config"
+	"github.com/olaysco/itan/internal/media"
+	"github.com/olaysco/itan/internal/voice"
 )
 
 // Ctx carries everything a tool may need.

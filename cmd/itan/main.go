@@ -1,13 +1,13 @@
-// Command clipwright is the agentic video editor CLI.
+// Command itan is the agentic video editor CLI.
 //
 // Usage:
 //
-//	clipwright                       interactive session in the current directory
-//	clipwright -p "make it a reel"   one-shot request
-//	clipwright add clip.mp4          add a source video to the project
-//	clipwright ui [--addr host:port] desktop editing screen in the browser
-//	clipwright model use kimi/kimi-k3
-//	clipwright models | config | skills | doctor | version
+//	itan                       interactive session in the current directory
+//	itan -p "make it a reel"   one-shot request
+//	itan add clip.mp4          add a source video to the project
+//	itan ui [--addr host:port] desktop editing screen in the browser
+//	itan model use kimi/kimi-k3
+//	itan models | config | skills | doctor | version
 package main
 
 import (
@@ -20,18 +20,18 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/olaysco/clipwright/internal/cli"
-	"github.com/olaysco/clipwright/internal/config"
-	"github.com/olaysco/clipwright/internal/media"
-	"github.com/olaysco/clipwright/internal/server"
-	"github.com/olaysco/clipwright/internal/skills"
+	"github.com/olaysco/itan/internal/cli"
+	"github.com/olaysco/itan/internal/config"
+	"github.com/olaysco/itan/internal/media"
+	"github.com/olaysco/itan/internal/server"
+	"github.com/olaysco/itan/internal/skills"
 )
 
 const version = "0.2.0"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "clipwright:", err)
+		fmt.Fprintln(os.Stderr, "itan:", err)
 		os.Exit(1)
 	}
 }
@@ -45,7 +45,7 @@ func run(args []string) error {
 		return err
 	}
 
-	// `clipwright -c` / `--continue` resumes the saved conversation; it may be
+	// `itan -c` / `--continue` resumes the saved conversation; it may be
 	// combined with the REPL (default) or -p.
 	resume := false
 	filtered := args[:0:0]
@@ -69,7 +69,7 @@ func run(args []string) error {
 	switch args[0] {
 	case "-p", "--print":
 		if len(args) < 2 {
-			return fmt.Errorf("usage: clipwright -p \"request\"")
+			return fmt.Errorf("usage: itan -p \"request\"")
 		}
 		session, err := cli.NewSession(dir, resume)
 		if err != nil {
@@ -79,7 +79,7 @@ func run(args []string) error {
 
 	case "add":
 		if len(args) < 2 {
-			return fmt.Errorf("usage: clipwright add <video...>")
+			return fmt.Errorf("usage: itan add <video...>")
 		}
 		proj, err := media.LoadProject(dir)
 		if err != nil {
@@ -135,7 +135,7 @@ func run(args []string) error {
 		return cmdDoctor(dir)
 
 	case "version", "--version", "-v":
-		fmt.Println("clipwright", version)
+		fmt.Println("itan", version)
 		return nil
 
 	case "help", "--help", "-h":
@@ -147,20 +147,20 @@ func run(args []string) error {
 	}
 }
 
-const usage = `clipwright — agentic AI video editor
+const usage = `itan — agentic AI video editor
 
-  clipwright                        interactive session (current dir = project)
-  clipwright -c | --continue        resume the previous conversation
-  clipwright -p "request"           one-shot edit, then exit
-  clipwright add <video...>         register source videos with the project
-  clipwright ui [--addr host:port]  open the desktop editing screen
-  clipwright model use <spec>       switch model (anthropic | kimi/kimi-k3 | ollama/... )
-  clipwright model                  show the active model
-  clipwright models                 list provider presets
-  clipwright config [get|set|list]  inspect or change configuration
-  clipwright skills                 list available skills
-  clipwright doctor                 check ffmpeg, model, and voice endpoints
-  clipwright version                print version
+  itan                        interactive session (current dir = project)
+  itan -c | --continue        resume the previous conversation
+  itan -p "request"           one-shot edit, then exit
+  itan add <video...>         register source videos with the project
+  itan ui [--addr host:port]  open the desktop editing screen
+  itan model use <spec>       switch model (anthropic | kimi/kimi-k3 | ollama/... )
+  itan model                  show the active model
+  itan models                 list provider presets
+  itan config [get|set|list]  inspect or change configuration
+  itan skills                 list available skills
+  itan doctor                 check ffmpeg, model, and voice endpoints
+  itan version                print version
 `
 
 func cmdModel(dir string, args []string) error {
@@ -173,7 +173,7 @@ func cmdModel(dir string, args []string) error {
 		return nil
 	}
 	if args[0] != "use" || len(args) < 2 {
-		return fmt.Errorf("usage: clipwright model [show|use <provider[/model]>]")
+		return fmt.Errorf("usage: itan model [show|use <provider[/model]>]")
 	}
 	if err := cfg.UseModel(args[1]); err != nil {
 		return err
@@ -199,7 +199,7 @@ func cmdConfig(dir string, args []string) error {
 		fmt.Print(cfg.Dump())
 	case "get":
 		if len(args) < 2 {
-			return fmt.Errorf("usage: clipwright config get <key>")
+			return fmt.Errorf("usage: itan config get <key>")
 		}
 		v, err := cfg.Get(args[1])
 		if err != nil {
@@ -208,7 +208,7 @@ func cmdConfig(dir string, args []string) error {
 		fmt.Println(v)
 	case "set":
 		if len(args) < 3 {
-			return fmt.Errorf("usage: clipwright config set <key> <value>")
+			return fmt.Errorf("usage: itan config set <key> <value>")
 		}
 		if err := cfg.Set(args[1], strings.Join(args[2:], " ")); err != nil {
 			return err
@@ -218,7 +218,7 @@ func cmdConfig(dir string, args []string) error {
 		}
 		fmt.Printf("✓ %s = %s\n", args[1], strings.Join(args[2:], " "))
 	default:
-		return fmt.Errorf("usage: clipwright config [list|get <key>|set <key> <value>]")
+		return fmt.Errorf("usage: itan config [list|get <key>|set <key> <value>]")
 	}
 	return nil
 }
@@ -253,7 +253,7 @@ func cmdDoctor(dir string) error {
 	check("tts", true, fmt.Sprintf("%s @ %s (voice %s)", cfg.Audio.TTS.Provider, cfg.Audio.TTS.BaseURL, cfg.Audio.TTS.Voice))
 	check("stt", true, fmt.Sprintf("%s @ %s", cfg.Audio.STT.Provider, cfg.Audio.STT.BaseURL))
 	fmt.Println("\nvoice endpoints are only contacted when a request needs them;")
-	fmt.Println("run your kokoro/whisper servers locally or switch providers via `clipwright config set`.")
+	fmt.Println("run your kokoro/whisper servers locally or switch providers via `itan config set`.")
 	return nil
 }
 

@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/olaysco/clipwright/internal/agent"
-	"github.com/olaysco/clipwright/internal/config"
-	"github.com/olaysco/clipwright/internal/media"
-	"github.com/olaysco/clipwright/internal/permission"
-	"github.com/olaysco/clipwright/internal/provider"
-	"github.com/olaysco/clipwright/internal/skills"
+	"github.com/olaysco/itan/internal/agent"
+	"github.com/olaysco/itan/internal/config"
+	"github.com/olaysco/itan/internal/media"
+	"github.com/olaysco/itan/internal/permission"
+	"github.com/olaysco/itan/internal/provider"
+	"github.com/olaysco/itan/internal/skills"
 )
 
 const (
@@ -36,7 +36,7 @@ type Session struct {
 }
 
 // NewSession builds a session. When resume is true, a previously saved
-// conversation (.clipwright/session.json) is restored.
+// conversation (.itan/session.json) is restored.
 func NewSession(projectDir string, resume bool) (*Session, error) {
 	cfg, err := config.Load(projectDir)
 	if err != nil {
@@ -210,7 +210,7 @@ func (s *Session) Repl(ctx context.Context) error {
 }
 
 func (s *Session) banner() {
-	fmt.Printf("%s%sClipwright%s — agentic video editor\n", bold, cyan, reset)
+	fmt.Printf("%s%sItan%s — agentic video editor\n", bold, cyan, reset)
 	mode := "auto"
 	if s.Agent != nil {
 		mode = string(s.Agent.Gate.Mode())

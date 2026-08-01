@@ -1,4 +1,4 @@
-module github.com/olaysco/clipwright
+module github.com/olaysco/itan
 
 go 1.24.7
 
