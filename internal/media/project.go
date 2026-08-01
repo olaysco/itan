@@ -14,7 +14,7 @@ import (
 // Project is the durable state of an editing session: the source assets, the
 // stack of edits applied, and the current working output.
 //
-// The ledger it renders is the heart of Heydit's token efficiency: instead of
+// The ledger it renders is the heart of Clipwright's token efficiency: instead of
 // replaying long tool transcripts to the model every turn, the full editing
 // state is carried in one compact block, so old conversation turns can be
 // aggressively compacted without the agent losing track of the video.
@@ -44,7 +44,7 @@ type EditOp struct {
 	At      time.Time      `json:"at"`
 }
 
-func stateDir(dir string) string { return filepath.Join(dir, ".heydit") }
+func stateDir(dir string) string { return filepath.Join(dir, ".clipwright") }
 func statePath(dir string) string {
 	return filepath.Join(stateDir(dir), "project.json")
 }

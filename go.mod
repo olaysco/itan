@@ -1,4 +1,4 @@
-module github.com/olaysco/heydit
+module github.com/olaysco/clipwright
 
 go 1.24.7
 

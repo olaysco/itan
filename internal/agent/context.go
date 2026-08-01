@@ -3,7 +3,7 @@ package agent
 import (
 	"fmt"
 
-	"github.com/olaysco/heydit/internal/provider"
+	"github.com/olaysco/clipwright/internal/provider"
 )
 
 // EstimateTokens is a cheap, provider-agnostic token estimate (~4 chars/token

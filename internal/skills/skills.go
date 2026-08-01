@@ -1,4 +1,4 @@
-// Package skills implements Heydit's skill system: reusable editing playbooks
+// Package skills implements Clipwright's skill system: reusable editing playbooks
 // injected into the agent with progressive disclosure.
 //
 // Token efficiency: only the one-line index of every skill is always visible
@@ -14,8 +14,8 @@
 //	---
 //	...playbook body...
 //
-// Search order (later wins on name clash): built-ins → ~/.heydit/skills/*/SKILL.md
-// → <project>/.heydit/skills/*/SKILL.md → cfg.SkillDirs.
+// Search order (later wins on name clash): built-ins → ~/.clipwright/skills/*/SKILL.md
+// → <project>/.clipwright/skills/*/SKILL.md → cfg.SkillDirs.
 package skills
 
 import (
@@ -26,7 +26,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/olaysco/heydit/internal/config"
+	"github.com/olaysco/clipwright/internal/config"
 )
 
 //go:embed defaults/*/SKILL.md
@@ -65,7 +65,7 @@ func Load(cfg *config.Config, projectDir string) *Set {
 
 	dirs := []string{
 		filepath.Join(config.GlobalDir(), "skills"),
-		filepath.Join(projectDir, ".heydit", "skills"),
+		filepath.Join(projectDir, ".clipwright", "skills"),
 	}
 	dirs = append(dirs, cfg.SkillDirs...)
 	for _, dir := range dirs {

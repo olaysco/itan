@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/olaysco/heydit/internal/media"
+	"github.com/olaysco/clipwright/internal/media"
 )
 
 func videoTools() []Tool {
@@ -117,7 +117,7 @@ func videoTools() []Tool {
 			Name:        "export",
 			Description: "Export the CURRENT working video to a final path (e.g. 'final.mp4' in the project dir).",
 			Schema: schema(nil, map[string]map[string]any{
-				"path": prop("string", "Destination path; defaults to '<project>/heydit-export.mp4'."),
+				"path": prop("string", "Destination path; defaults to '<project>/clipwright-export.mp4'."),
 			}),
 			Run: runExport,
 		},
@@ -451,7 +451,7 @@ func runExport(c *Ctx, args Args) Result {
 	}
 	dest := args.Str("path")
 	if dest == "" {
-		dest = filepath.Join(c.Project.Dir, "heydit-export.mp4")
+		dest = filepath.Join(c.Project.Dir, "clipwright-export.mp4")
 	}
 	if !filepath.IsAbs(dest) {
 		dest = filepath.Join(c.Project.Dir, dest)
@@ -472,12 +472,12 @@ func runExport(c *Ctx, args Args) Result {
 	return Result{Summary: "exported to " + dest, Data: data}
 }
 
-// backupIfExists copies an about-to-be-overwritten file into .heydit/backup.
+// backupIfExists copies an about-to-be-overwritten file into .clipwright/backup.
 func backupIfExists(dest string, p *media.Project) (string, error) {
 	if _, err := os.Stat(dest); err != nil {
 		return "", nil
 	}
-	dir := filepath.Join(p.Dir, ".heydit", "backup")
+	dir := filepath.Join(p.Dir, ".clipwright", "backup")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}

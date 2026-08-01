@@ -3,7 +3,7 @@ package provider
 import (
 	"fmt"
 
-	"github.com/olaysco/heydit/internal/config"
+	"github.com/olaysco/clipwright/internal/config"
 )
 
 // FromConfig builds the active Provider from the resolved model config.

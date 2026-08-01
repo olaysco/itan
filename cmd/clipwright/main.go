@@ -1,13 +1,13 @@
-// Command heydit is the agentic video editor CLI.
+// Command clipwright is the agentic video editor CLI.
 //
 // Usage:
 //
-//	heydit                       interactive session in the current directory
-//	heydit -p "make it a reel"   one-shot request
-//	heydit add clip.mp4          add a source video to the project
-//	heydit ui [--addr host:port] desktop editing screen in the browser
-//	heydit model use kimi/kimi-k3
-//	heydit models | config | skills | doctor | version
+//	clipwright                       interactive session in the current directory
+//	clipwright -p "make it a reel"   one-shot request
+//	clipwright add clip.mp4          add a source video to the project
+//	clipwright ui [--addr host:port] desktop editing screen in the browser
+//	clipwright model use kimi/kimi-k3
+//	clipwright models | config | skills | doctor | version
 package main
 
 import (
@@ -20,18 +20,18 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/olaysco/heydit/internal/cli"
-	"github.com/olaysco/heydit/internal/config"
-	"github.com/olaysco/heydit/internal/media"
-	"github.com/olaysco/heydit/internal/server"
-	"github.com/olaysco/heydit/internal/skills"
+	"github.com/olaysco/clipwright/internal/cli"
+	"github.com/olaysco/clipwright/internal/config"
+	"github.com/olaysco/clipwright/internal/media"
+	"github.com/olaysco/clipwright/internal/server"
+	"github.com/olaysco/clipwright/internal/skills"
 )
 
 const version = "0.2.0"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "heydit:", err)
+		fmt.Fprintln(os.Stderr, "clipwright:", err)
 		os.Exit(1)
 	}
 }
@@ -45,7 +45,7 @@ func run(args []string) error {
 		return err
 	}
 
-	// `heydit -c` / `--continue` resumes the saved conversation; it may be
+	// `clipwright -c` / `--continue` resumes the saved conversation; it may be
 	// combined with the REPL (default) or -p.
 	resume := false
 	filtered := args[:0:0]
@@ -69,7 +69,7 @@ func run(args []string) error {
 	switch args[0] {
 	case "-p", "--print":
 		if len(args) < 2 {
-			return fmt.Errorf("usage: heydit -p \"request\"")
+			return fmt.Errorf("usage: clipwright -p \"request\"")
 		}
 		session, err := cli.NewSession(dir, resume)
 		if err != nil {
@@ -79,7 +79,7 @@ func run(args []string) error {
 
 	case "add":
 		if len(args) < 2 {
-			return fmt.Errorf("usage: heydit add <video...>")
+			return fmt.Errorf("usage: clipwright add <video...>")
 		}
 		proj, err := media.LoadProject(dir)
 		if err != nil {
@@ -135,7 +135,7 @@ func run(args []string) error {
 		return cmdDoctor(dir)
 
 	case "version", "--version", "-v":
-		fmt.Println("heydit", version)
+		fmt.Println("clipwright", version)
 		return nil
 
 	case "help", "--help", "-h":
@@ -147,20 +147,20 @@ func run(args []string) error {
 	}
 }
 
-const usage = `heydit — agentic AI video editor
+const usage = `clipwright — agentic AI video editor
 
-  heydit                        interactive session (current dir = project)
-  heydit -c | --continue        resume the previous conversation
-  heydit -p "request"           one-shot edit, then exit
-  heydit add <video...>         register source videos with the project
-  heydit ui [--addr host:port]  open the desktop editing screen
-  heydit model use <spec>       switch model (anthropic | kimi/kimi-k3 | ollama/... )
-  heydit model                  show the active model
-  heydit models                 list provider presets
-  heydit config [get|set|list]  inspect or change configuration
-  heydit skills                 list available skills
-  heydit doctor                 check ffmpeg, model, and voice endpoints
-  heydit version                print version
+  clipwright                        interactive session (current dir = project)
+  clipwright -c | --continue        resume the previous conversation
+  clipwright -p "request"           one-shot edit, then exit
+  clipwright add <video...>         register source videos with the project
+  clipwright ui [--addr host:port]  open the desktop editing screen
+  clipwright model use <spec>       switch model (anthropic | kimi/kimi-k3 | ollama/... )
+  clipwright model                  show the active model
+  clipwright models                 list provider presets
+  clipwright config [get|set|list]  inspect or change configuration
+  clipwright skills                 list available skills
+  clipwright doctor                 check ffmpeg, model, and voice endpoints
+  clipwright version                print version
 `
 
 func cmdModel(dir string, args []string) error {
@@ -173,7 +173,7 @@ func cmdModel(dir string, args []string) error {
 		return nil
 	}
 	if args[0] != "use" || len(args) < 2 {
-		return fmt.Errorf("usage: heydit model [show|use <provider[/model]>]")
+		return fmt.Errorf("usage: clipwright model [show|use <provider[/model]>]")
 	}
 	if err := cfg.UseModel(args[1]); err != nil {
 		return err
@@ -199,7 +199,7 @@ func cmdConfig(dir string, args []string) error {
 		fmt.Print(cfg.Dump())
 	case "get":
 		if len(args) < 2 {
-			return fmt.Errorf("usage: heydit config get <key>")
+			return fmt.Errorf("usage: clipwright config get <key>")
 		}
 		v, err := cfg.Get(args[1])
 		if err != nil {
@@ -208,7 +208,7 @@ func cmdConfig(dir string, args []string) error {
 		fmt.Println(v)
 	case "set":
 		if len(args) < 3 {
-			return fmt.Errorf("usage: heydit config set <key> <value>")
+			return fmt.Errorf("usage: clipwright config set <key> <value>")
 		}
 		if err := cfg.Set(args[1], strings.Join(args[2:], " ")); err != nil {
 			return err
@@ -218,7 +218,7 @@ func cmdConfig(dir string, args []string) error {
 		}
 		fmt.Printf("✓ %s = %s\n", args[1], strings.Join(args[2:], " "))
 	default:
-		return fmt.Errorf("usage: heydit config [list|get <key>|set <key> <value>]")
+		return fmt.Errorf("usage: clipwright config [list|get <key>|set <key> <value>]")
 	}
 	return nil
 }
@@ -253,7 +253,7 @@ func cmdDoctor(dir string) error {
 	check("tts", true, fmt.Sprintf("%s @ %s (voice %s)", cfg.Audio.TTS.Provider, cfg.Audio.TTS.BaseURL, cfg.Audio.TTS.Voice))
 	check("stt", true, fmt.Sprintf("%s @ %s", cfg.Audio.STT.Provider, cfg.Audio.STT.BaseURL))
 	fmt.Println("\nvoice endpoints are only contacted when a request needs them;")
-	fmt.Println("run your kokoro/whisper servers locally or switch providers via `heydit config set`.")
+	fmt.Println("run your kokoro/whisper servers locally or switch providers via `clipwright config set`.")
 	return nil
 }
 

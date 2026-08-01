@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/olaysco/heydit/internal/config"
-	"github.com/olaysco/heydit/internal/skills"
+	"github.com/olaysco/clipwright/internal/config"
+	"github.com/olaysco/clipwright/internal/skills"
 )
 
 // The system prompt is deliberately STATIC for the whole session — identity,
@@ -15,7 +15,7 @@ import (
 // synthetic reminder blocks on user messages instead. Keeping the system
 // prompt byte-stable is what lets providers cache the prompt prefix across
 // every turn of a session.
-const identity = `You are Heydit, an agentic video editor. You edit real video files by calling tools; you never merely describe hypothetical edits.
+const identity = `You are Clipwright, an agentic video editor. You edit real video files by calling tools; you never merely describe hypothetical edits.
 
 Rules:
 - Work on the CURRENT working video; every mutating tool's output becomes the new CURRENT automatically. Chain tools for multi-part requests.
@@ -28,13 +28,13 @@ Rules:
 - If a request is impossible with the available tools, say so plainly and suggest the closest achievable edit.
 - Be terse. One short paragraph at the end describing what changed — no play-by-play, no markdown headers.`
 
-// memoryFiles are HEYDIT.md instruction files, closest-last so project-level
+// memoryFiles are CLIPWRIGHT.md instruction files, closest-last so project-level
 // guidance wins rhetorical priority over global.
 func loadMemory(projectDir string) string {
 	var parts []string
 	for _, p := range []string{
-		filepath.Join(config.GlobalDir(), "HEYDIT.md"),
-		filepath.Join(projectDir, "HEYDIT.md"),
+		filepath.Join(config.GlobalDir(), "CLIPWRIGHT.md"),
+		filepath.Join(projectDir, "CLIPWRIGHT.md"),
 	} {
 		data, err := os.ReadFile(p)
 		if err != nil {

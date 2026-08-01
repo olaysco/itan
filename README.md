@@ -1,8 +1,8 @@
-# 🎬 Heydit
+# 🎬 Clipwright
 
 **An agentic AI video editor with a strong, token-efficient harness — Claude Code, but for video.**
 
-You talk; Heydit picks the tools, runs real ffmpeg renders, and every edit lands in an
+You talk; Clipwright picks the tools, runs real ffmpeg renders, and every edit lands in an
 undoable ledger. One Go binary gives you the CLI, the agent harness, and a desktop
 editing screen. Every model — the brain, the voice, the ears — is configurable.
 
@@ -18,7 +18,7 @@ editing screen. Every model — the brain, the voice, the ears — is configurab
 ✓ transcribe — transcribed speech (3.1s)
 ⚙ tts {"text":"We were there when it launched — and it doesn't get better than this."}
 ✓ tts — synthesized 71 chars of speech (1.4s)
-⚙ replace_audio {"audio":".heydit/out/005-tts.wav"}
+⚙ replace_audio {"audio":".clipwright/out/005-tts.wav"}
 ✓ replace_audio — audio track replaced with 005-tts.wav → 006-newaudio.mp4 (0.8s)
 
 Reframed to 9:16 with the hook first, corrected the spoken line, and re-voiced it.
@@ -30,36 +30,36 @@ Reframed to 9:16 with the hook first, corrected the spoken line, and re-voiced i
 
 ```bash
 # needs Go ≥ 1.22 and ffmpeg on PATH
-go build -o heydit ./cmd/heydit
+go build -o clipwright ./cmd/clipwright
 
 export ANTHROPIC_API_KEY=sk-ant-…   # or any provider below
 cd ~/videos/my-project
-./heydit add clip.mp4
-./heydit                            # interactive session
-./heydit -p "trim to the first 10s" # one-shot
-./heydit ui                         # desktop editing screen
+./clipwright add clip.mp4
+./clipwright                            # interactive session
+./clipwright -p "trim to the first 10s" # one-shot
+./clipwright ui                         # desktop editing screen
 ```
 
 ## The harness (the point of this project)
 
-Heydit's harness is built for long editing sessions on small token budgets:
+Clipwright's harness is built for long editing sessions on small token budgets:
 
 | Mechanism | What it does |
 |---|---|
 | **Prompt-cache hygiene** | The system prompt is byte-stable for the whole session (identity + memory files + skill index). Volatile state travels as tagged reminder blocks on user messages — and the project ledger is a **delta**: re-sent only when it actually changed. Providers cache the prefix across every turn. |
 | **State ledger, not transcripts** | The full project state — sources, every edit applied, the current working video and its metadata — lives in one compact `<project-state>` block. The model never depends on old conversation turns to know where the video stands. |
 | **Layered compaction** | Old `tool_use`/`tool_result` exchanges collapse to one-line notes past a budget threshold, deterministically (no summarizer call); the session-intent message always survives. `/compact` additionally does a model-written structured summary (creative direction with verbatim quotes, timeline state, assets, failures, pending work). |
-| **Compact results + disk spill** | Tools return one summary line plus structured facts, hard-capped by `context.tool_result_max_chars`. Anything truncated is spilled in full to `.heydit/out/tool-results/` and readable back via the `read_text` tool — the cap can't destroy information. |
+| **Compact results + disk spill** | Tools return one summary line plus structured facts, hard-capped by `context.tool_result_max_chars`. Anything truncated is spilled in full to `.clipwright/out/tool-results/` and readable back via the `read_text` tool — the cap can't destroy information. |
 | **Probe-after-edit feedback** | Every mutating tool's result carries a fresh probe of its output (`now=1080x1920 30fps 12.1s audio:yes`), so the model immediately sees the concrete effect of each edit — the video analogue of a coding agent seeing compiler diagnostics after a write. |
 | **Permission gate** | Rules (`{tool, action}`) evaluated last-match-wins, three modes (`auto`/`ask`/`plan`), interactive approve with `always`, and **deny-with-feedback**: type a correction instead of "no" and it reaches the model as guidance. A bypass-immune safety tier prompts for destructive writes (e.g. export over an existing file) even when rules allow. |
 | **Plan mode** | `/plan` flips the agent to propose-only: mutating tools are hard-denied regardless of rules, and a reminder instructs the model to present a numbered plan. |
 | **Doom-loop detection** | The third byte-identical tool call in a row is refused with corrective feedback instead of burning another render. |
 | **Streaming responses** | Both provider dialects stream over SSE — assistant text renders token-by-token in the CLI while tool calls are reassembled from chunked fragments. Retries stay safe under streaming: a failed request only retries if no bytes reached the user yet. |
 | **Turn snapshots + `/revert`** | Every user request checkpoints the project (edit stack, CURRENT, assets) and the conversation. `/revert 2` rewinds both, two requests back — instantly, because renders are immutable numbered files that stay on disk. Checkpoints persist with the session. |
-| **Nothing destroyed on overwrite** | When an approved export replaces an existing file, the old version is copied to `.heydit/backup/` first and the backup path is reported in the tool result. |
+| **Nothing destroyed on overwrite** | When an approved export replaces an existing file, the old version is copied to `.clipwright/backup/` first and the backup path is reported in the tool result. |
 | **Visible retries** | Provider failures are classified (429/5xx/network retry; 4xx never), honor `Retry-After`, back off exponentially with jitter — and each wait is emitted as an event, so the CLI shows `↻ attempt 2/5, retrying in 4s` instead of silently hanging. |
 | **Parallel-safe tool batches** | Consecutive read-only calls (probe, read_text) run concurrently with results emitted in call order; mutating renders stay strictly serial. |
-| **Sessions that survive** | History persists to `.heydit/session.json` after every turn; `heydit -c` resumes the conversation — after a crash, a reboot, or a model switch. |
+| **Sessions that survive** | History persists to `.clipwright/session.json` after every turn; `clipwright -c` resumes the conversation — after a crash, a reboot, or a model switch. |
 | **Progressive skill disclosure** | Only a one-line index of every skill is always visible; a skill's full playbook is injected once, on trigger. |
 | **Everything undoable** | Each mutating tool renders to a numbered file and commits a ledger op. `/undo` pops it; clicking any step in the UI previews that intermediate. |
 | **Bounded by construction** | Hard timeout on every ffmpeg run; normalized renders (even dims, yuv420p); forgiving argument coercion so model quirks don't crash the loop. |
@@ -70,7 +70,7 @@ becomes the new CURRENT), trust the newest `<project-state>` over memory, use
 
 ### Memory files
 
-Drop a `HEYDIT.md` in the project root (or `~/.heydit/HEYDIT.md` globally) with
+Drop a `CLIPWRIGHT.md` in the project root (or `~/.clipwright/CLIPWRIGHT.md` globally) with
 standing instructions — house style, caption fonts, export conventions. It is
 loaded into the static system prompt every session, project file last so it
 wins.
@@ -97,11 +97,11 @@ The brain is any Anthropic-native or OpenAI-compatible endpoint — which covers
 Claude, Kimi (Moonshot), OpenRouter, Groq, Ollama, vLLM, llama.cpp:
 
 ```bash
-heydit model use anthropic            # Claude (default)
-heydit model use kimi/kimi-k3         # Moonshot Kimi K3
-heydit model use ollama/qwen2.5:14b   # fully local, keyless
-heydit model use openrouter/meta-llama/llama-4-maverick
-heydit models                         # list presets + key env vars
+clipwright model use anthropic            # Claude (default)
+clipwright model use kimi/kimi-k3         # Moonshot Kimi K3
+clipwright model use ollama/qwen2.5:14b   # fully local, keyless
+clipwright model use openrouter/meta-llama/llama-4-maverick
+clipwright models                         # list presets + key env vars
 ```
 
 Mid-session, `/model kimi/kimi-k3` switches while **keeping conversation
@@ -112,17 +112,17 @@ left off.
 
 | Role | Default | Switch to |
 |---|---|---|
-| TTS | **Kokoro-82M** (best open-source TTS, Apache-2.0) via [kokoro-fastapi](https://github.com/remsky/Kokoro-FastAPI)'s OpenAI-compatible endpoint | `heydit config set audio.tts.provider elevenlabs` (or `openai`, or any custom endpoint) |
-| STT | **Whisper** via any OpenAI-compatible server (faster-whisper-server, whisper.cpp) | `heydit config set audio.stt.provider openai` |
+| TTS | **Kokoro-82M** (best open-source TTS, Apache-2.0) via [kokoro-fastapi](https://github.com/remsky/Kokoro-FastAPI)'s OpenAI-compatible endpoint | `clipwright config set audio.tts.provider elevenlabs` (or `openai`, or any custom endpoint) |
+| STT | **Whisper** via any OpenAI-compatible server (faster-whisper-server, whisper.cpp) | `clipwright config set audio.stt.provider openai` |
 
 ```bash
 # run the default local voice stack
 docker run -p 8880:8880 ghcr.io/remsky/kokoro-fastapi-cpu   # TTS
 docker run -p 8000:8000 fedirz/faster-whisper-server         # STT
-heydit doctor                                                # verify everything
+clipwright doctor                                                # verify everything
 ```
 
-Config is layered (defaults → `~/.heydit/config.yaml` → `<project>/.heydit/config.yaml`),
+Config is layered (defaults → `~/.clipwright/config.yaml` → `<project>/.clipwright/config.yaml`),
 addressable by dotted paths, and API keys only ever come from environment variables.
 
 ## Skills
@@ -132,8 +132,8 @@ ship built in (9:16 conversion strategy, hook-first trimming, muted-viewing
 captions, pacing rules). Add your own:
 
 ```
-~/.heydit/skills/my-brand/SKILL.md          # global
-<project>/.heydit/skills/my-brand/SKILL.md  # per-project (overrides by name)
+~/.clipwright/skills/my-brand/SKILL.md          # global
+<project>/.clipwright/skills/my-brand/SKILL.md  # per-project (overrides by name)
 ```
 
 ```markdown
@@ -145,11 +145,11 @@ triggers: product, launch clip
 Always overlay_text the product name in the first 2 seconds…
 ```
 
-`heydit skills` lists them; a project skill with the same name overrides a built-in.
+`clipwright skills` lists them; a project skill with the same name overrides a built-in.
 
 ## Desktop
 
-`heydit ui` serves an embedded editing screen (chat + preview + clickable edit
+`clipwright ui` serves an embedded editing screen (chat + preview + clickable edit
 timeline + upload/undo/download) and opens your browser — same agent, same
 project state as the CLI, so you can move between them freely. The server only
 ever serves files registered in the project (assets, op outputs), never
@@ -159,16 +159,16 @@ server unchanged.
 ## CLI reference
 
 ```
-heydit                        interactive session (current dir = project)
-heydit -c | --continue        resume the previous conversation
-heydit -p "request"           one-shot edit
-heydit add <video...>         register source videos
-heydit ui [--addr host:port]  desktop editing screen
-heydit model [show|use spec]  switch models
-heydit models                 provider presets
-heydit config [list|get|set]  configuration
-heydit skills                 list skills
-heydit doctor                 environment checkup
+clipwright                        interactive session (current dir = project)
+clipwright -c | --continue        resume the previous conversation
+clipwright -p "request"           one-shot edit
+clipwright add <video...>         register source videos
+clipwright ui [--addr host:port]  desktop editing screen
+clipwright model [show|use spec]  switch models
+clipwright models                 provider presets
+clipwright config [list|get|set]  configuration
+clipwright skills                 list skills
+clipwright doctor                 environment checkup
 ```
 
 REPL: `/model /models /config /mode /plan /compact /ops /undo /revert /checkpoints /skills /skill <name> /cost /export /help /quit`
@@ -176,7 +176,7 @@ REPL: `/model /models /config /mode /plan /compact /ops /undo /revert /checkpoin
 ## Layout
 
 ```
-cmd/heydit/            CLI entry + subcommands
+cmd/clipwright/            CLI entry + subcommands
 internal/agent/        the harness: loop, reminders, compaction, sessions
 internal/permission/   rule engine, modes, safety tier
 internal/provider/     Anthropic + OpenAI-compatible adapters + retry
@@ -209,4 +209,4 @@ config layering.
 - Cloud generative tools (outpainting for `expand_frame`, matting for
   `change_background`) behind the same tool contracts
 - Native desktop packaging (Wails) around `internal/server`
-- Skill marketplace + `heydit skills install`
+- Skill marketplace + `clipwright skills install`

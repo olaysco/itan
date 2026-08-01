@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/olaysco/heydit/internal/config"
-	"github.com/olaysco/heydit/internal/media"
-	"github.com/olaysco/heydit/internal/provider"
-	"github.com/olaysco/heydit/internal/skills"
+	"github.com/olaysco/clipwright/internal/config"
+	"github.com/olaysco/clipwright/internal/media"
+	"github.com/olaysco/clipwright/internal/provider"
+	"github.com/olaysco/clipwright/internal/skills"
 )
 
 // scripted is a fake Provider that replays canned responses and records the

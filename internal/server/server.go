@@ -1,5 +1,5 @@
 // Package server hosts the desktop editing screen: an embedded single-page
-// UI over the same agent/session used by the CLI. `heydit ui` starts it and
+// UI over the same agent/session used by the CLI. `clipwright ui` starts it and
 // opens the browser; packaging it into a native shell (Wails/Tauri) reuses
 // this server unchanged.
 package server
@@ -15,9 +15,9 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/olaysco/heydit/internal/agent"
-	"github.com/olaysco/heydit/internal/cli"
-	"github.com/olaysco/heydit/internal/media"
+	"github.com/olaysco/clipwright/internal/agent"
+	"github.com/olaysco/clipwright/internal/cli"
+	"github.com/olaysco/clipwright/internal/media"
 )
 
 //go:embed ui/index.html
@@ -49,7 +49,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) Listen(addr string) error {
-	fmt.Printf("Heydit UI on http://%s\n", addr)
+	fmt.Printf("Clipwright UI on http://%s\n", addr)
 	return http.ListenAndServe(addr, s.Handler())
 }
 
@@ -163,7 +163,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	dir := filepath.Join(s.Session.Project.Dir, ".heydit", "uploads")
+	dir := filepath.Join(s.Session.Project.Dir, ".clipwright", "uploads")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		httpErr(w, 500, err.Error())
 		return

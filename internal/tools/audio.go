@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/olaysco/heydit/internal/media"
+	"github.com/olaysco/clipwright/internal/media"
 )
 
 func audioTools() []Tool {

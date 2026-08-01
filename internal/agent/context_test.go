@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/olaysco/heydit/internal/provider"
+	"github.com/olaysco/clipwright/internal/provider"
 )
 
 func msg(role, text string) provider.Message {
