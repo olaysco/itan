@@ -1090,6 +1090,7 @@ async function switchProject(dir){
   if(!r.ok){toast('✕ '+(j.error||'switch failed'));return}
   S.state=j;S.previewURL=null;S.selStep=null;msgs.innerHTML='';trace=null;liveA=null;
   closeOverlays();render();toast('project · '+(j.project||dir));
+  loadHistory();
 }
 $('#projOpen').onclick=()=>{const v=$('#projPath').value.trim();if(v)switchProject(v)};
 $('#projPath').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#projOpen').onclick()}});
@@ -1171,8 +1172,20 @@ document.addEventListener('keydown',e=>{
 });
 
 /* boot */
-addA('Tell ìtàn the story this footage should become. Type it, or hold the mic and just say it. Everything runs on this machine; nothing uploads.');
+async function loadHistory(){
+  let restored=false;
+  try{
+    const r=await(await fetch('/api/history')).json();
+    if(r.messages?.length){
+      msgs.innerHTML='';
+      r.messages.forEach(m=>m.role==='user'?addU(m.text):addA(m.text));
+      restored=true;
+    }
+  }catch(e){}
+  if(!restored&&!msgs.children.length)addA('Tell ìtàn the story this footage should become. Type it, or hold the mic and just say it. Everything runs on this machine; nothing uploads.');
+}
 refresh();
+loadHistory();
 </script>
 </body>
 </html>

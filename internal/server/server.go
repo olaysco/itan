@@ -111,6 +111,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", s.handleIndex)
 	mux.HandleFunc("GET /api/state", s.handleState)
+	mux.HandleFunc("GET /api/history", s.handleHistory)
 	mux.HandleFunc("POST /api/chat", s.handleChatStream)
 	mux.HandleFunc("POST /api/permission", s.handlePermission)
 	mux.HandleFunc("POST /api/upload", s.handleUpload)
@@ -287,6 +288,52 @@ func (s *Server) state() stateView {
 
 func (s *Server) handleState(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, s.state())
+}
+
+// --- conversation history --------------------------------------------------
+
+type chatMsg struct {
+	Role string `json:"role"` // "user" | "assistant"
+	Text string `json:"text"`
+}
+
+// handleHistory returns the displayable transcript of the saved conversation
+// so the chat panel survives reloads and project switches. Tool results,
+// harness reminders, and synthetic nudges are model-facing plumbing — they
+// are stripped, not shown.
+func (s *Server) handleHistory(w http.ResponseWriter, _ *http.Request) {
+	msgs := []chatMsg{}
+	if s.Session.Agent != nil {
+		for _, m := range s.Session.Agent.History {
+			var text string
+			for _, b := range m.Blocks {
+				if b.Type == "text" {
+					text += b.Text
+				}
+			}
+			text = strings.TrimSpace(stripReminders(text))
+			switch {
+			case text == "" || text == "(no output)":
+			case m.Role == "user" && strings.HasPrefix(text, "(You ended your turn"):
+			case m.Role == "user" && strings.HasPrefix(text, "[frames attached"):
+			case m.Role == "user" || m.Role == "assistant":
+				msgs = append(msgs, chatMsg{Role: m.Role, Text: text})
+			}
+		}
+	}
+	writeJSON(w, map[string]any{"messages": msgs})
+}
+
+// stripReminders cuts the harness-appended reminder blocks off a user
+// message; reminders are always appended after the user's own text.
+func stripReminders(text string) string {
+	cut := len(text)
+	for _, marker := range []string{"\n<skill-playbook", "\n<project-state>", "\n<plan-mode>"} {
+		if i := strings.Index(text, marker); i >= 0 && i < cut {
+			cut = i
+		}
+	}
+	return text[:cut]
 }
 
 // --- streaming chat --------------------------------------------------------
