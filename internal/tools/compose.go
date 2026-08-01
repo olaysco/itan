@@ -18,8 +18,9 @@ func composeTools() []Tool {
 				"end screen) by writing a complete self-contained HTML document — it renders to video in a real " +
 				"browser. Use CSS animations/transitions or the Web Animations API for motion; give elements " +
 				"data-start=\"2\" data-duration=\"3\" (seconds) to control when they appear. Inline all CSS/JS; " +
-				"no external URLs (renders are offline). The result becomes a new project ASSET (it does not " +
-				"replace CURRENT) — chain with concat for intros/outros or overlay_video to put it on footage.",
+				"no external URLs (renders are offline). The fonts 'Bricolage Grotesque' (display, weights 200-800) " +
+				"and 'IBM Plex Mono' are pre-installed — use them, never system-ui. The result becomes a new project " +
+				"ASSET (it does not replace CURRENT) — chain with concat for intros/outros or overlay_video to put it on footage.",
 			Schema: schema([]string{"html", "duration"}, map[string]map[string]any{
 				"html":     prop("string", "Complete HTML document, self-contained."),
 				"duration": prop("number", "Clip length in seconds (max 120)."),

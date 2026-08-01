@@ -99,7 +99,7 @@ func Render(ctx context.Context, opts Opts) error {
 	defer os.RemoveAll(work)
 
 	htmlPath := filepath.Join(work, "composition.html")
-	if err := os.WriteFile(htmlPath, []byte(opts.HTML), 0o600); err != nil {
+	if err := os.WriteFile(htmlPath, []byte(injectFonts(opts.HTML)), 0o600); err != nil {
 		return err
 	}
 

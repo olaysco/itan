@@ -11,7 +11,7 @@ import (
 
 func TestBuiltinsLoad(t *testing.T) {
 	s := Load(config.Default(), t.TempDir())
-	for _, name := range []string{"tiktok", "instagram-reel"} {
+	for _, name := range []string{"tiktok", "instagram-reel", "motion-design"} {
 		sk, ok := s.Get(name)
 		if !ok {
 			t.Fatalf("builtin %s missing", name)
