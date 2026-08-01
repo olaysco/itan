@@ -88,8 +88,22 @@ permissions:         # last match wins; '*' and 'prefix*' wildcards
 ### Tools
 
 `probe · trim · concat · set_speed · crop · expand_frame · change_background ·
-overlay_text · blur_region · pixelate_region · zoom_region · render · export ·
-transcribe · tts · extract_audio · replace_audio · mix_audio · read_text`
+overlay_text · blur_region · pixelate_region · zoom_region · compose ·
+overlay_video · render · export · transcribe · tts · extract_audio ·
+replace_audio · mix_audio · read_text`
+
+### Motion graphics without Node
+
+`compose` renders **self-contained HTML into video, natively**: the agent
+writes the markup (CSS animations / Web Animations API, `data-start` /
+`data-duration` element timing — the idiom of the HTML-video ecosystem), Go
+drives a Chromium browser over the DevTools Protocol, steps the page
+deterministically frame by frame, and ffmpeg encodes. Intros, animated
+captions, explainer scenes, and end screens come out as project assets ready
+for `concat` and `overlay_video` — so "add an animated intro that says Ship
+Faster, then put it before the demo footage" is a single conversation. Chrome
+is the only requirement (`itan doctor` checks), and renders are offline by
+design: no external URLs, no npm, no per-render fees.
 
 ## Models are configuration, not code
 

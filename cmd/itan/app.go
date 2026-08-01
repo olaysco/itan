@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/olaysco/itan/internal/browser"
 	"github.com/olaysco/itan/internal/config"
 )
 
@@ -21,13 +22,10 @@ import (
 const appWindowSize = "1680,1000"
 
 // appBrowserCandidates lists the Chromium-family binaries to try, in order.
-// A non-empty $ITAN_BROWSER override goes first.
+// A non-empty $ITAN_BROWSER override goes first. Shared with the compose
+// engine via internal/browser.
 func appBrowserCandidates(envBrowser string) []string {
-	base := []string{"google-chrome", "chromium", "chromium-browser", "microsoft-edge", "brave-browser"}
-	if envBrowser == "" {
-		return base
-	}
-	return append([]string{envBrowser}, base...)
+	return browser.Candidates(envBrowser)
 }
 
 // appModeArgv builds the command that opens url in a dedicated app-mode

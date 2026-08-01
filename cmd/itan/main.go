@@ -21,6 +21,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/olaysco/itan/internal/browser"
 	"github.com/olaysco/itan/internal/cli"
 	"github.com/olaysco/itan/internal/config"
 	"github.com/olaysco/itan/internal/media"
@@ -265,6 +266,11 @@ func cmdDoctor(dir string) error {
 			detail += " — API KEY MISSING"
 		}
 		check("model", ok, detail)
+	}
+	if chrome, berr := browser.Find(); berr == nil {
+		check("compose (browser)", true, chrome+" — HTML motion graphics enabled")
+	} else {
+		check("compose (browser)", false, "no Chromium-family browser; compose is disabled until one is installed")
 	}
 	check("tts", true, fmt.Sprintf("%s @ %s (voice %s)", cfg.Audio.TTS.Provider, cfg.Audio.TTS.BaseURL, cfg.Audio.TTS.Voice))
 	check("stt", true, fmt.Sprintf("%s @ %s", cfg.Audio.STT.Provider, cfg.Audio.STT.BaseURL))
