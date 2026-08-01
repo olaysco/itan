@@ -25,7 +25,7 @@ import (
 
 // Model selects the LLM that drives the harness.
 type Model struct {
-	Provider string `yaml:"provider"` // anthropic | openai | kimi | openrouter | ollama | custom
+	Provider string `yaml:"provider"` // anthropic | openai | kimi | deepseek | zai | openrouter | ollama | custom
 	ID       string `yaml:"id"`
 	BaseURL  string `yaml:"base_url,omitempty"` // override for custom / self-hosted
 	KeyEnv   string `yaml:"key_env,omitempty"`  // env var holding the API key
@@ -89,9 +89,11 @@ type ProviderPreset struct {
 var Presets = map[string]ProviderPreset{
 	"anthropic":  {Kind: "anthropic", BaseURL: "https://api.anthropic.com", KeyEnv: "ANTHROPIC_API_KEY", DefaultModel: "claude-opus-4-8", Note: "Anthropic Claude"},
 	"openai":     {Kind: "openai", BaseURL: "https://api.openai.com/v1", KeyEnv: "OPENAI_API_KEY", DefaultModel: "gpt-4.1", Note: "OpenAI"},
-	"kimi":       {Kind: "openai", BaseURL: "https://api.moonshot.ai/v1", KeyEnv: "MOONSHOT_API_KEY", DefaultModel: "kimi-k2-0905-preview", Note: "Moonshot Kimi (K2/K3 family)"},
+	"kimi":       {Kind: "openai", BaseURL: "https://api.moonshot.ai/v1", KeyEnv: "MOONSHOT_API_KEY", DefaultModel: "kimi-k2.5", Note: "Moonshot Kimi (open weights, vision; kimi-k3 for frontier)"},
+	"deepseek":   {Kind: "openai", BaseURL: "https://api.deepseek.com/v1", KeyEnv: "DEEPSEEK_API_KEY", DefaultModel: "deepseek-v4-pro", Note: "DeepSeek V4 (deepseek-v4-flash is the price floor)"},
+	"zai":        {Kind: "openai", BaseURL: "https://api.z.ai/api/paas/v4", KeyEnv: "ZAI_API_KEY", DefaultModel: "glm-5.2", Note: "Z.ai GLM (open weights, MIT)"},
 	"openrouter": {Kind: "openai", BaseURL: "https://openrouter.ai/api/v1", KeyEnv: "OPENROUTER_API_KEY", DefaultModel: "anthropic/claude-sonnet-4.5", Note: "OpenRouter (any listed model)"},
-	"ollama":     {Kind: "openai", BaseURL: "http://localhost:11434/v1", KeyEnv: "", DefaultModel: "qwen2.5:14b", Note: "local Ollama (open-source models)"},
+	"ollama":     {Kind: "openai", BaseURL: "http://localhost:11434/v1", KeyEnv: "", DefaultModel: "qwen3-vl:8b", Note: "local Ollama (open-source models)"},
 }
 
 var TTSPresets = map[string]TTS{
