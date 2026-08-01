@@ -26,6 +26,30 @@ func FromConfig(cfg *config.Config) (Provider, error) {
 	}
 }
 
+// VisionFromConfig builds the secondary provider named by model.vision for
+// image-carrying turns. Returns (nil, "", nil) when no vision route is set.
+func VisionFromConfig(cfg *config.Config) (Provider, string, error) {
+	spec := cfg.Model.Vision
+	if spec == "" {
+		return nil, "", nil
+	}
+	kind, baseURL, apiKey, modelID, err := cfg.ResolveSpec(spec)
+	if err != nil {
+		return nil, "", fmt.Errorf("model.vision %q: %w", spec, err)
+	}
+	switch kind {
+	case "anthropic":
+		if apiKey == "" {
+			return nil, "", fmt.Errorf("model.vision %q: no API key set", spec)
+		}
+		return NewAnthropic(baseURL, apiKey), modelID, nil
+	case "openai":
+		return NewOpenAI(baseURL, apiKey, "vision"), modelID, nil
+	default:
+		return nil, "", fmt.Errorf("model.vision %q: unknown provider kind %q", spec, kind)
+	}
+}
+
 func keyEnvFor(cfg *config.Config) string {
 	if cfg.Model.KeyEnv != "" {
 		return cfg.Model.KeyEnv

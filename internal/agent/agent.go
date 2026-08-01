@@ -74,6 +74,14 @@ type Agent struct {
 	activeSkills map[string]bool // skill bodies already injected this session
 	spillSeq     int
 	checkpoints  []Checkpoint // turn snapshots for /revert
+
+	// Optional vision route (config model.vision): turns whose latest message
+	// carries frames go to this provider; every other turn goes to the main
+	// model with image blocks stripped, so a text-only brain never sees them.
+	vision       provider.Provider
+	visionModel  string
+	visionErr    error
+	visionWarned bool
 }
 
 // Checkpoint captures project + conversation state at the start of a user
@@ -91,7 +99,11 @@ type Checkpoint struct {
 const maxCheckpoints = 50
 
 func New(cfg *config.Config, p provider.Provider, proj *media.Project, sk *skills.Set) *Agent {
+	vp, vm, verr := provider.VisionFromConfig(cfg)
 	return &Agent{
+		vision:       vp,
+		visionModel:  vm,
+		visionErr:    verr,
 		Cfg:          cfg,
 		Provider:     p,
 		Project:      proj,
@@ -187,6 +199,21 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 		})
 	})
 
+	visionProv := prov
+	if a.vision != nil {
+		visionProv = provider.WithRetry(a.vision, func(ri provider.RetryInfo) {
+			emit(Event{
+				Kind: "retry",
+				Text: fmt.Sprintf("vision attempt %d/%d failed, retrying in %s", ri.Attempt, ri.Max, ri.Wait.Round(time.Second)),
+				Err:  ri.Err.Error(),
+			})
+		})
+	}
+	if a.visionErr != nil && !a.visionWarned {
+		a.visionWarned = true
+		emit(Event{Kind: "text", Text: "note: " + a.visionErr.Error() + " — frames go to the main model"})
+	}
+
 	a.pushCheckpoint(userMsg)
 	budget := int(float64(a.Cfg.Context.MaxTokens) * a.Cfg.Context.CompactAt)
 	a.History = Compact(append(a.History, a.composeUserMessage(ctx, userMsg)), budget)
@@ -196,11 +223,22 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 	doom := doomDetector{}
 
 	for turn := 0; turn < a.Cfg.Context.MaxTurns; turn++ {
+		callProv, model, msgs := prov, a.Cfg.Model.ID, a.History
+		if a.vision != nil {
+			if hasImages(a.History[len(a.History)-1]) {
+				// Fresh frames: route to the vision model, dropping stale
+				// frames from earlier turns to keep the request lean.
+				callProv, model, msgs = visionProv, a.visionModel, stripImages(a.History, true)
+			} else {
+				// Text turn: the main brain may be text-only — strip images.
+				msgs = stripImages(a.History, false)
+			}
+		}
 		streamed := false
-		resp, err := prov.CompleteStream(ctx, provider.Request{
-			Model:     a.Cfg.Model.ID,
+		resp, err := callProv.CompleteStream(ctx, provider.Request{
+			Model:     model,
 			System:    a.system,
-			Messages:  a.History,
+			Messages:  msgs,
 			Tools:     a.toolDefs(),
 			MaxTokens: 2048,
 		}, func(d provider.Delta) {
@@ -250,6 +288,40 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 		reply += "\n\n" + notice
 	}
 	return reply, StopMaxTurns, nil
+}
+
+// hasImages reports whether any block in m carries frame attachments.
+func hasImages(m provider.Message) bool {
+	for _, b := range m.Blocks {
+		if len(b.Images) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// stripImages returns msgs with frame attachments removed — from every
+// message, or from all but the final one when keepLast is set. A short note
+// replaces dropped frames so the model knows to call view_frames again rather
+// than trust a memory of them. History itself is never mutated.
+func stripImages(msgs []provider.Message, keepLast bool) []provider.Message {
+	out := make([]provider.Message, len(msgs))
+	for i, m := range msgs {
+		if (keepLast && i == len(msgs)-1) || !hasImages(m) {
+			out[i] = m
+			continue
+		}
+		blocks := make([]provider.Block, len(m.Blocks))
+		for j, b := range m.Blocks {
+			if len(b.Images) > 0 {
+				b.Images = nil
+				b.Content += "\n[frames no longer attached — call view_frames again to look]"
+			}
+			blocks[j] = b
+		}
+		out[i] = provider.Message{Role: m.Role, Blocks: blocks}
+	}
+	return out
 }
 
 func (a *Agent) finishReply(text string) string {
@@ -553,6 +625,9 @@ func (a *Agent) CompactNow(ctx context.Context) error {
 		return fmt.Errorf("nothing to compact")
 	}
 	msgs := append([]provider.Message{}, a.History...)
+	if a.vision != nil { // compaction runs on the main model, which may be text-only
+		msgs = stripImages(msgs, false)
+	}
 	msgs = append(msgs, provider.UserText("Compact the session now as instructed."))
 	resp, err := provider.WithRetry(a.Provider, nil).Complete(ctx, provider.Request{
 		Model:     a.Cfg.Model.ID,

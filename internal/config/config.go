@@ -29,6 +29,11 @@ type Model struct {
 	ID       string `yaml:"id"`
 	BaseURL  string `yaml:"base_url,omitempty"` // override for custom / self-hosted
 	KeyEnv   string `yaml:"key_env,omitempty"`  // env var holding the API key
+	// Vision optionally names a second model ("preset" or "preset/model-id")
+	// that handles turns carrying frames, so a cheap text-only model can be
+	// the main brain while a multimodal one does the looking. When unset,
+	// frames go to the main model.
+	Vision string `yaml:"vision,omitempty"`
 }
 
 // TTS / STT select the voice models. Both default to the best open-source
@@ -215,6 +220,18 @@ func (c *Config) ResolveModel() (kind, baseURL, apiKey string, err error) {
 		apiKey = os.Getenv(keyEnv)
 	}
 	return kind, baseURL, apiKey, nil
+}
+
+// ResolveSpec resolves a "preset[/model-id]" spec independently of the
+// active model — used for the model.vision route.
+func (c *Config) ResolveSpec(spec string) (kind, baseURL, apiKey, modelID string, err error) {
+	tmp := *c
+	tmp.Model.BaseURL, tmp.Model.KeyEnv = "", ""
+	if err = tmp.UseModel(spec); err != nil {
+		return "", "", "", "", err
+	}
+	kind, baseURL, apiKey, err = tmp.ResolveModel()
+	return kind, baseURL, apiKey, tmp.Model.ID, err
 }
 
 func PresetNames() []string {

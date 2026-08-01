@@ -25,6 +25,7 @@ import (
 	"github.com/olaysco/itan/internal/cli"
 	"github.com/olaysco/itan/internal/config"
 	"github.com/olaysco/itan/internal/media"
+	"github.com/olaysco/itan/internal/provider"
 	"github.com/olaysco/itan/internal/server"
 	"github.com/olaysco/itan/internal/skills"
 )
@@ -172,6 +173,7 @@ const usage = `itan — agentic AI video editor
   itan ui [--addr host:port]  open the desktop editing screen
   itan app [--addr host:port] open the editing screen in a native app window
   itan model use <spec>       switch model (anthropic | kimi/kimi-k3 | ollama/... )
+                              route frames to a second model: itan config set model.vision kimi
   itan model                  show the active model
   itan models                 list provider presets
   itan config [get|set|list]  inspect or change configuration
@@ -266,6 +268,13 @@ func cmdDoctor(dir string) error {
 			detail += " — API KEY MISSING"
 		}
 		check("model", ok, detail)
+	}
+	if cfg.Model.Vision != "" {
+		if _, vm, verr := provider.VisionFromConfig(cfg); verr != nil {
+			check("vision model", false, verr.Error())
+		} else {
+			check("vision model", true, fmt.Sprintf("%s → %s (turns with frames route here)", cfg.Model.Vision, vm))
+		}
 	}
 	if chrome, berr := browser.Find(); berr == nil {
 		check("compose (browser)", true, chrome+" — HTML motion graphics enabled")

@@ -57,6 +57,24 @@ func TestGetSetDottedPath(t *testing.T) {
 	}
 }
 
+func TestResolveSpec(t *testing.T) {
+	cfg := Default()
+	t.Setenv("MOONSHOT_API_KEY", "mk")
+	kind, base, key, id, err := cfg.ResolveSpec("kimi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kind != "openai" || base != "https://api.moonshot.ai/v1" || key != "mk" || id != Presets["kimi"].DefaultModel {
+		t.Fatalf("kimi spec resolved to %s %s %s %s", kind, base, key, id)
+	}
+	if cfg.Model.Provider != "anthropic" {
+		t.Fatal("ResolveSpec must not touch the active model")
+	}
+	if _, _, _, _, err := cfg.ResolveSpec("nope/x"); err == nil {
+		t.Fatal("expected error for unknown provider spec")
+	}
+}
+
 func TestResolveModel(t *testing.T) {
 	cfg := Default()
 	cfg.Model = Model{Provider: "kimi", ID: "kimi-k3"}

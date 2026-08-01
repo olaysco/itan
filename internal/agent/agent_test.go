@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/olaysco/itan/internal/config"
@@ -216,4 +217,70 @@ func contains(haystack, needle string) bool {
 func ExampleEvent() {
 	fmt.Println(Event{Kind: "tool_end", Tool: "trim", Summary: "trimmed"}.Tool)
 	// Output: trim
+}
+
+// TestVisionRouting: with a vision route configured, the turn after
+// view_frames (whose result carries frames) goes to the vision provider,
+// and the main model never receives image blocks.
+func TestVisionRouting(t *testing.T) {
+	main := &scripted{responses: []*provider.Response{
+		{Blocks: []provider.Block{toolUse("t1", "view_frames", `{"times":[0.5]}`)}, StopReason: "tool_use"},
+	}}
+	eyes := &scripted{responses: []*provider.Response{
+		{Blocks: []provider.Block{provider.TextBlock("Looks right.")}, StopReason: "end_turn"},
+	}}
+	a, proj := newTestAgent(t, main)
+	a.vision, a.visionModel = eyes, "fake-vl"
+	clip := makeClip(t, proj.Dir)
+	if _, err := proj.AddAsset(context.Background(), clip); err != nil {
+		t.Fatal(err)
+	}
+
+	reply, err := a.Run(context.Background(), "check the frame", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply != "Looks right." {
+		t.Fatalf("reply = %q", reply)
+	}
+	if main.calls != 1 || eyes.calls != 1 {
+		t.Fatalf("calls: main=%d vision=%d", main.calls, eyes.calls)
+	}
+	vreq := eyes.requests[0]
+	if vreq.Model != "fake-vl" {
+		t.Fatalf("vision request used model %q", vreq.Model)
+	}
+	if !hasImages(vreq.Messages[len(vreq.Messages)-1]) {
+		t.Fatal("vision request lost the frames")
+	}
+	for _, req := range main.requests {
+		for _, m := range req.Messages {
+			if hasImages(m) {
+				t.Fatal("main model received image blocks")
+			}
+		}
+	}
+}
+
+func TestStripImages(t *testing.T) {
+	withImg := func() provider.Message {
+		b := provider.ToolResultBlock("t1", "frames", false)
+		b.Images = []provider.Image{{MediaType: "image/jpeg", Data: "eA=="}}
+		return provider.Message{Role: "user", Blocks: []provider.Block{b}}
+	}
+	msgs := []provider.Message{withImg(), provider.UserText("hi"), withImg()}
+
+	kept := stripImages(msgs, true)
+	if hasImages(kept[0]) || !hasImages(kept[2]) {
+		t.Fatal("keepLast must strip all but the final message")
+	}
+	if !strings.Contains(kept[0].Blocks[0].Content, "no longer attached") {
+		t.Fatal("stale-frame note missing")
+	}
+	if !hasImages(msgs[0]) {
+		t.Fatal("stripImages mutated the original history")
+	}
+	if all := stripImages(msgs, false); hasImages(all[2]) {
+		t.Fatal("full strip left images on the final message")
+	}
 }
