@@ -141,7 +141,7 @@ var scenes = []struct {
   </style></head><body>
   <span class="label">this video rendered itself</span>
   <div class="type">$ itan <i>compose</i> → <i>concat</i> → <b>export</b></div>
-  <p>HTML in. Deterministic frames out. No cloud, no Node, no render fees.</p>
+  <p>Text in. Deterministic frames out. No cloud, no Node, no render fees.</p>
   </body></html>`},
 
 	// 5 · close — quiet, then the ask
