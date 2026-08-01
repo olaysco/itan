@@ -54,6 +54,9 @@ Heydit's harness is built for long editing sessions on small token budgets:
 | **Permission gate** | Rules (`{tool, action}`) evaluated last-match-wins, three modes (`auto`/`ask`/`plan`), interactive approve with `always`, and **deny-with-feedback**: type a correction instead of "no" and it reaches the model as guidance. A bypass-immune safety tier prompts for destructive writes (e.g. export over an existing file) even when rules allow. |
 | **Plan mode** | `/plan` flips the agent to propose-only: mutating tools are hard-denied regardless of rules, and a reminder instructs the model to present a numbered plan. |
 | **Doom-loop detection** | The third byte-identical tool call in a row is refused with corrective feedback instead of burning another render. |
+| **Streaming responses** | Both provider dialects stream over SSE — assistant text renders token-by-token in the CLI while tool calls are reassembled from chunked fragments. Retries stay safe under streaming: a failed request only retries if no bytes reached the user yet. |
+| **Turn snapshots + `/revert`** | Every user request checkpoints the project (edit stack, CURRENT, assets) and the conversation. `/revert 2` rewinds both, two requests back — instantly, because renders are immutable numbered files that stay on disk. Checkpoints persist with the session. |
+| **Nothing destroyed on overwrite** | When an approved export replaces an existing file, the old version is copied to `.heydit/backup/` first and the backup path is reported in the tool result. |
 | **Visible retries** | Provider failures are classified (429/5xx/network retry; 4xx never), honor `Retry-After`, back off exponentially with jitter — and each wait is emitted as an event, so the CLI shows `↻ attempt 2/5, retrying in 4s` instead of silently hanging. |
 | **Parallel-safe tool batches** | Consecutive read-only calls (probe, read_text) run concurrently with results emitted in call order; mutating renders stay strictly serial. |
 | **Sessions that survive** | History persists to `.heydit/session.json` after every turn; `heydit -c` resumes the conversation — after a crash, a reboot, or a model switch. |
@@ -168,7 +171,7 @@ heydit skills                 list skills
 heydit doctor                 environment checkup
 ```
 
-REPL: `/model /models /config /mode /plan /compact /ops /undo /skills /skill <name> /cost /export /help /quit`
+REPL: `/model /models /config /mode /plan /compact /ops /undo /revert /checkpoints /skills /skill <name> /cost /export /help /quit`
 
 ## Layout
 
@@ -203,8 +206,6 @@ config layering.
 
 ## Roadmap
 
-- Streaming responses and cancellable renders
-- Shadow-git snapshots of the project dir for multi-turn revert (opencode-style)
 - Cloud generative tools (outpainting for `expand_frame`, matting for
   `change_background`) behind the same tool contracts
 - Native desktop packaging (Wails) around `internal/server`

@@ -2,9 +2,12 @@ package tools
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/olaysco/heydit/internal/media"
 )
@@ -453,10 +456,46 @@ func runExport(c *Ctx, args Args) Result {
 	if !filepath.IsAbs(dest) {
 		dest = filepath.Join(c.Project.Dir, dest)
 	}
+	// Overwrites are gated by the safety tier upstream; once approved, the
+	// old version is still preserved so nothing is ever destroyed.
+	backup, err := backupIfExists(dest, c.Project)
+	if err != nil {
+		return Result{Err: err}
+	}
 	if err := media.Run(c.Context, "-i", c.Project.Current, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", dest); err != nil {
 		return Result{Err: err}
 	}
-	return Result{Summary: "exported to " + dest, Data: map[string]any{"path": dest}}
+	data := map[string]any{"path": dest}
+	if backup != "" {
+		data["previous_version"] = backup
+	}
+	return Result{Summary: "exported to " + dest, Data: data}
+}
+
+// backupIfExists copies an about-to-be-overwritten file into .heydit/backup.
+func backupIfExists(dest string, p *media.Project) (string, error) {
+	if _, err := os.Stat(dest); err != nil {
+		return "", nil
+	}
+	dir := filepath.Join(p.Dir, ".heydit", "backup")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	backup := filepath.Join(dir, time.Now().UTC().Format("20060102-150405")+"-"+filepath.Base(dest))
+	src, err := os.Open(dest)
+	if err != nil {
+		return "", err
+	}
+	defer src.Close()
+	out, err := os.Create(backup)
+	if err != nil {
+		return "", err
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, src); err != nil {
+		return "", err
+	}
+	return backup, nil
 }
 
 // --- helpers ---------------------------------------------------------------

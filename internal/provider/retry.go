@@ -89,6 +89,46 @@ func (r *Retrying) Complete(ctx context.Context, req Request) (*Response, error)
 	return nil, lastErr
 }
 
+// CompleteStream streams when the inner provider supports it, falling back to
+// a buffered Complete otherwise. A failed attempt is only retried while no
+// delta has been emitted yet — once bytes reached the user, an error is
+// surfaced instead of silently replaying half a message.
+func (r *Retrying) CompleteStream(ctx context.Context, req Request, onDelta func(Delta)) (*Response, error) {
+	s, ok := r.Inner.(Streamer)
+	if !ok {
+		return r.Complete(ctx, req)
+	}
+	max := r.Max
+	if max <= 0 {
+		max = 5
+	}
+	var lastErr error
+	for attempt := 1; attempt <= max; attempt++ {
+		emitted := false
+		resp, err := s.CompleteStream(ctx, req, func(d Delta) {
+			emitted = true
+			if onDelta != nil {
+				onDelta(d)
+			}
+		})
+		if err == nil {
+			return resp, nil
+		}
+		lastErr = err
+		if emitted || attempt == max || !Retryable(err) {
+			return nil, err
+		}
+		wait := backoff(attempt, err)
+		if r.OnRetry != nil {
+			r.OnRetry(RetryInfo{Attempt: attempt, Max: max, Wait: wait, Err: err})
+		}
+		if serr := r.sleep(ctx, wait); serr != nil {
+			return nil, serr
+		}
+	}
+	return nil, lastErr
+}
+
 // Retryable classifies errors:
 //   - network-level failures: retry
 //   - 408 / 429 / all 5xx (incl. 529 overloaded): retry

@@ -131,6 +131,9 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 
 	var events []agent.Event
 	reply, err := runAsk(r.Context(), s.Session, req.Message, func(e agent.Event) {
+		if e.Kind == "text_delta" { // per-token noise; the reply carries the text
+			return
+		}
 		events = append(events, e)
 	})
 	if err != nil {

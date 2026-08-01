@@ -72,12 +72,7 @@ func (s *Session) rebuildAgent() error {
 	}
 	sk := skills.Load(s.Cfg, s.Project.Dir)
 	fresh := agent.New(s.Cfg, p, s.Project, sk)
-	if s.Agent != nil {
-		fresh.History = s.Agent.History
-		fresh.InputTokens = s.Agent.InputTokens
-		fresh.OutputTokens = s.Agent.OutputTokens
-		fresh.Gate.SetMode(s.Agent.Gate.Mode())
-	}
+	fresh.AdoptState(s.Agent)
 	fresh.Gate.SetAsker(terminalAsker)
 	s.Agent = fresh
 	return nil
@@ -108,21 +103,54 @@ func terminalAsker(req permission.Request) permission.Decision {
 }
 
 // Ask runs one request through the agent with terminal progress rendering.
+// Assistant text streams live; the final reply is only re-printed when the
+// provider couldn't stream.
 func (s *Session) Ask(ctx context.Context, msg string) error {
 	if s.Agent == nil {
 		if err := s.rebuildAgent(); err != nil {
 			return fmt.Errorf("no usable model: %w (use /model or set the API key)", err)
 		}
 	}
-	reply, err := s.Agent.Run(ctx, msg, RenderEvent)
+	r := &streamRenderer{}
+	reply, err := s.Agent.Run(ctx, msg, r.render)
 	if err != nil {
 		return err
 	}
 	if serr := s.Agent.SaveSession(); serr != nil {
 		fmt.Printf("%s! session not saved: %v%s\n", yellow, serr, reset)
 	}
-	fmt.Printf("\n%s%s%s\n", bold, reply, reset)
+	if r.streamedFinal {
+		fmt.Print(reset + "\n") // close the streamed text styling
+	} else {
+		fmt.Printf("\n%s%s%s\n", bold, reply, reset)
+	}
 	return nil
+}
+
+// streamRenderer prints deltas as they arrive. Tool events may interleave
+// between text segments; a newline keeps them on their own lines.
+type streamRenderer struct {
+	inText        bool
+	streamedFinal bool
+}
+
+func (r *streamRenderer) render(e agent.Event) {
+	switch e.Kind {
+	case "text_delta":
+		if !r.inText {
+			fmt.Print("\n" + bold)
+			r.inText = true
+		}
+		fmt.Print(e.Text)
+		r.streamedFinal = true
+	default:
+		if r.inText {
+			fmt.Print(reset + "\n")
+			r.inText = false
+			r.streamedFinal = false // tool activity follows; reply isn't final yet
+		}
+		RenderEvent(e)
+	}
 }
 
 // RenderEvent prints tool progress lines like:
@@ -213,6 +241,8 @@ func (s *Session) slash(ctx context.Context, line string) (quit bool) {
   /compact            compress history into a structured summary
   /ops                show the edit stack
   /undo               undo the last edit
+  /revert [n]         rewind project + conversation n user requests (default 1)
+  /checkpoints        list turn snapshots
   /skills             list skills; /skill <name> shows one
   /cost               session token usage
   /export [path]      export CURRENT
@@ -258,6 +288,39 @@ func (s *Session) slash(ctx context.Context, line string) (quit bool) {
 			break
 		}
 		fmt.Printf("%s✓ undid %s — current is now %s%s\n", green, op.Tool, filepath.Base(s.Project.Current), reset)
+	case "revert":
+		if s.Agent == nil {
+			fmt.Printf("%s✗ no agent yet%s\n", red, reset)
+			break
+		}
+		n := 1
+		fmt.Sscanf(arg, "%d", &n)
+		cp, err := s.Agent.Revert(n)
+		if err != nil {
+			fmt.Printf("%s✗ %v%s\n", red, err, reset)
+			break
+		}
+		cur := "none"
+		if s.Project.Current != "" {
+			cur = filepath.Base(s.Project.Current)
+		}
+		fmt.Printf("%s✓ reverted to before %q (%d edits, current: %s)%s\n",
+			green, cp.Label, len(s.Project.Ops), cur, reset)
+		if err := s.Agent.SaveSession(); err != nil {
+			fmt.Printf("%s! session not saved: %v%s\n", yellow, err, reset)
+		}
+	case "checkpoints":
+		if s.Agent == nil {
+			fmt.Printf("%s✗ no agent yet%s\n", red, reset)
+			break
+		}
+		cps := s.Agent.Checkpoints()
+		if len(cps) == 0 {
+			fmt.Println("  no checkpoints yet")
+		}
+		for i, cp := range cps {
+			fmt.Printf("  %2d ago · %s · %d edits · %q\n", len(cps)-i, cp.At.Local().Format("15:04:05"), len(cp.Ops), cp.Label)
+		}
 	case "skills":
 		for _, sk := range skills.Load(s.Cfg, s.Project.Dir).All() {
 			fmt.Printf("  %-15s %s %s(%s)%s\n", sk.Name, sk.Description, dim, sk.Source, reset)

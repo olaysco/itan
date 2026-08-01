@@ -32,7 +32,7 @@ import (
 
 // Event streams progress to the CLI/UI while a request runs.
 type Event struct {
-	Kind     string        `json:"kind"` // "text" | "tool_start" | "tool_end" | "retry" | "permission"
+	Kind     string        `json:"kind"` // "text" | "text_delta" | "tool_start" | "tool_end" | "retry" | "permission"
 	Text     string        `json:"text,omitempty"`
 	Tool     string        `json:"tool,omitempty"`
 	Args     string        `json:"args,omitempty"`
@@ -71,7 +71,22 @@ type Agent struct {
 	lastLedger   string          // last <project-state> sent to the model
 	activeSkills map[string]bool // skill bodies already injected this session
 	spillSeq     int
+	checkpoints  []Checkpoint // turn snapshots for /revert
 }
+
+// Checkpoint captures project + conversation state at the start of a user
+// request, enabling multi-turn revert. Renders are immutable numbered files,
+// so restoring the ledger (not the media bytes) is sufficient to time-travel.
+type Checkpoint struct {
+	Label      string         `json:"label"`
+	At         time.Time      `json:"at"`
+	Assets     []media.Asset  `json:"assets"`
+	Ops        []media.EditOp `json:"ops"`
+	Current    string         `json:"current"`
+	HistoryLen int            `json:"history_len"`
+}
+
+const maxCheckpoints = 50
 
 func New(cfg *config.Config, p provider.Provider, proj *media.Project, sk *skills.Set) *Agent {
 	return &Agent{
@@ -86,6 +101,18 @@ func New(cfg *config.Config, p provider.Provider, proj *media.Project, sk *skill
 		system:       buildSystemPrompt(proj.Dir, sk),
 		activeSkills: map[string]bool{},
 	}
+}
+
+// AdoptState carries conversation state over from a previous agent instance
+// (model/config switches rebuild the agent but continue the session).
+func (a *Agent) AdoptState(old *Agent) {
+	if old == nil {
+		return
+	}
+	a.History = old.History
+	a.InputTokens, a.OutputTokens = old.InputTokens, old.OutputTokens
+	a.checkpoints = old.checkpoints
+	a.Gate.SetMode(old.Gate.Mode())
 }
 
 func (a *Agent) toolDefs() []provider.ToolDef {
@@ -148,6 +175,7 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 		})
 	})
 
+	a.pushCheckpoint(userMsg)
 	budget := int(float64(a.Cfg.Context.MaxTokens) * a.Cfg.Context.CompactAt)
 	a.History = Compact(append(a.History, a.composeUserMessage(ctx, userMsg)), budget)
 
@@ -156,12 +184,16 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 	doom := doomDetector{}
 
 	for turn := 0; turn < a.Cfg.Context.MaxTurns; turn++ {
-		resp, err := prov.Complete(ctx, provider.Request{
+		streamed := false
+		resp, err := prov.CompleteStream(ctx, provider.Request{
 			Model:     a.Cfg.Model.ID,
 			System:    a.system,
 			Messages:  a.History,
 			Tools:     a.toolDefs(),
 			MaxTokens: 2048,
+		}, func(d provider.Delta) {
+			streamed = true
+			emit(Event{Kind: "text_delta", Text: d.Text})
 		})
 		if err != nil {
 			return "", StopError, err
@@ -173,7 +205,9 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 		if text := resp.Text(); text != "" {
 			finalText.Reset() // only the last assistant text is the reply
 			finalText.WriteString(text)
-			emit(Event{Kind: "text", Text: text})
+			if !streamed { // deltas already carried this text live
+				emit(Event{Kind: "text", Text: text})
+			}
 		}
 
 		uses := resp.ToolUses()
@@ -360,10 +394,65 @@ func (a *Agent) spillIfTruncated(tool string, res tools.Result) string {
 	return path
 }
 
+// --- turn snapshots / revert ----------------------------------------------
+
+func (a *Agent) pushCheckpoint(label string) {
+	if len(label) > 80 {
+		label = label[:80] + "…"
+	}
+	cp := Checkpoint{
+		Label:      label,
+		At:         time.Now().UTC(),
+		Assets:     append([]media.Asset(nil), a.Project.Assets...),
+		Ops:        append([]media.EditOp(nil), a.Project.Ops...),
+		Current:    a.Project.Current,
+		HistoryLen: len(a.History),
+	}
+	a.checkpoints = append(a.checkpoints, cp)
+	if len(a.checkpoints) > maxCheckpoints {
+		a.checkpoints = a.checkpoints[len(a.checkpoints)-maxCheckpoints:]
+	}
+}
+
+// Checkpoints lists turn snapshots, oldest first.
+func (a *Agent) Checkpoints() []Checkpoint {
+	return append([]Checkpoint(nil), a.checkpoints...)
+}
+
+// Revert restores project state and conversation to n user requests ago.
+// Rendered files stay on disk (they're numbered and immutable), so this is
+// instant and itself reversible by re-running the requests.
+func (a *Agent) Revert(n int) (*Checkpoint, error) {
+	if n < 1 {
+		n = 1
+	}
+	if len(a.checkpoints) == 0 {
+		return nil, fmt.Errorf("no checkpoints to revert to")
+	}
+	if n > len(a.checkpoints) {
+		n = len(a.checkpoints)
+	}
+	cp := a.checkpoints[len(a.checkpoints)-n]
+	a.checkpoints = a.checkpoints[:len(a.checkpoints)-n]
+
+	a.Project.Assets = append([]media.Asset(nil), cp.Assets...)
+	a.Project.Ops = append([]media.EditOp(nil), cp.Ops...)
+	a.Project.Current = cp.Current
+	if err := a.Project.Save(); err != nil {
+		return nil, err
+	}
+	if cp.HistoryLen <= len(a.History) {
+		a.History = a.History[:cp.HistoryLen]
+	}
+	a.lastLedger = "" // force a fresh <project-state> next turn
+	return &cp, nil
+}
+
 // --- session persistence ---------------------------------------------------
 
 type sessionState struct {
 	History      []provider.Message `json:"history"`
+	Checkpoints  []Checkpoint       `json:"checkpoints,omitempty"`
 	InputTokens  int                `json:"input_tokens"`
 	OutputTokens int                `json:"output_tokens"`
 	SavedAt      time.Time          `json:"saved_at"`
@@ -380,7 +469,8 @@ func (a *Agent) SaveSession() error {
 		return err
 	}
 	data, err := json.Marshal(sessionState{
-		History: a.History, InputTokens: a.InputTokens, OutputTokens: a.OutputTokens,
+		History: a.History, Checkpoints: a.checkpoints,
+		InputTokens: a.InputTokens, OutputTokens: a.OutputTokens,
 		SavedAt: time.Now().UTC(),
 	})
 	if err != nil {
@@ -400,6 +490,7 @@ func (a *Agent) LoadSession() (bool, error) {
 		return false, fmt.Errorf("corrupt session file %s: %w", a.sessionPath(), err)
 	}
 	a.History = st.History
+	a.checkpoints = st.Checkpoints
 	a.InputTokens, a.OutputTokens = st.InputTokens, st.OutputTokens
 	a.lastLedger = "" // force a fresh <project-state> on the next turn
 	return true, nil

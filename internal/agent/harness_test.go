@@ -142,6 +142,54 @@ func TestSafetyAskOnExportOverwrite(t *testing.T) {
 	}
 }
 
+// TestRevertRewindsProjectAndConversation: two edit turns, then Revert(1)
+// restores the edit stack, CURRENT, and history length to before the second
+// request — while the rendered files stay on disk.
+func TestRevertRewindsProjectAndConversation(t *testing.T) {
+	fake := &scripted{responses: []*provider.Response{
+		{Blocks: []provider.Block{toolUse("t1", "trim", `{"start":0,"end":2}`)}, StopReason: "tool_use"},
+		{Blocks: []provider.Block{provider.TextBlock("first trim done")}, StopReason: "end_turn"},
+		{Blocks: []provider.Block{toolUse("t2", "trim", `{"start":0,"end":1}`)}, StopReason: "tool_use"},
+		{Blocks: []provider.Block{provider.TextBlock("second trim done")}, StopReason: "end_turn"},
+	}}
+	a, proj := newTestAgent(t, fake)
+	clip := makeClip(t, proj.Dir)
+	if _, err := proj.AddAsset(context.Background(), clip); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := a.Run(context.Background(), "trim to 2s", nil); err != nil {
+		t.Fatal(err)
+	}
+	afterFirst := proj.Current
+	historyAfterFirst := len(a.History)
+	if _, err := a.Run(context.Background(), "trim to 1s", nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(proj.Ops) != 2 || proj.Current == afterFirst {
+		t.Fatalf("setup failed: ops=%d", len(proj.Ops))
+	}
+	secondRender := proj.Current
+
+	cp, err := a.Revert(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(cp.Label, "trim to 1s") {
+		t.Fatalf("wrong checkpoint: %q", cp.Label)
+	}
+	if len(proj.Ops) != 1 || proj.Current != afterFirst {
+		t.Fatalf("project not rewound: ops=%d current=%s", len(proj.Ops), proj.Current)
+	}
+	if len(a.History) != historyAfterFirst {
+		t.Fatalf("history not rewound: %d != %d", len(a.History), historyAfterFirst)
+	}
+	// Renders are immutable — the reverted output must still exist on disk.
+	if _, err := os.Stat(secondRender); err != nil {
+		t.Fatal("revert deleted a rendered file; it must not")
+	}
+}
+
 // TestMaxTurnsNotice: exhausting the turn budget produces an honest notice
 // instead of silent truncation.
 func TestMaxTurnsNotice(t *testing.T) {
