@@ -1158,7 +1158,7 @@ document.addEventListener('keydown',e=>{
     closeOverlays();
   }
   if(e.key==='Tab'&&e.shiftKey){e.preventDefault();$('#modePill').onclick()}
-  if(e.key==='/'&&document.activeElement!==$('#input')&&document.activeElement!==$('#permSteer')&&document.activeElement!==$('#regionText')){e.preventDefault();$('#input').focus()}
+  if(e.key==='/'&&!/^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName||'')){e.preventDefault();$('#input').focus()}
 });
 
 /* boot */

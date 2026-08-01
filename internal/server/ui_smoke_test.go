@@ -70,6 +70,7 @@ func TestUISmoke(t *testing.T) {
 	}
 
 	var dlgVisible bool
+	var pathVal string
 	err = chromedp.Run(ctx,
 		chromedp.Navigate(srv.URL),
 		chromedp.WaitVisible("#projChip", chromedp.ByID),
@@ -79,6 +80,12 @@ func TestUISmoke(t *testing.T) {
 		chromedp.WaitVisible("#projDlg", chromedp.ByID),
 		chromedp.Evaluate(`(()=>{const r=document.querySelector('#projDlg').getBoundingClientRect();
 			return r.top>=0&&r.left>=0&&r.bottom<=innerHeight&&r.right<=innerWidth&&r.width>100})()`, &dlgVisible),
+
+		// Typing a path — including "/" — must land in the field, not get
+		// hijacked by the slash-focuses-chat shortcut.
+		chromedp.Click("#projPath", chromedp.ByID),
+		chromedp.SendKeys("#projPath", "/tmp/x", chromedp.ByID),
+		chromedp.Value("#projPath", &pathVal, chromedp.ByID),
 		chromedp.Click("#projWrap .scrimClear", chromedp.ByQuery),
 
 		// Demo clip loads into the strip.
@@ -90,6 +97,9 @@ func TestUISmoke(t *testing.T) {
 	}
 	if !dlgVisible {
 		t.Fatal("project dialog is not fully inside the viewport")
+	}
+	if pathVal != "/tmp/x" {
+		t.Fatalf("path field got %q — slashes must not be hijacked by the chat shortcut", pathVal)
 	}
 	if got := assets(); got != 1 {
 		t.Fatalf("after demo: %d assets, want 1", got)
