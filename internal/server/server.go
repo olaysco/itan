@@ -29,6 +29,7 @@ import (
 	"github.com/olaysco/itan/internal/media"
 	"github.com/olaysco/itan/internal/permission"
 	"github.com/olaysco/itan/internal/skills"
+	"github.com/olaysco/itan/internal/tools"
 	"github.com/olaysco/itan/internal/voice"
 )
 
@@ -116,6 +117,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/model", s.handleModel)
 	mux.HandleFunc("POST /api/mode", s.handleMode)
 	mux.HandleFunc("POST /api/demo", s.handleDemo)
+	mux.HandleFunc("POST /api/tool", s.handleTool)
 	mux.HandleFunc("POST /api/voice/transcribe", s.handleTranscribe)
 	mux.HandleFunc("POST /api/voice/speak", s.handleSpeak)
 	mux.HandleFunc("GET /media", s.handleMedia)
@@ -485,6 +487,59 @@ func (s *Server) handleMode(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Session.Agent.Gate.SetMode(m)
 	writeJSON(w, s.state())
+}
+
+// --- timeline gestures -----------------------------------------------------
+
+// gestureTools are the direct-manipulation gestures the timeline may issue
+// without the model in the loop. Each maps 1:1 onto a registry tool and lands
+// as a normal ledger op — undoable, checkpointed, permission-gated. The
+// whitelist keeps chat as the control surface for everything else.
+var gestureTools = map[string]bool{"trim": true}
+
+// handleTool executes one whitelisted tool call directly (no LLM): instant,
+// token-free, and honest — plan mode and deny rules still block it.
+func (s *Server) handleTool(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string         `json:"name"`
+		Args map[string]any `json:"args"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
+		httpErr(w, 400, "name required")
+		return
+	}
+	if !gestureTools[req.Name] {
+		httpErr(w, 400, req.Name+" is not a gesture tool — ask for it in chat instead")
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	reg := tools.NewRegistry()
+	tool, _ := reg.Get(req.Name)
+	gate := permission.NewGate(permission.Mode(s.Session.Cfg.Mode), s.Session.Cfg.Permissions, nil)
+	if s.Session.Agent != nil {
+		gate = s.Session.Agent.Gate
+	}
+	if dec := gate.Check(permission.Request{Tool: req.Name, Args: req.Args, Mutating: tool.Mutating}); dec.Action != permission.Allow {
+		httpErr(w, 403, dec.Feedback)
+		return
+	}
+
+	raw, _ := json.Marshal(req.Args)
+	tctx := &tools.Ctx{
+		Context: r.Context(), Project: s.Session.Project, Config: s.Session.Cfg,
+		TTS: voice.TTSFromConfig(s.Session.Cfg), STT: voice.STTFromConfig(s.Session.Cfg),
+	}
+	res := reg.Execute(tctx, req.Name, raw)
+	if res.Err != nil {
+		httpErr(w, 500, res.Err.Error())
+		return
+	}
+	if s.Session.Agent != nil {
+		_ = s.Session.Agent.SaveSession()
+	}
+	writeJSON(w, map[string]any{"summary": res.Summary, "state": s.state()})
 }
 
 // --- voice -----------------------------------------------------------------

@@ -141,6 +141,18 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 #tracks .trow{display:flex;align-items:center;gap:8px}
 #tracks .tlab{width:26px;font-size:9px;color:var(--t3);flex:none;font-family:'IBM Plex Mono',ui-monospace,monospace}
 #tracks .note{font-size:8.5px;color:var(--t4);padding-left:34px;margin-top:2px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#tracks .lane{position:relative;flex:1;cursor:crosshair}
+#tracks .tsel{position:absolute;top:-2px;bottom:-2px;background:var(--accent-tint);border:1px solid var(--accent-border);border-radius:3px;pointer-events:none}
+#tracks .tsel .tlbl{position:absolute;top:-16px;left:0;font-size:9px;color:var(--accent);white-space:nowrap;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.thandle{position:absolute;top:-3px;bottom:-3px;width:8px;background:var(--accent);border-radius:3px;cursor:ew-resize;opacity:0;transition:opacity .15s;z-index:3}
+.thandle::after{content:'';position:absolute;inset:0 -6px}
+#tracks .trow:hover .thandle{opacity:.9}
+.thandle.dragging{opacity:1}
+#gestureChip{position:absolute;right:12px;bottom:8px;display:flex;align-items:center;gap:9px;background:var(--surface2);border:1px solid var(--accent-border);border-radius:999px;padding:5px 6px 5px 13px;box-shadow:0 8px 30px var(--shadow);z-index:5;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10.5px}
+#gestureChip .apply{cursor:pointer;color:#FFF;background:var(--accent);border-radius:999px;padding:3px 11px;font-weight:700}
+#gestureChip .apply:hover{background:var(--accent-hov)}
+#gestureChip .drop{cursor:pointer;color:var(--t3);padding:3px 5px}
+#gestureChip .drop:hover{color:var(--t1)}
 
 /* chat */
 #chatcol{width:clamp(400px,34vw,540px);flex:none;display:flex;flex-direction:column;border-left:1px solid var(--border1);background-color:var(--surface);background-image:radial-gradient(var(--dots) 1px,transparent 1px);background-size:20px 20px;min-height:0;animation:rise .55s .16s ease both}
@@ -571,17 +583,98 @@ function renderStrip(){
     strip.appendChild(d);
   });
 }
+/* Tracks: click seeks · drag selects a range into the composer · edge
+   handles trim via a direct gesture→tool call (no model in the loop). */
+let trackDur=0,trimDraft=null,laneDrag=null;
 function renderTracks(){
   const st=S.state,info=st.current_info||'';
   const m=info.match(/(\d+)x(\d+).*?([\d.]+)s.*audio:(\w+)/)||[];
-  const dur=parseFloat(m[3]||0),hasAudio=m[4]==='yes';
-  const marks=[0,.25,.5,.75,1].map(f=>fmtT(dur*f));
+  trackDur=parseFloat(m[3]||0);const hasAudio=m[4]==='yes';
+  const marks=[0,.25,.5,.75,1].map(f=>fmtT(trackDur*f));
   $('#tracks').innerHTML=`
     <div class="scale">${marks.map(x=>`<span>${x}</span>`).join('')}</div>
-    <div class="trow"><span class="tlab">V1</span><div style="flex:1;height:30px;background:var(--accent-tint);border-radius:4px;display:flex;align-items:center;padding:0 9px;font-size:9px;color:var(--t2)" class="mono">${esc(st.assets[0]?.name||'video')} · ${m[1]||'?'}×${m[2]||'?'}</div></div>
-    ${hasAudio?`<div class="trow"><span class="tlab">A1</span><div style="flex:1;height:18px;border-radius:3px;background:rgba(85,201,127,.07) repeating-linear-gradient(90deg,rgba(85,201,127,.35) 0 1.5px,transparent 1.5px 5px);background-position:center;background-size:100% 62%;background-repeat:no-repeat"></div></div>`:''}
-    <div class="note">tracks are read-only truth · edits still happen by asking</div>`;
+    <div class="trow" id="v1row"><span class="tlab">V1</span>
+      <div class="lane" id="v1lane" style="height:30px">
+        <div style="position:absolute;inset:0;background:var(--accent-tint);border-radius:4px;display:flex;align-items:center;padding:0 9px;font-size:9px;color:var(--t2)" class="mono">${esc(st.assets[0]?.name||'video')} · ${m[1]||'?'}×${m[2]||'?'}</div>
+        <div class="thandle" id="hL" style="left:-4px"></div>
+        <div class="thandle" id="hR" style="right:-4px"></div>
+        <div class="tsel hidden" id="tselOv"><span class="tlbl"></span></div>
+      </div></div>
+    ${hasAudio?`<div class="trow"><span class="tlab">A1</span>
+      <div class="lane" id="a1lane" style="height:18px">
+        <div style="position:absolute;inset:0;border-radius:3px;background:rgba(85,201,127,.07) repeating-linear-gradient(90deg,rgba(85,201,127,.35) 0 1.5px,transparent 1.5px 5px);background-position:center;background-size:100% 62%;background-repeat:no-repeat"></div>
+        <div class="tsel hidden"><span class="tlbl"></span></div>
+      </div></div>`:''}
+    <div class="note">click seeks · drag selects a range into chat · pull the edges to trim — every gesture lands as an undoable op</div>`;
+  wireLane($('#v1lane'));if(hasAudio)wireLane($('#a1lane'));
+  wireTrimHandles();
 }
+const laneSec=(lane,clientX)=>{const r=lane.getBoundingClientRect();return Math.min(trackDur,Math.max(0,(clientX-r.left)/r.width*trackDur))};
+function wireLane(lane){
+  if(!lane)return;
+  const ov=lane.querySelector('.tsel'),lbl=ov.querySelector('.tlbl');
+  lane.addEventListener('pointerdown',e=>{
+    if(e.target.classList.contains('thandle'))return;
+    laneDrag={lane,a:laneSec(lane,e.clientX)};lane.setPointerCapture(e.pointerId);
+  });
+  lane.addEventListener('pointermove',e=>{
+    if(!laneDrag||laneDrag.lane!==lane)return;
+    const b=laneSec(lane,e.clientX),lo=Math.min(laneDrag.a,b),hi=Math.max(laneDrag.a,b);
+    laneDrag.b=b;ov.classList.remove('hidden');
+    ov.style.left=(lo/trackDur*100)+'%';ov.style.width=((hi-lo)/trackDur*100)+'%';
+    lbl.textContent=fmtT(lo)+' – '+fmtT(hi);
+  });
+  lane.addEventListener('pointerup',e=>{
+    if(!laneDrag||laneDrag.lane!==lane)return;
+    const {a,b}=laneDrag;laneDrag=null;
+    if(b===undefined||Math.abs(b-a)<0.15){ // click: seek the player
+      ov.classList.add('hidden');
+      if(video.duration)video.currentTime=laneSec(lane,e.clientX)/trackDur*video.duration;
+      return;
+    }
+    const lo=Math.min(a,b),hi=Math.max(a,b);
+    $('#input').value=`from ${fmtT(lo)}–${fmtT(hi)}: `;$('#input').focus();
+  });
+}
+function wireTrimHandles(){
+  const lane=$('#v1lane');if(!lane)return;
+  [['#hL','start'],['#hR','end']].forEach(([sel,edge])=>{
+    const h=$(sel);if(!h)return;
+    h.addEventListener('pointerdown',e=>{
+      e.stopPropagation();h.setPointerCapture(e.pointerId);h.classList.add('dragging');
+      trimDraft=trimDraft||{start:0,end:trackDur};
+      const move=ev=>{
+        const s=laneSec(lane,ev.clientX);
+        if(edge==='start')trimDraft.start=Math.min(s,trimDraft.end-0.1);else trimDraft.end=Math.max(s,trimDraft.start+0.1);
+        h.style[edge==='start'?'left':'right']=(edge==='start'?trimDraft.start/trackDur*100:(1-trimDraft.end/trackDur)*100)+'%';
+        showGestureChip();
+      };
+      const up=()=>{h.classList.remove('dragging');h.removeEventListener('pointermove',move);h.removeEventListener('pointerup',up)};
+      h.addEventListener('pointermove',move);h.addEventListener('pointerup',up);
+    });
+  });
+}
+function showGestureChip(){
+  let chip=$('#gestureChip');
+  if(!chip){
+    chip=document.createElement('div');chip.id='gestureChip';
+    chip.innerHTML=`<span class="lbl"></span><span class="apply">✂ apply</span><span class="drop">esc</span>`;
+    chip.querySelector('.apply').onclick=applyTrimGesture;
+    chip.querySelector('.drop').onclick=clearTrimGesture;
+    $('#tracks').appendChild(chip);
+  }
+  chip.querySelector('.lbl').textContent='trim to '+fmtT(trimDraft.start)+' – '+fmtT(trimDraft.end);
+}
+async function applyTrimGesture(){
+  if(!trimDraft)return;
+  const d={...trimDraft};clearTrimGesture();
+  try{
+    const r=await api('/api/tool',{name:'trim',args:{start:+d.start.toFixed(2),end:+d.end.toFixed(2)}});
+    S.state=r.state;S.previewURL=null;render();
+    addA('✂ gesture: '+r.summary+' — landed as op '+(r.state.ops.length)+', undoable like any other.');
+  }catch(e){toast('✂ '+e.message)}
+}
+function clearTrimGesture(){trimDraft=null;$('#gestureChip')?.remove();const l=$('#hL'),r=$('#hR');if(l)l.style.left='-4px';if(r)r.style.right='-4px'}
 $('#tlToggle').onclick=e=>{const v=e.target.dataset.v;if(!v)return;S.tlView=v;$$('#tlToggle span').forEach(el=>el.classList.toggle('on',el.dataset.v===v));render()};
 
 /* ---------- preview / transport ---------- */
@@ -1006,6 +1099,7 @@ document.addEventListener('keydown',e=>{
     if(S.perm){answerPerm('deny');return}
     if(handsFree||rec){discardListening();return}
     if(S.region!==null||$('#regionLayer').style.display==='block'){clearRegion();return}
+    if(trimDraft){clearTrimGesture();return}
     if(S.busy){S.abort?.abort();return}
     closeOverlays();
   }
