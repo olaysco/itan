@@ -184,7 +184,14 @@ func (a *Agent) Run(ctx context.Context, userMsg string, onEvent func(Event)) (s
 }
 
 func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(Event)) (string, StopReason, error) {
+	var summaryMu sync.Mutex
+	var lastToolSummary string
 	emit := func(e Event) {
+		if e.Kind == "tool_end" && e.Err == "" && e.Summary != "" {
+			summaryMu.Lock()
+			lastToolSummary = e.Summary
+			summaryMu.Unlock()
+		}
 		if onEvent != nil {
 			onEvent(e)
 		}
@@ -262,7 +269,7 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 
 		uses := resp.ToolUses()
 		if resp.StopReason != "tool_use" || len(uses) == 0 {
-			return a.finishReply(finalText.String()), StopEndTurn, nil
+			return a.finishReply(finalText.String(), lastToolSummary), StopEndTurn, nil
 		}
 
 		results := a.executeBatch(tctx, uses, &doom, emit)
@@ -324,24 +331,37 @@ func stripImages(msgs []provider.Message, keepLast bool) []provider.Message {
 	return out
 }
 
-func (a *Agent) finishReply(text string) string {
-	reply := strings.TrimSpace(text)
-	if reply == "" {
-		reply = "Done."
+// finishReply never fabricates success: when the model ends without a final
+// text (some models skip it), the reply reports what verifiably happened
+// instead of an unearned "Done."
+func (a *Agent) finishReply(text, lastToolSummary string) string {
+	if reply := strings.TrimSpace(text); reply != "" {
+		return reply
 	}
-	return reply
+	if lastToolSummary != "" {
+		return "The model ended without a summary — last completed step: " + lastToolSummary
+	}
+	return "The model ended without a reply and no edits were made."
 }
 
 // --- tool execution --------------------------------------------------------
 
 // doomDetector refuses the third consecutive byte-identical tool call — a
-// stuck model burning turns and renders on the same failing thing.
+// stuck model burning turns and renders on the same failing thing — and,
+// separately, blocks any tool that has failed twice with the identical error
+// this run: changing the arguments won't fix a dead endpoint or a missing
+// binary, and each futile retry costs a full model round-trip. The mutex
+// matters: concurrency-safe tool batches call this from parallel goroutines.
 type doomDetector struct {
-	lastKey string
-	repeats int
+	mu       sync.Mutex
+	lastKey  string
+	repeats  int
+	failures map[string]map[string]int // tool → error text → count
 }
 
 func (d *doomDetector) check(name string, input []byte) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	key := name + "\x00" + string(input)
 	if key == d.lastKey {
 		d.repeats++
@@ -349,6 +369,31 @@ func (d *doomDetector) check(name string, input []byte) bool {
 		d.lastKey, d.repeats = key, 0
 	}
 	return d.repeats >= 2
+}
+
+func (d *doomDetector) noteFailure(name, errText string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.failures == nil {
+		d.failures = map[string]map[string]int{}
+	}
+	if d.failures[name] == nil {
+		d.failures[name] = map[string]int{}
+	}
+	d.failures[name][errText]++
+}
+
+// blocked reports the repeated error when name has already failed twice the
+// same way this run.
+func (d *doomDetector) blocked(name string) (string, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for msg, n := range d.failures[name] {
+		if n >= 2 {
+			return msg, true
+		}
+	}
+	return "", false
 }
 
 // executeBatch runs one response's tool calls: consecutive concurrency-safe
@@ -397,6 +442,11 @@ func (a *Agent) executeOne(tctx *tools.Ctx, use provider.Block, doom *doomDetect
 		emit(Event{Kind: "tool_end", Tool: use.Name, Err: msg})
 		return provider.ToolResultBlock(use.ID, "ERROR: "+msg, true)
 	}
+	if failMsg, ok := doom.blocked(use.Name); ok {
+		msg := "refused: " + use.Name + " already failed twice with the same error (" + failMsg + "). This is an environment problem that more attempts will not fix — work around it, or finish and tell the user exactly what to start or fix."
+		emit(Event{Kind: "tool_end", Tool: use.Name, Err: msg})
+		return provider.ToolResultBlock(use.ID, "ERROR: "+msg, true)
+	}
 
 	if dec, req := a.checkPermission(use); dec.Action != permission.Allow {
 		emit(Event{Kind: "permission", Tool: use.Name, Summary: "denied", Err: dec.Feedback})
@@ -418,6 +468,7 @@ func (a *Agent) executeOne(tctx *tools.Ctx, use provider.Block, doom *doomDetect
 	}
 	if res.Err != nil {
 		ev.Err = res.Err.Error()
+		doom.noteFailure(use.Name, res.Err.Error())
 	}
 	emit(ev)
 	block := provider.ToolResultBlock(use.ID, compact, res.Err != nil)

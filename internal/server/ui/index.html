@@ -814,6 +814,7 @@ async function send(text){
   }catch(e){
     liveDone();
     addA(e.name==='AbortError'?'✕ canceled — the run stopped where it was; every finished step is still in the timeline.':'✕ '+e.message);
+    refreshDuringRun(); /* interrupted runs still committed edits — show them */
   }
   stopWork();liveDone();S.busy=false;setSendStop(false);S.abort=null;closePerm(true);
 }

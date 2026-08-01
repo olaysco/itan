@@ -12,6 +12,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -232,16 +234,31 @@ func prop(typ, desc string) map[string]any {
 // path) onto a concrete file, defaulting to the project's CURRENT video.
 func resolveInput(c *Ctx, args Args) (string, error) {
 	in := args.Str("input")
-	if in == "" {
+	// Models routinely pass the literal "CURRENT" because the docs name it —
+	// accept it as the alias it obviously is.
+	if in == "" || strings.EqualFold(in, "current") {
 		if c.Project.Current == "" {
 			return "", fmt.Errorf("no working video: add a source file first")
 		}
 		return c.Project.Current, nil
 	}
 	for _, a := range c.Project.Assets {
-		if a.ID == in {
+		if a.ID == in || filepath.Base(a.Path) == in {
 			return a.Path, nil
 		}
 	}
-	return in, nil // treat as a path; the tool's probe/render will validate it
+	if _, err := os.Stat(in); err == nil {
+		return in, nil
+	}
+	// Bare output filenames as the ledger shows them ("010-trim.mp4") live in
+	// the project's out dir.
+	if p := filepath.Join(c.Project.OutDir(), filepath.Base(in)); fileExists(p) {
+		return p, nil
+	}
+	return "", fmt.Errorf("unknown input %q — use an asset id or output filename from <project-state>, a real path, or omit input for the current working video", in)
+}
+
+func fileExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
 }

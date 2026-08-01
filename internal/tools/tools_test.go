@@ -1,10 +1,58 @@
 package tools
 
 import (
+	"context"
 	"math"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/olaysco/itan/internal/media"
 )
+
+// resolveInput must accept every way a model plausibly names a file: the
+// literal CURRENT (our own docs mention it), asset ids, bare output filenames
+// as the ledger prints them, and real paths. Anything else gets an actionable
+// error instead of a raw ffprobe failure.
+func TestResolveInputAliases(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "clip.mp4")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	proj := &media.Project{Dir: dir, Assets: []media.Asset{{ID: "a1", Path: src}}, Current: src}
+	if err := os.MkdirAll(proj.OutDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(proj.OutDir(), "010-trim.mp4")
+	if err := os.WriteFile(out, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c := &Ctx{Context: context.Background(), Project: proj}
+
+	cases := map[string]string{
+		"":             src,
+		"CURRENT":      src,
+		"current":      src,
+		"a1":           src,
+		"clip.mp4":     src,
+		"010-trim.mp4": out,
+		out:            out,
+	}
+	for in, want := range cases {
+		got, err := resolveInput(c, Args{"input": in})
+		if err != nil {
+			t.Fatalf("resolveInput(%q): %v", in, err)
+		}
+		if got != want {
+			t.Errorf("resolveInput(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if _, err := resolveInput(c, Args{"input": "no-such-thing.mp4"}); err == nil || !strings.Contains(err.Error(), "project-state") {
+		t.Fatalf("unknown input must return an actionable error, got %v", err)
+	}
+}
 
 func TestParseAspect(t *testing.T) {
 	cases := map[string]float64{

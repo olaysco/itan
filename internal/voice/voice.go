@@ -64,7 +64,7 @@ func (t *OpenAITTS) Speak(ctx context.Context, text, outPath string) error {
 	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("%s unreachable: %w", t.Label, err)
+		return fmt.Errorf("%s unreachable (server not running? check itan doctor): %w", t.Label, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
@@ -165,7 +165,7 @@ func (s *OpenAISTT) Transcribe(ctx context.Context, audioPath string) (string, e
 	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("%s unreachable: %w", s.Label, err)
+		return "", fmt.Errorf("%s unreachable (server not running? check itan doctor): %w", s.Label, err)
 	}
 	defer resp.Body.Close()
 	payload, _ := io.ReadAll(resp.Body)

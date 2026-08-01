@@ -262,6 +262,45 @@ func TestVisionRouting(t *testing.T) {
 	}
 }
 
+// Two identical failures of one tool must block a third call — a dead
+// endpoint doesn't heal because the model varies the arguments, and every
+// futile retry costs a full model round-trip.
+func TestDoomRepeatedFailureBlocking(t *testing.T) {
+	d := doomDetector{}
+	d.noteFailure("transcribe", "whisper unreachable")
+	if _, ok := d.blocked("transcribe"); ok {
+		t.Fatal("one failure must not block")
+	}
+	d.noteFailure("transcribe", "whisper unreachable")
+	msg, ok := d.blocked("transcribe")
+	if !ok || !strings.Contains(msg, "unreachable") {
+		t.Fatalf("two identical failures must block: %q %v", msg, ok)
+	}
+	if _, ok := d.blocked("probe"); ok {
+		t.Fatal("other tools must stay callable")
+	}
+	// Different error texts are progress, not a loop — don't block.
+	d.noteFailure("probe", "ffprobe a: exit status 1")
+	d.noteFailure("probe", "ffprobe b: exit status 1")
+	if _, ok := d.blocked("probe"); ok {
+		t.Fatal("distinct errors must not block")
+	}
+}
+
+// finishReply must never claim success the model didn't state.
+func TestFinishReplyHonest(t *testing.T) {
+	a := &Agent{}
+	if got := a.finishReply("all trimmed", "x"); got != "all trimmed" {
+		t.Fatalf("real reply mangled: %q", got)
+	}
+	if got := a.finishReply("", "trimmed to 0.5s–10.1s"); !strings.Contains(got, "trimmed to 0.5s–10.1s") || !strings.Contains(got, "without a summary") {
+		t.Fatalf("empty reply must report the last real step: %q", got)
+	}
+	if got := a.finishReply("", ""); strings.Contains(got, "Done") {
+		t.Fatalf("must not fabricate Done: %q", got)
+	}
+}
+
 func TestStripImages(t *testing.T) {
 	withImg := func() provider.Message {
 		b := provider.ToolResultBlock("t1", "frames", false)
