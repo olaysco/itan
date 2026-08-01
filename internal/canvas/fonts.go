@@ -79,15 +79,22 @@ func writeFontFace(b *strings.Builder, family, weight, ext string, data []byte) 
 }
 
 // injectFonts prepends the @font-face rules to a composition, right after
-// <head> when one exists so author styles can still override.
+// <head> when one exists so author styles can still override. It also
+// guarantees a UTF-8 charset declaration: the injected base64 block is pure
+// ASCII, which starves Chrome's encoding sniffer and makes it fall back to
+// windows-1252 — mojibake on the first non-ASCII glyph — unless the charset
+// is stated outright.
 func injectFonts(html string) string {
-	style := "<style data-itan-fonts>\n" + fontFaceCSS() + "</style>"
+	inject := "<style data-itan-fonts>\n" + fontFaceCSS() + "</style>"
+	if !strings.Contains(strings.ToLower(html), "charset") {
+		inject = `<meta charset="utf-8">` + inject
+	}
 	lower := strings.ToLower(html)
 	if i := strings.Index(lower, "<head>"); i >= 0 {
 		at := i + len("<head>")
-		return html[:at] + style + html[at:]
+		return html[:at] + inject + html[at:]
 	}
-	return style + html
+	return inject + html
 }
 
 // FontFamilies lists the families available to compositions, for tool
