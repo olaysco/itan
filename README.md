@@ -153,8 +153,9 @@ Always overlay_text the product name in the first 2 seconds…
 timeline + upload/undo/download) and opens your browser — same agent, same
 project state as the CLI, so you can move between them freely. The server only
 ever serves files registered in the project (assets, op outputs), never
-arbitrary paths. Packaging this into a native shell (Wails/Tauri) reuses the
-server unchanged.
+arbitrary paths. `itan app` opens the same screen in a dedicated Chromium
+app-mode window — see [docs/desktop.md](docs/desktop.md), including what real
+native packaging (Wails) looks like on top of the same server.
 
 ## CLI reference
 
@@ -164,6 +165,7 @@ itan -c | --continue        resume the previous conversation
 itan -p "request"           one-shot edit
 itan add <video...>         register source videos
 itan ui [--addr host:port]  desktop editing screen
+itan app [--addr host:port] editing screen in a native app window
 itan model [show|use spec]  switch models
 itan models                 provider presets
 itan config [list|get|set]  configuration

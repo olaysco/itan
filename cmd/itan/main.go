@@ -6,6 +6,7 @@
 //	itan -p "make it a reel"   one-shot request
 //	itan add clip.mp4          add a source video to the project
 //	itan ui [--addr host:port] desktop editing screen in the browser
+//	itan app [--addr host:port] editing screen in a native app window
 //	itan model use kimi/kimi-k3
 //	itan models | config | skills | doctor | version
 package main
@@ -108,6 +109,20 @@ func run(args []string) error {
 		go openBrowser("http://" + addr)
 		return server.New(session).Listen(addr)
 
+	case "app":
+		addr := "127.0.0.1:4141"
+		for i := 1; i < len(args)-1; i++ {
+			if args[i] == "--addr" {
+				addr = args[i+1]
+			}
+		}
+		session, err := cli.NewSession(dir, resume)
+		if err != nil {
+			return err
+		}
+		go openAppWindow("http://" + addr)
+		return server.New(session).Listen(addr)
+
 	case "model":
 		return cmdModel(dir, args[1:])
 
@@ -154,6 +169,7 @@ const usage = `itan — agentic AI video editor
   itan -p "request"           one-shot edit, then exit
   itan add <video...>         register source videos with the project
   itan ui [--addr host:port]  open the desktop editing screen
+  itan app [--addr host:port] open the editing screen in a native app window
   itan model use <spec>       switch model (anthropic | kimi/kimi-k3 | ollama/... )
   itan model                  show the active model
   itan models                 list provider presets
