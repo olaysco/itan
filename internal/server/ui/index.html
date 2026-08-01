@@ -548,7 +548,7 @@ function render(){
   const st=S.state;if(!st)return;
   const has=st.assets.length>0;
   $('#modelName').textContent=st.model.split('/')[1]||st.model;
-  $('#projChip').textContent='▤ '+(st.project||'project');
+  $('#projChip').innerHTML='<span style="color:var(--t4)">project</span> '+esc(st.project||'?')+' <span style="color:var(--t4)">▾</span>';
   $('#ffdot').classList.toggle('bad',!st.ffmpeg);
   $('#fileChip').classList.toggle('hidden',!has);
   if(has)$('#fileChip').textContent=st.assets[0].name;
