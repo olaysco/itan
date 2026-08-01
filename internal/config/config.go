@@ -1,0 +1,290 @@
+// Package config implements Heydit's layered configuration.
+//
+// Precedence (lowest → highest):
+//  1. built-in defaults
+//  2. global   ~/.heydit/config.yaml
+//  3. project  <project>/.heydit/config.yaml
+//  4. process environment (API keys are only ever read from env)
+//
+// Any value is addressable by a dotted path (e.g. "model.id",
+// "audio.tts.provider") for `heydit config get|set` and the /config command.
+package config
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+)
+
+// Model selects the LLM that drives the harness.
+type Model struct {
+	Provider string `yaml:"provider"` // anthropic | openai | kimi | openrouter | ollama | custom
+	ID       string `yaml:"id"`
+	BaseURL  string `yaml:"base_url,omitempty"` // override for custom / self-hosted
+	KeyEnv   string `yaml:"key_env,omitempty"`  // env var holding the API key
+}
+
+// TTS / STT select the voice models. Both default to the best open-source
+// stacks (Kokoro for TTS, Whisper for STT) served behind OpenAI-compatible
+// endpoints, and can be switched to hosted providers per config.
+type TTS struct {
+	Provider string `yaml:"provider"` // kokoro | elevenlabs | openai | custom
+	BaseURL  string `yaml:"base_url,omitempty"`
+	Model    string `yaml:"model,omitempty"`
+	Voice    string `yaml:"voice,omitempty"`
+	KeyEnv   string `yaml:"key_env,omitempty"`
+}
+
+type STT struct {
+	Provider string `yaml:"provider"` // whisper | openai | custom
+	BaseURL  string `yaml:"base_url,omitempty"`
+	Model    string `yaml:"model,omitempty"`
+	KeyEnv   string `yaml:"key_env,omitempty"`
+}
+
+type Audio struct {
+	TTS TTS `yaml:"tts"`
+	STT STT `yaml:"stt"`
+}
+
+// Context tunes the token-efficiency machinery of the harness.
+type Context struct {
+	MaxTokens          int     `yaml:"max_tokens"`            // working context budget
+	CompactAt          float64 `yaml:"compact_at"`            // fraction of budget that triggers compaction
+	ToolResultMaxChars int     `yaml:"tool_result_max_chars"` // hard cap per tool result fed back to the model
+	MaxTurns           int     `yaml:"max_turns"`             // tool-use iterations per user request
+}
+
+type Config struct {
+	Model   Model   `yaml:"model"`
+	Audio   Audio   `yaml:"audio"`
+	Context Context `yaml:"context"`
+	// SkillDirs are extra directories scanned for skills, beyond the
+	// built-ins and ~/.heydit/skills.
+	SkillDirs []string `yaml:"skill_dirs,omitempty"`
+}
+
+// ProviderPreset describes a known model host so users can switch with
+// `heydit model use kimi/kimi-k3` without hand-writing base URLs.
+type ProviderPreset struct {
+	Kind         string // wire protocol: "anthropic" or "openai"
+	BaseURL      string
+	KeyEnv       string
+	DefaultModel string
+	Note         string
+}
+
+var Presets = map[string]ProviderPreset{
+	"anthropic":  {Kind: "anthropic", BaseURL: "https://api.anthropic.com", KeyEnv: "ANTHROPIC_API_KEY", DefaultModel: "claude-opus-4-8", Note: "Anthropic Claude"},
+	"openai":     {Kind: "openai", BaseURL: "https://api.openai.com/v1", KeyEnv: "OPENAI_API_KEY", DefaultModel: "gpt-4.1", Note: "OpenAI"},
+	"kimi":       {Kind: "openai", BaseURL: "https://api.moonshot.ai/v1", KeyEnv: "MOONSHOT_API_KEY", DefaultModel: "kimi-k2-0905-preview", Note: "Moonshot Kimi (K2/K3 family)"},
+	"openrouter": {Kind: "openai", BaseURL: "https://openrouter.ai/api/v1", KeyEnv: "OPENROUTER_API_KEY", DefaultModel: "anthropic/claude-sonnet-4.5", Note: "OpenRouter (any listed model)"},
+	"ollama":     {Kind: "openai", BaseURL: "http://localhost:11434/v1", KeyEnv: "", DefaultModel: "qwen2.5:14b", Note: "local Ollama (open-source models)"},
+}
+
+var TTSPresets = map[string]TTS{
+	// Kokoro-82M behind kokoro-fastapi: the best-quality open-source TTS,
+	// Apache-licensed, OpenAI-compatible endpoint. This is the default.
+	"kokoro":     {Provider: "kokoro", BaseURL: "http://localhost:8880/v1", Model: "kokoro", Voice: "af_heart"},
+	"elevenlabs": {Provider: "elevenlabs", BaseURL: "https://api.elevenlabs.io", Model: "eleven_multilingual_v2", Voice: "Rachel", KeyEnv: "ELEVENLABS_API_KEY"},
+	"openai":     {Provider: "openai", BaseURL: "https://api.openai.com/v1", Model: "gpt-4o-mini-tts", Voice: "alloy", KeyEnv: "OPENAI_API_KEY"},
+}
+
+var STTPresets = map[string]STT{
+	// Any OpenAI-compatible Whisper server (faster-whisper-server,
+	// whisper.cpp `server`, speaches, ...). Open source by default.
+	"whisper": {Provider: "whisper", BaseURL: "http://localhost:8000/v1", Model: "Systran/faster-whisper-large-v3"},
+	"openai":  {Provider: "openai", BaseURL: "https://api.openai.com/v1", Model: "whisper-1", KeyEnv: "OPENAI_API_KEY"},
+}
+
+func Default() *Config {
+	return &Config{
+		Model: Model{Provider: "anthropic", ID: "claude-opus-4-8"},
+		Audio: Audio{TTS: TTSPresets["kokoro"], STT: STTPresets["whisper"]},
+		Context: Context{
+			MaxTokens:          160_000,
+			CompactAt:          0.7,
+			ToolResultMaxChars: 1600,
+			MaxTurns:           16,
+		},
+	}
+}
+
+// GlobalDir returns ~/.heydit (created on demand by Save).
+func GlobalDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ".heydit"
+	}
+	return filepath.Join(home, ".heydit")
+}
+
+func globalPath() string { return filepath.Join(GlobalDir(), "config.yaml") }
+func projectPath(dir string) string {
+	return filepath.Join(dir, ".heydit", "config.yaml")
+}
+
+// Load merges defaults ← global ← project config for the given project dir.
+func Load(projectDir string) (*Config, error) {
+	cfg := Default()
+	for _, p := range []string{globalPath(), projectPath(projectDir)} {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			continue // missing layers are fine
+		}
+		if err := yaml.Unmarshal(data, cfg); err != nil {
+			return nil, fmt.Errorf("parse %s: %w", p, err)
+		}
+	}
+	return cfg, nil
+}
+
+// SaveGlobal persists cfg as the user-level config.
+func SaveGlobal(cfg *Config) error {
+	if err := os.MkdirAll(GlobalDir(), 0o755); err != nil {
+		return err
+	}
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(globalPath(), data, 0o644)
+}
+
+// UseModel switches the active model, accepting "preset", "preset/model-id",
+// or a bare model id (provider kept). Examples:
+//
+//	heydit model use kimi/kimi-k3
+//	heydit model use anthropic
+//	/model claude-sonnet-4.5
+func (c *Config) UseModel(spec string) error {
+	provider, id, hasSlash := strings.Cut(spec, "/")
+	if !hasSlash {
+		if p, ok := Presets[spec]; ok { // bare preset name
+			c.Model = Model{Provider: spec, ID: p.DefaultModel}
+			return nil
+		}
+		c.Model.ID = spec // bare model id on current provider
+		return nil
+	}
+	p, ok := Presets[provider]
+	if !ok {
+		return fmt.Errorf("unknown provider %q (known: %s)", provider, strings.Join(PresetNames(), ", "))
+	}
+	if id == "" {
+		id = p.DefaultModel
+	}
+	c.Model = Model{Provider: provider, ID: id}
+	return nil
+}
+
+// ResolveModel fills in wire kind, base URL and API key from presets + env.
+func (c *Config) ResolveModel() (kind, baseURL, apiKey string, err error) {
+	m := c.Model
+	preset, known := Presets[m.Provider]
+	switch {
+	case known:
+		kind, baseURL = preset.Kind, preset.BaseURL
+	case m.BaseURL != "":
+		kind, baseURL = "openai", m.BaseURL // custom hosts speak the OpenAI dialect
+	default:
+		return "", "", "", fmt.Errorf("unknown provider %q and no base_url set", m.Provider)
+	}
+	if m.BaseURL != "" {
+		baseURL = m.BaseURL
+	}
+	keyEnv := m.KeyEnv
+	if keyEnv == "" && known {
+		keyEnv = preset.KeyEnv
+	}
+	if keyEnv != "" {
+		apiKey = os.Getenv(keyEnv)
+	}
+	return kind, baseURL, apiKey, nil
+}
+
+func PresetNames() []string {
+	names := make([]string, 0, len(Presets))
+	for n := range Presets {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// --- dotted-path access ----------------------------------------------------
+
+// Get returns the value at a dotted path via the YAML round trip, so it stays
+// in sync with the struct tags automatically.
+func (c *Config) Get(path string) (string, error) {
+	node := map[string]any{}
+	raw, _ := yaml.Marshal(c)
+	_ = yaml.Unmarshal(raw, &node)
+	cur := any(node)
+	for _, part := range strings.Split(path, ".") {
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return "", fmt.Errorf("no such key: %s", path)
+		}
+		cur, ok = m[part]
+		if !ok {
+			return "", fmt.Errorf("no such key: %s", path)
+		}
+	}
+	return fmt.Sprintf("%v", cur), nil
+}
+
+// Set assigns a value at a dotted path, then re-hydrates the struct.
+func (c *Config) Set(path, value string) error {
+	node := map[string]any{}
+	raw, _ := yaml.Marshal(c)
+	_ = yaml.Unmarshal(raw, &node)
+
+	parts := strings.Split(path, ".")
+	cur := node
+	for _, part := range parts[:len(parts)-1] {
+		next, ok := cur[part].(map[string]any)
+		if !ok {
+			next = map[string]any{}
+			cur[part] = next
+		}
+		cur = next
+	}
+	leaf := parts[len(parts)-1]
+	cur[leaf] = coerce(value)
+
+	raw, err := yaml.Marshal(node)
+	if err != nil {
+		return err
+	}
+	fresh := Default()
+	if err := yaml.Unmarshal(raw, fresh); err != nil {
+		return fmt.Errorf("invalid value for %s: %w", path, err)
+	}
+	*c = *fresh
+	return nil
+}
+
+func coerce(v string) any {
+	if i, err := strconv.Atoi(v); err == nil {
+		return i
+	}
+	if f, err := strconv.ParseFloat(v, 64); err == nil {
+		return f
+	}
+	if b, err := strconv.ParseBool(v); err == nil {
+		return b
+	}
+	return v
+}
+
+// Dump renders the effective config as YAML for `heydit config list`.
+func (c *Config) Dump() string {
+	raw, _ := yaml.Marshal(c)
+	return string(raw)
+}

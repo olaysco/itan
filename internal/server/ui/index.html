@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heydit</title>
+<style>
+:root{--bg:#0b0f1a;--panel:#121827;--panel2:#1a2236;--line:#26304a;--text:#e8edf7;--muted:#8a97b1;
+--accent:#6d8bff;--accent2:#9b6dff;--good:#37d39a;--bad:#ff6b6b;--r:12px}
+*{box-sizing:border-box}
+body{margin:0;height:100vh;display:flex;flex-direction:column;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+background:radial-gradient(1000px 700px at 85% -10%,#1a2340,var(--bg) 55%);color:var(--text)}
+header{display:flex;align-items:center;gap:12px;padding:10px 18px;border-bottom:1px solid var(--line)}
+header h1{font-size:16px;margin:0}
+header .model{margin-left:auto;font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:3px 10px}
+main{flex:1;display:grid;grid-template-columns:1.4fr 1fr;gap:14px;padding:14px;min-height:0}
+.panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:var(--r);
+display:flex;flex-direction:column;min-height:0;overflow:hidden}
+
+/* left: stage */
+.stage{padding:14px;gap:12px}
+.player{flex:1;background:#000;border-radius:10px;display:flex;align-items:center;justify-content:center;min-height:0;position:relative}
+.player video{max-width:100%;max-height:100%;}
+.player .empty{color:var(--muted);text-align:center;padding:30px}
+.player .empty b{color:var(--text)}
+.timeline{border-top:1px solid var(--line);padding-top:10px}
+.timeline h3{margin:0 0 8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px}
+.clip{flex:0 0 auto;border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer;background:var(--panel);
+font-size:12px;transition:border-color .15s}
+.clip:hover{border-color:var(--accent)}
+.clip.active{border-color:var(--accent);background:rgba(109,139,255,.12)}
+.clip .tool{font-family:ui-monospace,Menlo,monospace;color:var(--accent);font-size:11px}
+.clip .sum{color:var(--muted);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rowbtns{display:flex;gap:8px;margin-top:8px}
+button,.filelabel{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;
+padding:7px 12px;font-size:12.5px;cursor:pointer}
+button:hover,.filelabel:hover{border-color:var(--accent)}
+button.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;font-weight:600}
+button:disabled{opacity:.5;cursor:not-allowed}
+
+/* right: chat */
+.chat{min-height:0}
+.msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.m{max-width:92%;padding:9px 12px;border-radius:12px;border:1px solid var(--line);white-space:pre-wrap}
+.m.user{align-self:flex-end;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff}
+.m.bot{align-self:flex-start;background:var(--panel2)}
+.trace{align-self:stretch;display:flex;flex-direction:column;gap:4px;font-size:12px}
+.t{display:flex;gap:8px;align-items:baseline;background:#0e1524;border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.t .name{font-family:ui-monospace,Menlo,monospace;color:var(--accent)}
+.t.err .name{color:var(--bad)}
+.t .info{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.compose{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line)}
+.compose input{flex:1;background:#0e1524;border:1px solid var(--line);border-radius:9px;color:var(--text);
+padding:10px 12px;font-size:14px;outline:none}
+.compose input:focus{border-color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 10px}
+.chips button{border-radius:99px;color:var(--muted);font-size:12px}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--accent);
+border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎬 Heydit</h1>
+  <span class="model" id="model">…</span>
+</header>
+<main>
+  <section class="panel stage">
+    <div class="player" id="player">
+      <div class="empty" id="empty"><b>No video yet.</b><br>Upload one below, or add it from the CLI with <code>add &lt;path&gt;</code>.</div>
+      <video id="video" controls playsinline style="display:none"></video>
+    </div>
+    <div class="timeline">
+      <h3>Edit timeline — click any step to preview it</h3>
+      <div class="strip" id="strip"></div>
+      <div class="rowbtns">
+        <label class="filelabel">Upload video<input id="file" type="file" accept="video/*" hidden></label>
+        <button id="undo">Undo last edit</button>
+        <a id="download" style="margin-left:auto"><button>Download current</button></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel chat">
+    <div class="msgs" id="msgs">
+      <div class="m bot">Tell me what to change — I'll pick the tools and edit the actual file. Try “make this a tiktok” or “trim to the first 10 seconds and caption it”.</div>
+    </div>
+    <div class="chips">
+      <button data-q="Make this a TikTok">TikTok format</button>
+      <button data-q="Make this an Instagram reel">Instagram reel</button>
+      <button data-q="Expand the frame to 16:9">Expand to 16:9</button>
+      <button data-q="Fix the grammar in the spoken audio">Fix speech grammar</button>
+    </div>
+    <form class="compose" id="form">
+      <input id="input" placeholder="Ask Heydit to edit…" autocomplete="off">
+      <button class="primary" id="send">Send</button>
+    </form>
+  </section>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+let state=null, previewURL=null;
+
+async function refresh(){
+  state = await (await fetch('/api/state')).json();
+  $('#model').textContent = state.model + (state.ffmpeg?'':' · ⚠ ffmpeg missing');
+  renderStrip();
+  if(previewURL===null) setPreview(state.current||'', true);
+}
+function setPreview(url, isCurrent){
+  previewURL = isCurrent ? null : url;      // null ⇒ follow "current"
+  const src = url || state.current || '';
+  const v=$('#video');
+  if(!src){v.style.display='none';$('#empty').style.display='block';return}
+  $('#empty').style.display='none'; v.style.display='block';
+  if(v.dataset.src!==src){v.dataset.src=src;v.src=src+'&t='+Date.now();}
+  $('#download').href=src; $('#download').download='heydit.mp4';
+  renderStrip();
+}
+function renderStrip(){
+  const strip=$('#strip'); strip.innerHTML='';
+  for(const a of state.assets){
+    strip.appendChild(clipEl('source '+a.id, a.name+' · '+a.info, a.url));
+  }
+  for(const op of state.ops){
+    strip.appendChild(clipEl(op.seq+'. '+op.tool, op.summary, op.url));
+  }
+  if(!state.assets.length && !state.ops.length) strip.innerHTML='<span style="color:var(--muted);font-size:12px">empty project</span>';
+}
+function clipEl(tool,sum,url){
+  const d=document.createElement('div');
+  d.className='clip'+(url && (url===(previewURL??state.current))?' active':'');
+  d.innerHTML=`<div class="tool"></div><div class="sum"></div>`;
+  d.querySelector('.tool').textContent=tool;
+  d.querySelector('.sum').textContent=sum;
+  if(url) d.onclick=()=>setPreview(url, url===state.current);
+  return d;
+}
+
+function addMsg(cls, text){
+  const d=document.createElement('div'); d.className='m '+cls; d.textContent=text;
+  $('#msgs').appendChild(d); $('#msgs').scrollTop=1e9; return d;
+}
+function addTrace(events){
+  if(!events||!events.length) return;
+  const wrap=document.createElement('div'); wrap.className='trace';
+  for(const e of events){
+    if(e.kind!=='tool_end') continue;
+    const t=document.createElement('div'); t.className='t'+(e.err?' err':'');
+    t.innerHTML=`<span class="name"></span><span class="info"></span>`;
+    t.querySelector('.name').textContent=(e.err?'✗ ':'✓ ')+e.tool;
+    t.querySelector('.info').textContent=e.err||e.summary;
+    wrap.appendChild(t);
+  }
+  $('#msgs').appendChild(wrap); $('#msgs').scrollTop=1e9;
+}
+
+let busy=false;
+async function send(q){
+  if(busy) return;
+  const msg=q||$('#input').value.trim(); if(!msg) return;
+  $('#input').value=''; busy=true; $('#send').disabled=true;
+  addMsg('user', msg);
+  const wait=addMsg('bot',''); wait.innerHTML='<span class="spin"></span> working…';
+  try{
+    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+    const data=await r.json();
+    wait.remove();
+    if(!r.ok) throw new Error(data.error||r.statusText);
+    addTrace(data.events);
+    addMsg('bot', data.reply);
+    state=data.state; previewURL=null; setPreview(state.current||'', true);
+  }catch(err){ wait.remove(); addMsg('bot','✗ '+err.message); }
+  busy=false; $('#send').disabled=false; $('#input').focus();
+}
+$('#form').onsubmit=e=>{e.preventDefault();send()};
+document.querySelectorAll('.chips button').forEach(b=>b.onclick=()=>send(b.dataset.q));
+$('#file').onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const fd=new FormData(); fd.append('file',f);
+  addMsg('bot','Uploading '+f.name+'…');
+  const r=await fetch('/api/upload',{method:'POST',body:fd});
+  const data=await r.json();
+  if(!r.ok){addMsg('bot','✗ '+(data.error||'upload failed'));return}
+  state=data; previewURL=null; setPreview(state.current||'', true);
+  addMsg('bot','Got it — what should I change?');
+};
+$('#undo').onclick=async()=>{
+  const r=await fetch('/api/undo',{method:'POST'});
+  const data=await r.json();
+  if(!r.ok){addMsg('bot','✗ '+(data.error||'nothing to undo'));return}
+  state=data; previewURL=null; setPreview(state.current||'', true);
+};
+refresh();
+</script>
+</body>
+</html>

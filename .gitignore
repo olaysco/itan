@@ -1,19 +1,12 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.venv/
-venv/
-env/
+# Binaries
+/heydit
+heydit.exe
+dist/
 
-# Env / secrets
-.env
+# Project/session state and rendered media
+.heydit/
 
-# Storage (uploaded + generated media)
-storage/uploads/
-storage/outputs/
-
-# OS / editor
+# Editor / OS
 .DS_Store
 .idea/
 .vscode/
