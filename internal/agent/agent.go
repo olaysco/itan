@@ -247,6 +247,7 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 			}
 		}
 		streamed := false
+		thinkChars, thinkEmitted := 0, 0
 		resp, err := callProv.CompleteStream(ctx, provider.Request{
 			Model:     model,
 			System:    a.system,
@@ -254,8 +255,20 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 			Tools:     a.toolDefs(),
 			MaxTokens: a.replyMaxTokens(),
 		}, func(d provider.Delta) {
-			streamed = true
-			emit(Event{Kind: "text_delta", Text: d.Text})
+			if d.Text != "" {
+				streamed = true
+				emit(Event{Kind: "text_delta", Text: d.Text})
+			}
+			// Reasoning models think silently for a long time before any
+			// visible output — surface it as activity, throttled, so the UI
+			// never looks dead while the model works.
+			if d.Thinking != "" {
+				thinkChars += len(d.Thinking)
+				if thinkChars-thinkEmitted >= 400 {
+					thinkEmitted = thinkChars
+					emit(Event{Kind: "thinking", Text: fmt.Sprintf("~%d words", thinkChars/5)})
+				}
+			}
 		})
 		if err != nil {
 			return "", StopError, err
@@ -282,8 +295,12 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 			// Push back exactly once instead of accepting the empty turn.
 			if strings.TrimSpace(finalText.String()) == "" && !nudged {
 				nudged = true
-				a.History = append(a.History, provider.UserText(
-					"(You ended your turn without any reply. If the task is unfinished, continue it now with tool calls; otherwise summarize what changed in one short paragraph.)"))
+				push := "(You ended your turn without any reply. If the task is unfinished, continue it now with tool calls; otherwise summarize what changed in one short paragraph.)"
+				if resp.Reasoning != "" && resp.StopReason == "max_tokens" {
+					// The whole budget went to chain-of-thought.
+					push = "(Your entire response was internal reasoning and hit the token limit before any visible output. Do NOT re-derive your plan — act on it immediately: emit the tool calls now, with minimal further deliberation.)"
+				}
+				a.History = append(a.History, provider.UserText(push))
 				continue
 			}
 			return a.finishReply(finalText.String(), lastToolSummary), StopEndTurn, nil

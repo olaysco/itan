@@ -7,9 +7,12 @@ import (
 	"strings"
 )
 
-// Delta is one streamed increment of assistant text.
+// Delta is one streamed increment of assistant output. Text is visible
+// reply; Thinking is reasoning-model chain-of-thought (surfaced as activity,
+// never as reply text).
 type Delta struct {
-	Text string
+	Text     string
+	Thinking string
 }
 
 // Streamer is implemented by providers that support server-sent-event

@@ -318,6 +318,28 @@ func TestEmptyTurnNudge(t *testing.T) {
 	}
 }
 
+// A response that is ALL chain-of-thought (reasoning hit the token cap) gets
+// the targeted push-back: act, don't re-derive.
+func TestReasoningOnlyStallNudge(t *testing.T) {
+	fake := &scripted{responses: []*provider.Response{
+		{Blocks: nil, StopReason: "max_tokens", Reasoning: "very long plan..."},
+		{Blocks: []provider.Block{provider.TextBlock("acted")}, StopReason: "end_turn"},
+	}}
+	a, _ := newTestAgent(t, fake)
+	reply, err := a.Run(context.Background(), "make the video", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply != "acted" {
+		t.Fatalf("reply = %q", reply)
+	}
+	second := fake.requests[1]
+	last := second.Messages[len(second.Messages)-1]
+	if !strings.Contains(last.Blocks[0].Text, "internal reasoning") {
+		t.Fatalf("reasoning-stall nudge missing: %+v", last)
+	}
+}
+
 // finishReply must never claim success the model didn't state.
 func TestFinishReplyHonest(t *testing.T) {
 	a := &Agent{}

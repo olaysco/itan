@@ -383,7 +383,7 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	reply, err := s.Session.Agent.Run(r.Context(), req.Message, func(e agent.Event) {
 		obj := map[string]any{"type": e.Kind}
 		switch e.Kind {
-		case "text_delta", "text":
+		case "text_delta", "text", "thinking":
 			obj["text"] = e.Text
 		case "tool_start":
 			obj["tool"], obj["args"] = e.Tool, e.Args

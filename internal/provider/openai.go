@@ -60,6 +60,7 @@ func (o *OpenAI) Complete(ctx context.Context, req Request) (*Response, error) {
 		"messages":   msgs,
 		"max_tokens": req.MaxTokens,
 	}
+	o.capReasoning(body, req.MaxTokens)
 	if len(req.Tools) > 0 {
 		tools := make([]map[string]any, len(req.Tools))
 		for i, t := range req.Tools {
@@ -100,8 +101,12 @@ func (o *OpenAI) Complete(ctx context.Context, req Request) (*Response, error) {
 
 	var out struct {
 		Choices []struct {
-			Message      oaMessage `json:"message"`
-			FinishReason string    `json:"finish_reason"`
+			Message struct {
+				oaMessage
+				ReasoningContent string `json:"reasoning_content"`
+				Reasoning        string `json:"reasoning"`
+			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
 		Usage struct {
 			PromptTokens     int `json:"prompt_tokens"`
@@ -119,6 +124,7 @@ func (o *OpenAI) Complete(ctx context.Context, req Request) (*Response, error) {
 	res := &Response{
 		InputTokens:  out.Usage.PromptTokens,
 		OutputTokens: out.Usage.CompletionTokens,
+		Reasoning:    choice.Message.ReasoningContent + choice.Message.Reasoning,
 	}
 	if s := contentText(choice.Message.Content); s != "" {
 		res.Blocks = append(res.Blocks, TextBlock(s))
@@ -164,6 +170,7 @@ func (o *OpenAI) CompleteStream(ctx context.Context, req Request, onDelta func(D
 		"stream":         true,
 		"stream_options": map[string]any{"include_usage": true},
 	}
+	o.capReasoning(body, req.MaxTokens)
 	if len(req.Tools) > 0 {
 		tools := make([]map[string]any, len(req.Tools))
 		for i, t := range req.Tools {
@@ -208,6 +215,7 @@ func (o *OpenAI) CompleteStream(ctx context.Context, req Request, onDelta func(D
 	}
 	var (
 		text         strings.Builder
+		reasoning    strings.Builder
 		calls        = map[int]*callBuild{}
 		callOrder    []int
 		finishReason string
@@ -221,8 +229,10 @@ func (o *OpenAI) CompleteStream(ctx context.Context, req Request, onDelta func(D
 		var chunk struct {
 			Choices []struct {
 				Delta struct {
-					Content   any `json:"content"`
-					ToolCalls []struct {
+					Content          any    `json:"content"`
+					ReasoningContent string `json:"reasoning_content"`
+					Reasoning        string `json:"reasoning"`
+					ToolCalls        []struct {
 						Index    int    `json:"index"`
 						ID       string `json:"id"`
 						Function struct {
@@ -258,6 +268,12 @@ func (o *OpenAI) CompleteStream(ctx context.Context, req Request, onDelta func(D
 				onDelta(Delta{Text: s})
 			}
 		}
+		if th := choice.Delta.ReasoningContent + choice.Delta.Reasoning; th != "" {
+			reasoning.WriteString(th)
+			if onDelta != nil {
+				onDelta(Delta{Thinking: th})
+			}
+		}
 		for _, tc := range choice.Delta.ToolCalls {
 			cb := calls[tc.Index]
 			if cb == nil {
@@ -279,6 +295,7 @@ func (o *OpenAI) CompleteStream(ctx context.Context, req Request, onDelta func(D
 		return nil, err
 	}
 
+	res.Reasoning = reasoning.String()
 	if text.Len() > 0 {
 		res.Blocks = append(res.Blocks, TextBlock(text.String()))
 	}
@@ -302,6 +319,24 @@ func (o *OpenAI) CompleteStream(ctx context.Context, req Request, onDelta func(D
 		res.StopReason = "tool_use"
 	}
 	return res, nil
+}
+
+// capReasoning bounds how much of the response budget a reasoning model may
+// spend thinking, so visible output always fits. OpenRouter's unified
+// `reasoning` parameter does this across hosts; other endpoints may reject
+// unknown fields, so the cap is applied only where it is known-safe.
+func (o *OpenAI) capReasoning(body map[string]any, maxTokens int) {
+	if !strings.Contains(o.BaseURL, "openrouter.ai") {
+		return
+	}
+	budget := maxTokens / 2
+	if budget > 4096 {
+		budget = 4096
+	}
+	if budget < 1024 {
+		return // tiny requests: let the host default
+	}
+	body["reasoning"] = map[string]any{"max_tokens": budget}
 }
 
 // contentText extracts assistant text whether the host returned a plain

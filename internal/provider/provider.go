@@ -75,6 +75,10 @@ type Response struct {
 	StopReason   string // "end_turn" | "tool_use" | "max_tokens" | ...
 	InputTokens  int
 	OutputTokens int
+	// Reasoning is the model's internal chain-of-thought (reasoning models
+	// only). Never fed back as context — but the harness must know it
+	// happened: a response that is ALL reasoning is a stall, not an answer.
+	Reasoning string
 }
 
 // Text concatenates all text blocks of a response.

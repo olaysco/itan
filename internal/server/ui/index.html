@@ -854,6 +854,7 @@ function handleEvent(ev,rows){
       endRow(d,!ev.err,ev.summary+(ev.output?' → '+decodeURIComponent(ev.output.split('path=')[1]||'').split('/').pop():''),ev.ms||((Date.now()-d.dataset.t0)),ev.err);
       if(ev.output&&!ev.err)refreshDuringRun();
       break}
+    case 'thinking':{$('#workText').textContent='thinking · '+ev.text;break}
     case 'retry':{const d=traceRow('retry','');d.dataset.state='done';const g=glyph('retry');const gl=d.querySelector('.g');gl.textContent=g[0];gl.style.color=g[1];d.querySelector('.nm').textContent='retry';d.querySelector('.ar').textContent=ev.text;d.querySelector('.rt').textContent='';traceSummary();break}
     case 'permission':{/* denied w/o dialog (rules) — row for honesty */const d=traceRow(ev.tool,'');endRow(d,false,'',0,ev.err);break}
     case 'permission_request':openPerm(ev);break;

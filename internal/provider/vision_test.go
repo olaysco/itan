@@ -101,6 +101,71 @@ func TestOpenAIStreamArrayContent(t *testing.T) {
 	}
 }
 
+// Reasoning models put chain-of-thought in reasoning_content; it must be
+// captured (a reasoning-only response is a stall the agent must detect) and
+// streamed as Thinking deltas so the UI shows activity.
+func TestOpenAIReasoningContent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"","reasoning_content":"thinking hard about frames"},"finish_reason":"length"}],"usage":{}}`))
+	}))
+	defer srv.Close()
+
+	p := NewOpenAI(srv.URL, "k", "test")
+	resp, err := p.Complete(context.Background(), Request{Model: "m", Messages: []Message{UserText("hi")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Reasoning != "thinking hard about frames" {
+		t.Fatalf("reasoning lost: %q", resp.Reasoning)
+	}
+	if len(resp.Blocks) != 0 || resp.StopReason != "max_tokens" {
+		t.Fatalf("reasoning-only response misparsed: %+v", resp)
+	}
+}
+
+func TestOpenAIStreamReasoning(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(
+			"data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"hmm \"}}]}\n\n" +
+				"data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"okay\"}}]}\n\n" +
+				"data: {\"choices\":[{\"delta\":{\"content\":\"done\"},\"finish_reason\":\"stop\"}]}\n\n" +
+				"data: [DONE]\n\n"))
+	}))
+	defer srv.Close()
+
+	var thinking string
+	p := NewOpenAI(srv.URL, "k", "test")
+	resp, err := p.CompleteStream(context.Background(), Request{Model: "m", Messages: []Message{UserText("hi")}},
+		func(d Delta) { thinking += d.Thinking })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if thinking != "hmm okay" || resp.Reasoning != "hmm okay" {
+		t.Fatalf("thinking deltas lost: %q / %q", thinking, resp.Reasoning)
+	}
+	if resp.Text() != "done" {
+		t.Fatalf("text = %q", resp.Text())
+	}
+}
+
+// The reasoning budget cap applies only where the parameter is known-safe.
+func TestCapReasoning(t *testing.T) {
+	or := &OpenAI{BaseURL: "https://openrouter.ai/api/v1"}
+	body := map[string]any{}
+	or.capReasoning(body, 8192)
+	r, ok := body["reasoning"].(map[string]any)
+	if !ok || r["max_tokens"] != 4096 {
+		t.Fatalf("openrouter reasoning cap missing: %v", body)
+	}
+	direct := &OpenAI{BaseURL: "https://api.moonshot.ai/v1"}
+	body = map[string]any{}
+	direct.capReasoning(body, 8192)
+	if _, ok := body["reasoning"]; ok {
+		t.Fatal("reasoning param must not be sent to unknown hosts")
+	}
+}
+
 // The OpenAI dialect can't put images on the tool role, so frames ride a
 // follow-up user message as data URIs.
 func TestOpenAIToolResultImages(t *testing.T) {
