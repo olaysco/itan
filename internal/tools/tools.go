@@ -128,6 +128,9 @@ func NewRegistry() *Registry {
 	for _, t := range videoTools() {
 		r.add(t)
 	}
+	for _, t := range regionTools() {
+		r.add(t)
+	}
 	for _, t := range audioTools() {
 		r.add(t)
 	}

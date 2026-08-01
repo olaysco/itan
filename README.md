@@ -88,8 +88,8 @@ permissions:         # last match wins; '*' and 'prefix*' wildcards
 ### Tools
 
 `probe · trim · concat · set_speed · crop · expand_frame · change_background ·
-overlay_text · render · export · transcribe · tts · extract_audio ·
-replace_audio · mix_audio · read_text`
+overlay_text · blur_region · pixelate_region · zoom_region · render · export ·
+transcribe · tts · extract_audio · replace_audio · mix_audio · read_text`
 
 ## Models are configuration, not code
 

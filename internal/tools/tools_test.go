@@ -67,6 +67,7 @@ func TestRegistryHasExpectedTools(t *testing.T) {
 	for _, name := range []string{
 		"probe", "trim", "concat", "set_speed", "crop", "expand_frame",
 		"change_background", "overlay_text", "render", "export",
+		"blur_region", "pixelate_region", "zoom_region",
 		"transcribe", "tts", "extract_audio", "replace_audio", "mix_audio",
 		"read_text",
 	} {
