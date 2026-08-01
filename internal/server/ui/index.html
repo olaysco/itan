@@ -36,6 +36,10 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 .logo .bars i:nth-child(1){width:15px}.logo .bars i:nth-child(2){width:10px;opacity:.75}.logo .bars i:nth-child(3){width:5px;opacity:.5}
 .logo b{font-size:18px;font-weight:800;letter-spacing:-.01em}
 #fileChip{font-size:10.5px;color:var(--t3);background:var(--surface2);border-radius:5px;padding:3px 8px}
+#projChip{font-size:10.5px;color:var(--t2);background:var(--surface2);border-radius:5px;padding:3px 8px;cursor:pointer}
+#projChip:hover{color:var(--t1)}
+.rmx{margin-left:auto;color:var(--t4);cursor:pointer;font-size:10px;padding:0 2px}
+.rmx:hover{color:#e5484d}
 .hpill{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--t2);background:var(--fill);border-radius:999px;padding:5px 12px;cursor:pointer}
 .hpill:hover{background:var(--border1)}
 .hbtn{font-size:12px;color:var(--t2);background:var(--fill);border-radius:7px;padding:5px 11px;cursor:pointer}
@@ -314,6 +318,7 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
   <div id="topbar"></div>
   <header>
     <div class="logo"><div class="bars"><i></i><i></i><i></i></div><b>ìtàn</b></div>
+    <div id="projChip" class="mono" title="projects — each folder is its own session">▤ …</div>
     <div id="fileChip" class="mono hidden"></div>
     <div style="flex:1"></div>
     <div class="hpill" id="skillsBtn">❖ skills<span id="skillChip" class="mono hidden"></span></div>
@@ -473,6 +478,20 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
     </div>
   </div>
 
+  <!-- projects -->
+  <div id="projWrap" class="hidden">
+    <div class="scrimClear" data-close></div>
+    <div class="dlg" id="projDlg">
+      <div class="dlgHd">PROJECTS · each folder is its own session</div>
+      <div id="projList"></div>
+      <div style="display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--border1)">
+        <input id="projPath" placeholder="/path/to/folder — opens or creates a project there" style="flex:1;background:var(--fill);border:1px solid var(--border1);border-radius:7px;padding:7px 10px;font-size:11.5px;color:var(--t1);font-family:'IBM Plex Mono',ui-monospace,monospace;outline:none">
+        <div class="btnS" id="projOpen">open</div>
+      </div>
+      <div id="projFoot" style="font-size:10px;color:var(--t4);padding:0 14px 12px" class="mono">ledger, conversation, and checkpoints live in the folder — switching back resumes where you left off</div>
+    </div>
+  </div>
+
   <!-- settings -->
   <div id="setWrap" class="hidden">
     <div class="scrim" data-close></div>
@@ -529,6 +548,7 @@ function render(){
   const st=S.state;if(!st)return;
   const has=st.assets.length>0;
   $('#modelName').textContent=st.model.split('/')[1]||st.model;
+  $('#projChip').textContent='▤ '+(st.project||'project');
   $('#ffdot').classList.toggle('bad',!st.ffmpeg);
   $('#fileChip').classList.toggle('hidden',!has);
   if(has)$('#fileChip').textContent=st.assets[0].name;
@@ -571,7 +591,7 @@ function renderChips(has){
 function renderStrip(){
   const st=S.state,strip=$('#strip');strip.innerHTML='';
   const items=[];
-  st.assets.forEach((a,i)=>items.push({num:'00'+i,name:'source',sum:a.name,meta:a.info,url:a.url}));
+  st.assets.forEach((a,i)=>items.push({num:'00'+i,name:'source',sum:a.name,meta:a.info,url:a.url,id:a.id}));
   st.ops.forEach(op=>items.push({num:String(op.seq).padStart(3,'0'),name:op.tool,sum:op.summary,meta:'',url:op.url}));
   const activeURL=S.previewURL??st.current;
   items.forEach(it=>{
@@ -579,6 +599,7 @@ function renderStrip(){
     const isCur=it.url&&it.url===st.current, isSel=it.url&&it.url===activeURL;
     d.className='step'+(isSel?' active':'');
     d.innerHTML=`<div class="row"><span class="num">${it.num}</span><span class="nm">${esc(it.name)}</span>${isCur?'<span class="tag">CURRENT</span>':''}</div><div class="sum">${esc(it.sum)}</div><div class="meta">${esc(it.meta)}</div>`;
+    if(it.id){const x=document.createElement('span');x.className='rmx';x.textContent='✕';x.title='remove from project (file on disk is kept)';x.onclick=ev=>{ev.stopPropagation();removeAsset(it.id,it.sum)};d.querySelector('.row').appendChild(x)}
     if(it.url)d.onclick=()=>setPreview(it.url,it.url===st.current);
     strip.appendChild(d);
   });
@@ -1041,9 +1062,40 @@ function wireOverlay(btnSel,wrapSel,onOpen){
   const open=()=>{closeOverlays();$(wrapSel).classList.remove('hidden');onOpen&&onOpen()};
   $$(btnSel).forEach(b=>b.onclick=open);
 }
-function closeOverlays(){['#modelWrap','#skillsWrap','#cpWrap','#setWrap'].forEach(s=>$(s).classList.add('hidden'))}
+function closeOverlays(){['#modelWrap','#skillsWrap','#cpWrap','#setWrap','#projWrap'].forEach(s=>$(s).classList.add('hidden'))}
 document.addEventListener('click',e=>{if(e.target.dataset?.close!==undefined)closeOverlays()});
 wireOverlay('#modelPill','#modelWrap',renderModels);
+wireOverlay('#projChip','#projWrap',renderProjects);
+async function renderProjects(){
+  const list=$('#projList');list.innerHTML='';
+  try{
+    const r=await(await fetch('/api/projects')).json();
+    r.projects.forEach(p=>{
+      const d=document.createElement('div');d.className='mrow';
+      d.innerHTML=`<span class="dot" style="background:${p.active?'var(--accent)':'var(--t3)'}"></span>
+        <div style="flex:1"><div class="nm">${esc(p.name)}</div><div class="via">${esc(p.dir)}</div></div>
+        ${p.active?'<span class="mono" style="font-size:11px;color:var(--accent)">✓</span>':''}`;
+      if(!p.active)d.onclick=()=>switchProject(p.dir);
+      list.appendChild(d);
+    });
+  }catch(e){toast('✕ '+e.message)}
+}
+async function switchProject(dir){
+  const r=await fetch('/api/project',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dir})});
+  const j=await r.json();
+  if(!r.ok){toast('✕ '+(j.error||'switch failed'));return}
+  S.state=j;S.previewURL=null;S.selStep=null;msgs.innerHTML='';trace=null;liveA=null;
+  closeOverlays();render();toast('project · '+(j.project||dir));
+}
+$('#projOpen').onclick=()=>{const v=$('#projPath').value.trim();if(v)switchProject(v)};
+$('#projPath').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#projOpen').onclick()}});
+async function removeAsset(id,name){
+  if(!confirm('Remove '+name+' from this project?\nThe file on disk is kept.'))return;
+  const r=await fetch('/api/asset/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+  const j=await r.json();
+  if(!r.ok){toast('✕ '+(j.error||'remove failed'));return}
+  S.state=j;S.previewURL=null;render();toast('removed '+name);
+}
 wireOverlay('#skillsBtn','#skillsWrap',renderSkills);
 wireOverlay('#cpBtn,#cpBtn2','#cpWrap',renderCps);
 wireOverlay('#gear','#setWrap',()=>{

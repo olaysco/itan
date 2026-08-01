@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -54,6 +55,7 @@ type pendingPerm struct {
 func New(session *cli.Session) *Server {
 	s := &Server{Session: session}
 	s.attachAsker()
+	config.RememberProject(session.Project.Dir)
 	return s
 }
 
@@ -112,6 +114,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/chat", s.handleChatStream)
 	mux.HandleFunc("POST /api/permission", s.handlePermission)
 	mux.HandleFunc("POST /api/upload", s.handleUpload)
+	mux.HandleFunc("POST /api/asset/remove", s.handleAssetRemove)
+	mux.HandleFunc("GET /api/projects", s.handleProjects)
+	mux.HandleFunc("POST /api/project", s.handleProjectSwitch)
 	mux.HandleFunc("POST /api/undo", s.handleUndo)
 	mux.HandleFunc("POST /api/revert", s.handleRevert)
 	mux.HandleFunc("POST /api/model", s.handleModel)
@@ -179,6 +184,8 @@ type modelView struct {
 
 type stateView struct {
 	Model       string           `json:"model"`
+	Project     string           `json:"project"`
+	ProjectDir  string           `json:"project_dir"`
 	Mode        string           `json:"mode"`
 	Ffmpeg      bool             `json:"ffmpeg"`
 	Assets      []fileRef        `json:"assets"`
@@ -206,11 +213,13 @@ func (s *Server) state() stateView {
 	p := s.Session.Project
 	cfg := s.Session.Cfg
 	v := stateView{
-		Model:   cfg.Model.Provider + "/" + cfg.Model.ID,
-		Mode:    string(permission.ModeAuto),
-		Ffmpeg:  media.Available(),
-		Current: mediaURL(p.Current),
-		Assets:  []fileRef{}, Ops: []opView{}, Checkpoints: []checkpointView{},
+		Model:      cfg.Model.Provider + "/" + cfg.Model.ID,
+		Project:    filepath.Base(p.Dir),
+		ProjectDir: p.Dir,
+		Mode:       string(permission.ModeAuto),
+		Ffmpeg:     media.Available(),
+		Current:    mediaURL(p.Current),
+		Assets:     []fileRef{}, Ops: []opView{}, Checkpoints: []checkpointView{},
 		Skills: []skillView{}, Models: []modelView{},
 		TTS: cfg.Audio.TTS.Provider + " · " + cfg.Audio.TTS.Voice,
 		STT: cfg.Audio.STT.Provider,
@@ -424,6 +433,88 @@ func (s *Server) handleDemo(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, 400, err.Error())
 		return
 	}
+	writeJSON(w, s.state())
+}
+
+// handleAssetRemove unregisters a source clip. The file on disk is kept —
+// only the project stops referencing it.
+func (s *Server) handleAssetRemove(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" {
+		httpErr(w, 400, "id required")
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, err := s.Session.Project.RemoveAsset(req.ID); err != nil {
+		httpErr(w, 400, err.Error())
+		return
+	}
+	writeJSON(w, s.state())
+}
+
+// --- projects --------------------------------------------------------------
+
+// A project is a directory; its .itan/ subfolder carries the ledger,
+// conversation, and checkpoints — so switching projects switches the whole
+// session, and switching back resumes where it left off.
+
+type projectRef struct {
+	Dir    string `json:"dir"`
+	Name   string `json:"name"`
+	Active bool   `json:"active"`
+}
+
+func (s *Server) handleProjects(w http.ResponseWriter, _ *http.Request) {
+	cur := s.Session.Project.Dir
+	refs := []projectRef{}
+	seen := false
+	for _, d := range config.RecentProjects() {
+		if d == cur {
+			seen = true
+		}
+		refs = append(refs, projectRef{Dir: d, Name: filepath.Base(d), Active: d == cur})
+	}
+	if !seen {
+		refs = append([]projectRef{{Dir: cur, Name: filepath.Base(cur), Active: true}}, refs...)
+	}
+	writeJSON(w, map[string]any{"projects": refs})
+}
+
+// handleProjectSwitch opens (or creates) the project at dir and swaps the
+// whole session to it, restoring that project's saved conversation.
+func (s *Server) handleProjectSwitch(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Dir string `json:"dir"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Dir) == "" {
+		httpErr(w, 400, "dir required")
+		return
+	}
+	abs, err := filepath.Abs(strings.TrimSpace(req.Dir))
+	if err != nil {
+		httpErr(w, 400, err.Error())
+		return
+	}
+	if err := os.MkdirAll(abs, 0o755); err != nil {
+		httpErr(w, 400, "cannot open "+abs+": "+err.Error())
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sess, err := cli.NewSession(abs, true)
+	if err != nil {
+		httpErr(w, 400, err.Error())
+		return
+	}
+	if s.Session.Agent != nil {
+		_ = s.Session.Agent.SaveSession() // don't lose the outgoing conversation
+	}
+	s.Session = sess
+	s.attachAsker()
+	config.RememberProject(abs)
 	writeJSON(w, s.state())
 }
 

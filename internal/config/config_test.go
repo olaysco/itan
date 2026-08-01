@@ -57,6 +57,18 @@ func TestGetSetDottedPath(t *testing.T) {
 	}
 }
 
+func TestRecentProjects(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // GlobalDir derives from the home dir
+	d1, d2 := t.TempDir(), t.TempDir()
+	RememberProject(d1)
+	RememberProject(d2)
+	RememberProject(d1) // re-opening moves it to the front, no duplicate
+	got := RecentProjects()
+	if len(got) != 2 || got[0] != d1 || got[1] != d2 {
+		t.Fatalf("recents = %v", got)
+	}
+}
+
 func TestResolveSpec(t *testing.T) {
 	cfg := Default()
 	t.Setenv("MOONSHOT_API_KEY", "mk")

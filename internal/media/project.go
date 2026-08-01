@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -90,12 +91,52 @@ func (p *Project) AddAsset(ctx context.Context, path string) (*Asset, error) {
 	if err != nil {
 		return nil, err
 	}
-	a := Asset{ID: fmt.Sprintf("a%d", len(p.Assets)+1), Path: abs, Info: info}
+	// IDs are max+1, not len+1: after a removal, len+1 would mint a duplicate
+	// of an id the ledger and conversation still reference.
+	next := 0
+	for _, a := range p.Assets {
+		if n, err := strconv.Atoi(strings.TrimPrefix(a.ID, "a")); err == nil && n > next {
+			next = n
+		}
+	}
+	a := Asset{ID: fmt.Sprintf("a%d", next+1), Path: abs, Info: info}
 	p.Assets = append(p.Assets, a)
 	if p.Current == "" {
 		p.Current = abs
 	}
 	return &a, p.Save()
+}
+
+// RemoveAsset unregisters a source file from the project; the file on disk is
+// kept. Remaining ids are unchanged — the ledger may still reference them.
+// When the removed asset was the working video, Current falls back to the
+// newest op output, then the first remaining asset.
+func (p *Project) RemoveAsset(id string) (*Asset, error) {
+	idx := -1
+	for i, a := range p.Assets {
+		if a.ID == id {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return nil, fmt.Errorf("no asset %q", id)
+	}
+	removed := p.Assets[idx]
+	p.Assets = append(p.Assets[:idx], p.Assets[idx+1:]...)
+	if p.Current == removed.Path {
+		p.Current = ""
+		for i := len(p.Ops) - 1; i >= 0; i-- {
+			if p.Ops[i].Output != "" {
+				p.Current = p.Ops[i].Output
+				break
+			}
+		}
+		if p.Current == "" && len(p.Assets) > 0 {
+			p.Current = p.Assets[0].Path
+		}
+	}
+	return &removed, p.Save()
 }
 
 // NextOutput reserves a numbered output path for a tool run. The counter is
