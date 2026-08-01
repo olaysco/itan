@@ -307,7 +307,14 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 				a.History = append(a.History, provider.UserText(push))
 				continue
 			}
-			return a.finishReply(finalText.String(), lastToolSummary), StopEndTurn, nil
+			reply := a.finishReply(finalText.String(), lastToolSummary)
+			if strings.TrimSpace(finalText.String()) == "" {
+				// The reply was synthesized, not spoken by the model — write
+				// it into history so a restored chat shows the outcome
+				// instead of an unanswered question.
+				a.History = append(a.History, provider.Message{Role: "assistant", Blocks: []provider.Block{provider.TextBlock(reply)}})
+			}
+			return reply, StopEndTurn, nil
 		}
 
 		results := a.executeBatch(tctx, uses, &doom, emit)

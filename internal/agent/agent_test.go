@@ -311,10 +311,38 @@ func TestEmptyTurnNudge(t *testing.T) {
 	if last.Role != "user" || !strings.Contains(last.Blocks[0].Text, "ended your turn") {
 		t.Fatalf("nudge message missing: %+v", last)
 	}
+	// The final (real) reply came from the model, so no synthesized outcome
+	// should be appended — history ends with the model's own text.
+	tail := a.History[len(a.History)-1]
+	if tail.Role != "assistant" || tail.Blocks[0].Text != "finished after nudge" {
+		t.Fatalf("history tail = %+v", tail)
+	}
 	// The stalled assistant turn must not enter history as an empty message.
 	prev := second.Messages[len(second.Messages)-2]
 	if prev.Role != "assistant" || len(prev.Blocks) == 0 {
 		t.Fatalf("empty assistant message reached history: %+v", prev)
+	}
+}
+
+// A run that ends with no model reply persists its synthesized outcome into
+// history, so a restored chat shows what happened instead of an unanswered
+// question bubble.
+func TestSynthesizedOutcomePersisted(t *testing.T) {
+	fake := &scripted{responses: []*provider.Response{
+		{Blocks: nil, StopReason: "end_turn"},
+		{Blocks: nil, StopReason: "end_turn"}, // stalls through the nudge too
+	}}
+	a, _ := newTestAgent(t, fake)
+	reply, err := a.Run(context.Background(), "do the thing", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(reply, "ended without a reply") {
+		t.Fatalf("reply = %q", reply)
+	}
+	tail := a.History[len(a.History)-1]
+	if tail.Role != "assistant" || !strings.Contains(tail.Blocks[0].Text, "ended without a reply") {
+		t.Fatalf("synthesized outcome not in history: %+v", tail)
 	}
 }
 
