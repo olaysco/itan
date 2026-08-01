@@ -36,8 +36,10 @@ type anthBlk struct {
 	Name      string          `json:"name,omitempty"`
 	Input     json.RawMessage `json:"input,omitempty"`
 	ToolUseID string          `json:"tool_use_id,omitempty"`
-	Content   string          `json:"content,omitempty"`
-	IsError   bool            `json:"is_error,omitempty"`
+	// Content is a string for plain results, or a part array when images
+	// are attached (the Messages API accepts both).
+	Content any  `json:"content,omitempty"`
+	IsError bool `json:"is_error,omitempty"`
 }
 
 type anthTool struct {
@@ -270,8 +272,21 @@ func toAnthMessages(msgs []Message) []anthMsg {
 				}
 				am.Content = append(am.Content, anthBlk{Type: "tool_use", ID: b.ID, Name: b.Name, Input: input})
 			case "tool_result":
+				var content any = b.Content
+				if len(b.Images) > 0 {
+					parts := []any{map[string]any{"type": "text", "text": b.Content}}
+					for _, img := range b.Images {
+						parts = append(parts, map[string]any{
+							"type": "image",
+							"source": map[string]any{
+								"type": "base64", "media_type": img.MediaType, "data": img.Data,
+							},
+						})
+					}
+					content = parts
+				}
 				am.Content = append(am.Content, anthBlk{
-					Type: "tool_result", ToolUseID: b.ToolUseID, Content: b.Content, IsError: b.IsError,
+					Type: "tool_result", ToolUseID: b.ToolUseID, Content: content, IsError: b.IsError,
 				})
 			}
 		}

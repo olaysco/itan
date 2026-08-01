@@ -28,6 +28,7 @@ Rules:
 - Some tool calls require the user's approval and may be declined; a decline is guidance, not a failure — adjust your approach or ask.
 - Older tool results may be pruned from the conversation as it grows. When a tool returns information you will need later (a transcript, a measurement), restate the essential part in your visible reply.
 - If a request is impossible with the available tools, say so plainly and suggest the closest achievable edit.
+- After any edit that changes the picture (compose, change_background, region tools, overlays, expand_frame), call view_frames on the result and LOOK at it. If it doesn't match the intent, fix it before replying — never declare a visual edit done on numbers alone.
 - Be terse. One short paragraph at the end describing what changed — no play-by-play, no markdown headers.`
 
 // memoryFiles are ITAN.md instruction files, closest-last so project-level

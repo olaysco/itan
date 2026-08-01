@@ -29,6 +29,15 @@ type Block struct {
 	ToolUseID string
 	Content   string
 	IsError   bool
+	// Images attached to a tool_result — how the model sees its own work
+	// (frames from view_frames). Adapters translate to each wire dialect.
+	Images []Image
+}
+
+// Image is a base64-encoded image riding on a tool result.
+type Image struct {
+	MediaType string // e.g. "image/jpeg"
+	Data      string // base64, no data: prefix
 }
 
 func TextBlock(s string) Block { return Block{Type: "text", Text: s} }

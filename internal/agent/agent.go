@@ -13,6 +13,7 @@ package agent
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -347,7 +348,27 @@ func (a *Agent) executeOne(tctx *tools.Ctx, use provider.Block, doom *doomDetect
 		ev.Err = res.Err.Error()
 	}
 	emit(ev)
-	return provider.ToolResultBlock(use.ID, compact, res.Err != nil)
+	block := provider.ToolResultBlock(use.ID, compact, res.Err != nil)
+	block.Images = loadFrames(res.Frames)
+	return block
+}
+
+// loadFrames reads extracted frames off disk and base64-encodes them for the
+// provider adapters. Unreadable frames are skipped rather than failing the
+// whole result.
+func loadFrames(frames []tools.FrameRef) []provider.Image {
+	var images []provider.Image
+	for _, f := range frames {
+		data, err := os.ReadFile(f.Path)
+		if err != nil {
+			continue
+		}
+		images = append(images, provider.Image{
+			MediaType: f.MediaType,
+			Data:      base64.StdEncoding.EncodeToString(data),
+		})
+	}
+	return images
 }
 
 // checkPermission decodes the call, computes any safety-tier reason, and asks

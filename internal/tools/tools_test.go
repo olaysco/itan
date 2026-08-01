@@ -69,7 +69,7 @@ func TestRegistryHasExpectedTools(t *testing.T) {
 		"change_background", "overlay_text", "render", "export",
 		"blur_region", "pixelate_region", "zoom_region", "compose", "overlay_video", "fetch_page", "capture_page",
 		"transcribe", "tts", "extract_audio", "replace_audio", "mix_audio",
-		"read_text",
+		"read_text", "view_frames",
 	} {
 		if _, ok := r.Get(name); !ok {
 			t.Errorf("missing tool %s", name)

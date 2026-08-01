@@ -40,8 +40,10 @@ type oaToolCall struct {
 }
 
 type oaMessage struct {
-	Role       string       `json:"role"`
-	Content    string       `json:"content,omitempty"`
+	Role string `json:"role"`
+	// Content is a string normally; user messages carrying images use the
+	// multi-part array form.
+	Content    any          `json:"content,omitempty"`
 	ToolCalls  []oaToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string       `json:"tool_call_id,omitempty"`
 }
@@ -118,8 +120,8 @@ func (o *OpenAI) Complete(ctx context.Context, req Request) (*Response, error) {
 		InputTokens:  out.Usage.PromptTokens,
 		OutputTokens: out.Usage.CompletionTokens,
 	}
-	if choice.Message.Content != "" {
-		res.Blocks = append(res.Blocks, TextBlock(choice.Message.Content))
+	if s, ok := choice.Message.Content.(string); ok && s != "" {
+		res.Blocks = append(res.Blocks, TextBlock(s))
 	}
 	for _, tc := range choice.Message.ToolCalls {
 		args := tc.Function.Arguments
@@ -308,10 +310,11 @@ func toOAMessages(msgs []Message) []oaMessage {
 		switch m.Role {
 		case "assistant":
 			am := oaMessage{Role: "assistant"}
+			var text string
 			for _, b := range m.Blocks {
 				switch b.Type {
 				case "text":
-					am.Content += b.Text
+					text += b.Text
 				case "tool_use":
 					call := oaToolCall{ID: b.ID, Type: "function"}
 					call.Function.Name = b.Name
@@ -322,10 +325,14 @@ func toOAMessages(msgs []Message) []oaMessage {
 					am.ToolCalls = append(am.ToolCalls, call)
 				}
 			}
+			if text != "" {
+				am.Content = text
+			}
 			out = append(out, am)
 		default: // user turns: split tool results into role:"tool" messages
 			var text string
 			var toolMsgs []oaMessage
+			var imageParts []any
 			for _, b := range m.Blocks {
 				switch b.Type {
 				case "text":
@@ -334,9 +341,25 @@ func toOAMessages(msgs []Message) []oaMessage {
 					toolMsgs = append(toolMsgs, oaMessage{
 						Role: "tool", ToolCallID: b.ToolUseID, Content: b.Content,
 					})
+					// The tool role can't carry images in this dialect, so
+					// frames ride a follow-up user message as data URIs.
+					for _, img := range b.Images {
+						imageParts = append(imageParts, map[string]any{
+							"type": "image_url",
+							"image_url": map[string]any{
+								"url": "data:" + img.MediaType + ";base64," + img.Data,
+							},
+						})
+					}
 				}
 			}
 			out = append(out, toolMsgs...)
+			if len(imageParts) > 0 {
+				parts := append([]any{map[string]any{
+					"type": "text", "text": "[frames attached to the tool result above]",
+				}}, imageParts...)
+				out = append(out, oaMessage{Role: "user", Content: parts})
+			}
 			if text != "" {
 				out = append(out, oaMessage{Role: "user", Content: text})
 			}

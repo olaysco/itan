@@ -34,7 +34,17 @@ type Result struct {
 	Summary string         // one terse line, required
 	Output  string         // rendered file path, if the tool produced one
 	Data    map[string]any // small structured facts (transcript, dims, ...)
-	Err     error
+	// Frames are images the model should SEE (view_frames output); the
+	// agent attaches them to the tool result so a multimodal model can
+	// judge its own work instead of trusting the numbers.
+	Frames []FrameRef
+	Err    error
+}
+
+// FrameRef points at an extracted frame on disk.
+type FrameRef struct {
+	Path      string
+	MediaType string
 }
 
 func fail(format string, a ...any) Result { return Result{Err: fmt.Errorf(format, a...)} }
@@ -138,6 +148,9 @@ func NewRegistry() *Registry {
 		r.add(t)
 	}
 	for _, t := range webTools() {
+		r.add(t)
+	}
+	for _, t := range viewTools() {
 		r.add(t)
 	}
 	for _, t := range miscTools() {
