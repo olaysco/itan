@@ -547,17 +547,43 @@ func (s *Server) handleProjects(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, map[string]any{"projects": refs})
 }
 
+// resolveProjectDir turns what a person types into a predictable absolute
+// path: `~` expands, and bare names land under the home directory — never
+// silently under the server's working directory (which created literal "~"
+// folders and projects in surprising places).
+func resolveProjectDir(input string) (string, error) {
+	dir := strings.TrimSpace(input)
+	if dir == "" {
+		return "", fmt.Errorf("dir required")
+	}
+	if dir == "~" || strings.HasPrefix(dir, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		dir = filepath.Join(home, strings.TrimPrefix(dir, "~"))
+	}
+	if !filepath.IsAbs(dir) {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		dir = filepath.Join(home, dir)
+	}
+	return filepath.Abs(dir)
+}
+
 // handleProjectSwitch opens (or creates) the project at dir and swaps the
 // whole session to it, restoring that project's saved conversation.
 func (s *Server) handleProjectSwitch(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Dir string `json:"dir"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Dir) == "" {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpErr(w, 400, "dir required")
 		return
 	}
-	abs, err := filepath.Abs(strings.TrimSpace(req.Dir))
+	abs, err := resolveProjectDir(req.Dir)
 	if err != nil {
 		httpErr(w, 400, err.Error())
 		return

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/olaysco/itan/internal/agent"
@@ -13,6 +15,29 @@ import (
 	"github.com/olaysco/itan/internal/provider"
 	"github.com/olaysco/itan/internal/skills"
 )
+
+// Typed project paths must resolve predictably: ~ expands, bare names land
+// under home — never under the server's cwd.
+func TestResolveProjectDir(t *testing.T) {
+	home, _ := os.UserHomeDir()
+	cases := map[string]string{
+		"~/videos/x": filepath.Join(home, "videos", "x"),
+		"myproj":     filepath.Join(home, "myproj"),
+		"/abs/path":  "/abs/path",
+	}
+	for in, want := range cases {
+		got, err := resolveProjectDir(in)
+		if err != nil {
+			t.Fatalf("resolveProjectDir(%q): %v", in, err)
+		}
+		if got != want {
+			t.Errorf("resolveProjectDir(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if _, err := resolveProjectDir("  "); err == nil {
+		t.Fatal("blank dir must error")
+	}
+}
 
 type nullProvider struct{}
 

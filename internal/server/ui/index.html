@@ -487,7 +487,7 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
       <div class="dlgHd">PROJECTS · each folder is its own session</div>
       <div id="projList"></div>
       <div style="display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--border1)">
-        <input id="projPath" placeholder="/path/to/folder — opens or creates a project there" style="flex:1;background:var(--fill);border:1px solid var(--border1);border-radius:7px;padding:7px 10px;font-size:11.5px;color:var(--t1);font-family:'IBM Plex Mono',ui-monospace,monospace;outline:none">
+        <input id="projPath" placeholder="/abs/path, ~/folder, or a name (created under ~)" style="flex:1;background:var(--fill);border:1px solid var(--border1);border-radius:7px;padding:7px 10px;font-size:11.5px;color:var(--t1);font-family:'IBM Plex Mono',ui-monospace,monospace;outline:none">
         <div class="btnS" id="projOpen">open</div>
       </div>
       <div id="projFoot" style="font-size:10px;color:var(--t4);padding:0 14px 12px" class="mono">sessions are stored in folders</div>
@@ -551,6 +551,7 @@ function render(){
   const has=st.assets.length>0||st.ops.length>0;
   $('#modelName').textContent=st.model.split('/')[1]||st.model;
   $('#projChip').innerHTML='<span style="color:var(--t4)">project</span> '+esc(st.project||'?')+' <span style="color:var(--t4)">▾</span>';
+  $('#projChip').title=st.project_dir||'';
   $('#ffdot').classList.toggle('bad',!st.ffmpeg);
   $('#fileChip').classList.toggle('hidden',!has);
   if(has)$('#fileChip').textContent=st.assets[0].name;
