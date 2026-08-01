@@ -816,7 +816,9 @@ function renderPlanCard(reply){
 /* ---------- send / stream ---------- */
 async function send(text){
   text=(text??$('#input').value).trim();if(!text||S.busy)return;
-  if(!S.state?.assets.length&&!S.state?.ops.length&&!/demo/i.test(text)){addA('Add a video first — drop one on the stage or try the demo clip.');return}
+  /* no footage gate: compose-only requests (title cards, launch videos,
+     explainers) are legitimate on an empty project — the agent says so
+     itself when a request genuinely needs source footage */
   $('#input').value='';S.busy=true;setSendStop(true);
   addU(text);trace=null;liveA=null;
   startWork();
