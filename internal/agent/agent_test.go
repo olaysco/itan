@@ -338,6 +338,9 @@ func TestReasoningOnlyStallNudge(t *testing.T) {
 	if !strings.Contains(last.Blocks[0].Text, "internal reasoning") {
 		t.Fatalf("reasoning-stall nudge missing: %+v", last)
 	}
+	if second.MaxTokens != fake.requests[0].MaxTokens*3 {
+		t.Fatalf("stall retry must escalate the budget: %d vs %d", second.MaxTokens, fake.requests[0].MaxTokens)
+	}
 }
 
 // finishReply must never claim success the model didn't state.

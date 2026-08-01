@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -152,6 +154,146 @@ func TestUISmoke(t *testing.T) {
 	if a, o, _ := state(); a != 0 || o != 0 {
 		t.Fatalf("after remove: assets=%d ops=%d, want 0/0", a, o)
 	}
+}
+
+// TestProjectSwitchCritical drives project switching in a real browser and
+// verifies it at the level that matters: which folder files actually land
+// in, whose state each view shows, and what survives a reload.
+func TestProjectSwitchCritical(t *testing.T) {
+	chrome, err := browser.Find()
+	if err != nil {
+		t.Skip("no Chromium-family browser:", err)
+	}
+	if !media.Available() {
+		t.Skip("ffmpeg not installed")
+	}
+
+	dirA := t.TempDir()
+	dirB := filepath.Join(t.TempDir(), "projB") // created by the switcher itself
+	session, err := cli.NewSession(dirA, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(New(session).Handler())
+	defer srv.Close()
+
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.ExecPath(chrome), chromedp.WindowSize(1600, 1000))
+	actx, cancelA := chromedp.NewExecAllocator(context.Background(), opts...)
+	defer cancelA()
+	ctx, cancelC := chromedp.NewContext(actx)
+	defer cancelC()
+	ctx, cancelT := context.WithTimeout(ctx, 90*time.Second)
+	defer cancelT()
+
+	chipText := func() string {
+		var s string
+		if err := chromedp.Run(ctx, chromedp.Text("#projChip", &s, chromedp.ByID)); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+
+	// Load project A and put a demo clip in it.
+	err = chromedp.Run(ctx,
+		chromedp.Navigate(srv.URL),
+		chromedp.WaitVisible("#projChip", chromedp.ByID),
+		chromedp.Click("#demoBtn", chromedp.ByID),
+		chromedp.WaitVisible(".step", chromedp.ByQuery),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dirA, ".itan", "uploads", "demo.mp4")); err != nil {
+		t.Fatalf("demo clip not in project A: %v", err)
+	}
+
+	// Switch to a NEW project B via the path field.
+	err = chromedp.Run(ctx,
+		chromedp.Click("#projChip", chromedp.ByID),
+		chromedp.WaitVisible("#projDlg", chromedp.ByID),
+		chromedp.SendKeys("#projPath", dirB, chromedp.ByID),
+		chromedp.Click("#projOpen", chromedp.ByID),
+		chromedp.WaitVisible("#empty", chromedp.ByID), // B is empty: empty state must return
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := chipText(); !strings.Contains(got, "projB") {
+		t.Fatalf("chip shows %q after switching to projB", got)
+	}
+
+	// The switcher must mark B active now.
+	var activeName string
+	err = chromedp.Run(ctx,
+		chromedp.Click("#projChip", chromedp.ByID),
+		chromedp.WaitVisible("#projDlg", chromedp.ByID),
+		chromedp.Poll(`(function(){const r=[...document.querySelectorAll('#projList .mrow')].find(r=>r.textContent.includes('✓'));return r?r.querySelector('.nm').textContent:false})()`,
+			&activeName, chromedp.WithPollingTimeout(5*time.Second)),
+		chromedp.Click("#projWrap .scrimClear", chromedp.ByQuery),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if activeName != "projB" {
+		t.Fatalf("switcher marks %q active, want projB", activeName)
+	}
+
+	// Work done now must land in B, not A.
+	err = chromedp.Run(ctx,
+		chromedp.Click("#demoBtn", chromedp.ByID),
+		chromedp.WaitVisible(".step", chromedp.ByQuery),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dirB, ".itan", "uploads", "demo.mp4")); err != nil {
+		t.Fatalf("demo clip not in project B after switch: %v", err)
+	}
+
+	// Reload: the server keeps the switched project; the page must follow.
+	err = chromedp.Run(ctx,
+		chromedp.Reload(),
+		chromedp.WaitVisible("#projChip", chromedp.ByID),
+		chromedp.WaitVisible(".step", chromedp.ByQuery),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := chipText(); !strings.Contains(got, "projB") {
+		t.Fatalf("chip shows %q after reload, want projB", got)
+	}
+
+	// Switch back to A: its clip must still be there.
+	err = chromedp.Run(ctx,
+		chromedp.Click("#projChip", chromedp.ByID),
+		chromedp.WaitVisible("#projDlg", chromedp.ByID),
+		chromedp.Evaluate(`[...document.querySelectorAll('#projList .mrow')].find(r=>!r.textContent.includes('✓')&&r.querySelector('.via').textContent.includes(`+"`"+filepath.Base(dirA)+"`"+`))?.click()`, nil),
+		chromedp.WaitVisible(".step", chromedp.ByQuery),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, _, _ := stateOf(t, srv.URL)
+	if a != 1 {
+		t.Fatalf("project A lost its asset after round-trip: %d", a)
+	}
+}
+
+func stateOf(t *testing.T, base string) (assets, ops int, current string) {
+	t.Helper()
+	resp, err := http.Get(base + "/api/state")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var st struct {
+		Assets  []any  `json:"assets"`
+		Ops     []any  `json:"ops"`
+		Current string `json:"current"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&st)
+	return len(st.Assets), len(st.Ops), st.Current
 }
 
 func waitFor(t *testing.T, cond func() bool) {

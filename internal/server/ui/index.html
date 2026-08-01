@@ -1072,9 +1072,12 @@ document.addEventListener('click',e=>{if(e.target.dataset?.close!==undefined)clo
 wireOverlay('#modelPill','#modelWrap',renderModels);
 wireOverlay('#projChip','#projWrap',renderProjects);
 async function renderProjects(){
-  const list=$('#projList');list.innerHTML='';
+  const list=$('#projList');
+  list.innerHTML='<div class="mrow"><div class="via">loading…</div></div>';
+  const foot=$('#projFoot');foot.textContent='sessions are stored in folders';foot.style.color='';
   try{
     const r=await(await fetch('/api/projects')).json();
+    list.innerHTML='';
     r.projects.forEach(p=>{
       const d=document.createElement('div');d.className='mrow';
       d.innerHTML=`<span class="dot" style="background:${p.active?'var(--accent)':'var(--t3)'}"></span>
@@ -1088,7 +1091,9 @@ async function renderProjects(){
 async function switchProject(dir){
   const r=await fetch('/api/project',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dir})});
   const j=await r.json();
-  if(!r.ok){toast('✕ '+(j.error||'switch failed'));return}
+  if(!r.ok){ /* keep the dialog open and show the error where the eye already is */
+    const f=$('#projFoot');f.textContent='✕ '+(j.error||'switch failed');f.style.color='#e5484d';
+    toast('✕ '+(j.error||'switch failed'));return}
   S.state=j;S.previewURL=null;S.selStep=null;msgs.innerHTML='';trace=null;liveA=null;
   closeOverlays();render();toast('project · '+(j.project||dir));
   loadHistory();

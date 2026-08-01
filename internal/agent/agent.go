@@ -233,6 +233,7 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 	var finalText strings.Builder
 	doom := doomDetector{}
 	nudged := false
+	maxTok := a.replyMaxTokens()
 
 	for turn := 0; turn < a.Cfg.Context.MaxTurns; turn++ {
 		callProv, model, msgs := prov, a.Cfg.Model.ID, a.History
@@ -253,7 +254,7 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 			System:    a.system,
 			Messages:  msgs,
 			Tools:     a.toolDefs(),
-			MaxTokens: a.replyMaxTokens(),
+			MaxTokens: maxTok,
 		}, func(d provider.Delta) {
 			if d.Text != "" {
 				streamed = true
@@ -297,7 +298,10 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 				nudged = true
 				push := "(You ended your turn without any reply. If the task is unfinished, continue it now with tool calls; otherwise summarize what changed in one short paragraph.)"
 				if resp.Reasoning != "" && resp.StopReason == "max_tokens" {
-					// The whole budget went to chain-of-thought.
+					// The whole budget went to chain-of-thought. Triple the
+					// budget for the retry so the thinker physically cannot
+					// hit the same wall, and tell it to act, not re-derive.
+					maxTok *= 3
 					push = "(Your entire response was internal reasoning and hit the token limit before any visible output. Do NOT re-derive your plan — act on it immediately: emit the tool calls now, with minimal further deliberation.)"
 				}
 				a.History = append(a.History, provider.UserText(push))

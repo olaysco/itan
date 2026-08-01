@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -104,7 +105,7 @@ func run(args []string) error {
 				addr = args[i+1]
 			}
 		}
-		session, err := cli.NewSession(dir, resume)
+		session, err := cli.NewSession(uiProjectDir(dir), resume)
 		if err != nil {
 			return err
 		}
@@ -118,7 +119,7 @@ func run(args []string) error {
 				addr = args[i+1]
 			}
 		}
-		session, err := cli.NewSession(dir, resume)
+		session, err := cli.NewSession(uiProjectDir(dir), resume)
 		if err != nil {
 			return err
 		}
@@ -181,6 +182,21 @@ const usage = `itan — agentic AI video editor
   itan doctor                 check ffmpeg, model, and voice endpoints
   itan version                print version
 `
+
+// uiProjectDir picks the project the UI opens: the working directory when it
+// is an initialized project (explicit intent), otherwise the most recently
+// used project — so relaunching the app resumes where the user left off
+// instead of silently starting a throwaway project in some random cwd.
+func uiProjectDir(cwd string) string {
+	if _, err := os.Stat(filepath.Join(cwd, ".itan")); err == nil {
+		return cwd
+	}
+	if recents := config.RecentProjects(); len(recents) > 0 {
+		fmt.Printf("resuming last project: %s  (cd into a project folder to override)\n", recents[0])
+		return recents[0]
+	}
+	return cwd
+}
 
 func cmdModel(dir string, args []string) error {
 	cfg, err := config.Load(dir)
