@@ -40,6 +40,8 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 #projChip:hover{color:var(--t1)}
 .rmx{margin-left:auto;color:var(--t4);cursor:pointer;font-size:10px;padding:0 2px}
 .rmx:hover{color:#e5484d}
+.addTile{border-style:dashed;cursor:pointer;color:var(--t3)}
+.addTile:hover{color:var(--t1);border-color:var(--accent-border)}
 .hpill{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--t2);background:var(--fill);border-radius:999px;padding:5px 12px;cursor:pointer}
 .hpill:hover{background:var(--border1)}
 .hbtn{font-size:12px;color:var(--t2);background:var(--fill);border-radius:7px;padding:5px 11px;cursor:pointer}
@@ -338,7 +340,7 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
   <div id="main">
     <div id="stagecol">
       <div id="planBanner" class="mono hidden">◇ plan mode: the agent may read but not edit until you approve<span class="r">shift+tab cycles modes</span></div>
-      <div id="workBanner" class="mono hidden"><span class="spin"></span><span id="workText"></span><span class="r">esc cancels · nothing blocks silently</span></div>
+      <div id="workBanner" class="mono hidden"><span class="spin"></span><span id="workText"></span><span class="r">esc cancels</span></div>
 
       <div id="empty">
         <div class="bars"><i></i><i></i><i></i></div>
@@ -348,7 +350,7 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
           <div class="btnP" id="browseBtn">browse files</div>
           <div class="btnS" id="demoBtn">try a demo clip</div>
         </div>
-        <input type="file" id="fileInput" accept="video/*" hidden>
+        <input type="file" id="fileInput" accept="video/*" multiple hidden>
       </div>
 
       <div id="stage" class="hidden">
@@ -593,6 +595,11 @@ function renderChips(has){
 }
 function renderStrip(){
   const st=S.state,strip=$('#strip');strip.innerHTML='';
+  const add=document.createElement('div');
+  add.className='step addTile';add.title='add more footage';
+  add.innerHTML='<div class="row"><span class="num">+</span><span class="nm">add media</span></div><div class="sum">click, or drop files anywhere</div>';
+  add.onclick=()=>$('#fileInput').click();
+  strip.appendChild(add);
   const items=[];
   st.assets.forEach((a,i)=>items.push({num:'00'+i,name:'source',sum:a.name,meta:a.info,url:a.url,id:a.id}));
   st.ops.forEach((op,i)=>items.push({num:String(op.seq).padStart(3,'0'),name:op.tool,sum:op.summary,meta:'',url:op.url,undo:i===st.ops.length-1}));
@@ -734,10 +741,11 @@ $('#tBar').onclick=e=>{const r=e.currentTarget.getBoundingClientRect();video.cur
 
 /* ---------- upload / demo ---------- */
 $('#browseBtn').onclick=()=>$('#fileInput').click();
-$('#fileInput').onchange=async e=>{if(e.target.files[0])await upload(e.target.files[0])};
-$('#empty').addEventListener('dragover',e=>{e.preventDefault();$('#empty').classList.add('drag')});
-$('#empty').addEventListener('dragleave',()=>$('#empty').classList.remove('drag'));
-$('#empty').addEventListener('drop',async e=>{e.preventDefault();$('#empty').classList.remove('drag');if(e.dataTransfer.files[0])await upload(e.dataTransfer.files[0])});
+$('#fileInput').onchange=async e=>{for(const f of e.target.files)await upload(f);e.target.value=''};
+/* drop anywhere on the stage column — works with or without footage loaded */
+$('#stagecol').addEventListener('dragover',e=>{e.preventDefault();$('#empty').classList.add('drag')});
+$('#stagecol').addEventListener('dragleave',()=>$('#empty').classList.remove('drag'));
+$('#stagecol').addEventListener('drop',async e=>{e.preventDefault();$('#empty').classList.remove('drag');for(const f of e.dataTransfer.files)await upload(f)});
 async function upload(f){
   const fd=new FormData();fd.append('file',f);
   addA('Uploading '+f.name+'…');
