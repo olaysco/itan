@@ -155,6 +155,9 @@ func NewRegistry() *Registry {
 	for _, t := range viewTools() {
 		r.add(t)
 	}
+	for _, t := range planTools() {
+		r.add(t)
+	}
 	for _, t := range miscTools() {
 		r.add(t)
 	}

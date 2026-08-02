@@ -46,6 +46,16 @@ func videoTools() []Tool {
 			Run: runConcat, Mutating: true,
 		},
 		{
+			Name:        "cut_range",
+			Description: "Delete [start, end] seconds from the middle of the video and join the remainder — the manual 'remove this part' edit.",
+			Schema: schema([]string{"start", "end"}, map[string]map[string]any{
+				"start": prop("number", "Cut start in seconds."),
+				"end":   prop("number", "Cut end in seconds."),
+				"input": prop("string", "Asset id or path; defaults to CURRENT."),
+			}),
+			Run: runCutRange, Mutating: true,
+		},
+		{
 			Name:        "set_speed",
 			Description: "Speed the video up or down. factor=2 is 2x faster, 0.5 is half speed. Audio pitch is preserved.",
 			Schema: schema([]string{"factor"}, map[string]map[string]any{
@@ -440,6 +450,49 @@ func runChangeBackground(c *Ctx, args Args) Result {
 		return Result{Err: err}
 	}
 	return Result{Summary: fmt.Sprintf("graded background toward %s with vignette", color), Output: out}
+}
+
+func runCutRange(c *Ctx, args Args) Result {
+	in, err := resolveInput(c, args)
+	if err != nil {
+		return Result{Err: err}
+	}
+	info, err := media.Probe(c.Context, in)
+	if err != nil {
+		return Result{Err: err}
+	}
+	start := args.Float("start", -1)
+	end := args.Float("end", -1)
+	if start < 0 || end <= start {
+		return fail("cut_range needs start < end (got %.2f–%.2f)", start, end)
+	}
+	if end >= info.Duration {
+		return fail("cut reaches the end — use trim with end=%.2f instead", start)
+	}
+	out := c.Project.NextOutput("cut", ".mp4")
+	var fc string
+	if info.HasAudio {
+		fc = fmt.Sprintf(
+			"[0:v]trim=0:%.3f,setpts=PTS-STARTPTS[v0];[0:a]atrim=0:%.3f,asetpts=PTS-STARTPTS[a0];"+
+				"[0:v]trim=%.3f,setpts=PTS-STARTPTS[v1];[0:a]atrim=%.3f,asetpts=PTS-STARTPTS[a1];"+
+				"[v0][a0][v1][a1]concat=n=2:v=1:a=1[v][a]",
+			start, start, end, end)
+		if err := media.Run(c.Context, "-i", in, "-filter_complex", fc,
+			"-map", "[v]", "-map", "[a]", out); err != nil {
+			return Result{Err: err}
+		}
+	} else {
+		fc = fmt.Sprintf(
+			"[0:v]trim=0:%.3f,setpts=PTS-STARTPTS[v0];[0:v]trim=%.3f,setpts=PTS-STARTPTS[v1];[v0][v1]concat=n=2:v=1[v]",
+			start, end)
+		if err := media.Run(c.Context, "-i", in, "-filter_complex", fc, "-map", "[v]", out); err != nil {
+			return Result{Err: err}
+		}
+	}
+	return Result{
+		Summary: fmt.Sprintf("cut %.2f–%.2fs out (%.2fs removed)", start, end, end-start),
+		Output:  out,
+	}
 }
 
 func runOverlayText(c *Ctx, args Args) Result {

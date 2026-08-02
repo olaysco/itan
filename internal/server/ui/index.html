@@ -395,6 +395,7 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
           <span id="chapter" class="mono"></span>
           <div id="tlToggle" class="mono hidden"><span data-v="story" class="on">story</span><span data-v="tracks">tracks</span></div>
           <div style="flex:1"></div>
+          <span class="tlAct hidden" id="arrangeBtn">⇅ arrange</span>
           <span class="tlAct hidden" id="undoBtn">↶ undo</span>
           <span class="tlAct hidden" id="cpBtn2">⟲ checkpoints</span>
         </div>
@@ -502,6 +503,21 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
     </div>
   </div>
 
+  <!-- arrange: drag clips into order, assemble without the model -->
+  <div id="arrWrap" class="hidden">
+    <div class="scrimClear" data-close></div>
+    <div class="dlg" id="arrDlg">
+      <div class="dlgHd">ARRANGE · drag into order, then assemble</div>
+      <div id="arrList"></div>
+      <div style="display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--border1);align-items:center">
+        <span class="mono" style="font-size:10px;color:var(--t3)">transition</span>
+        <div class="seg" id="arrTrans"><span data-t="cut" class="on">cut</span><span data-t="fade">fade</span><span data-t="fadeblack">fadeblack</span></div>
+        <div style="flex:1"></div>
+        <div class="btnP" id="arrGo">assemble</div>
+      </div>
+    </div>
+  </div>
+
   <!-- settings -->
   <div id="setWrap" class="hidden">
     <div class="scrim" data-close></div>
@@ -576,6 +592,7 @@ function render(){
   $('#transport').classList.toggle('hidden',!has);
   $('#tlToggle').classList.toggle('hidden',!has);
   $('#undoBtn').classList.toggle('hidden',!st.ops.length);
+  $('#arrangeBtn').classList.toggle('hidden',st.assets.length<2);
   $('#cpBtn2').classList.toggle('hidden',!st.checkpoints.length);
   $('#chapter').textContent=has?('chapter 1 · '+st.ops.length+' edit'+(st.ops.length===1?'':'s')+' · all reversible'):'chapter 0 · waiting for footage';
   $('#tlEmpty').classList.toggle('hidden',has);
@@ -604,10 +621,53 @@ function stepCard(it,st,activeURL){
   const isCur=it.url&&it.url===st.current, isSel=it.url&&it.url===activeURL;
   d.className='step'+(isSel?' active':'');
   d.innerHTML=`<div class="row"><span class="num">${it.num}</span><span class="nm">${esc(it.name)}</span>${isCur?'<span class="tag">CURRENT</span>':''}</div><div class="sum">${esc(it.sum)}</div><div class="meta">${esc(it.meta)}</div>`;
-  if(it.id){const x=document.createElement('span');x.className='rmx';x.textContent='✕';x.title='remove from project (file on disk is kept)';x.onclick=ev=>{ev.stopPropagation();removeAsset(it.id,it.sum)};d.querySelector('.row').appendChild(x)}
-  if(it.undo){const x=document.createElement('span');x.className='rmx';x.textContent='✕';x.title='remove this step — moves back one (render file is kept)';x.onclick=ev=>{ev.stopPropagation();undoStep()};d.querySelector('.row').appendChild(x)}
+  const row=d.querySelector('.row');
+  const btn=(cls,txt,title,fn)=>{const x=document.createElement('span');x.className='rmx '+cls;x.textContent=txt;x.title=title;x.onclick=ev=>{ev.stopPropagation();fn()};row.appendChild(x);return x};
+  if(it.seq&&it.args)btn('edit','✎','edit this step and replay everything after it',()=>openStepEdit(it));
+  if(it.url)btn('rev','⌖','reveal file in folder',()=>reveal(it.url));
+  if(it.id){
+    btn('swap','⇄','replace with another file (id stays, edits stay)',()=>pickReplace(it.id));
+    btn('rm','✕','remove from project (file on disk is kept)',()=>removeAsset(it.id,it.sum));
+    /* drop a file directly onto the card to swap it */
+    d.addEventListener('dragover',ev=>{ev.preventDefault();ev.stopPropagation();d.classList.add('active')});
+    d.addEventListener('dragleave',()=>d.classList.remove('active'));
+    d.addEventListener('drop',async ev=>{ev.preventDefault();ev.stopPropagation();d.classList.remove('active');
+      if(ev.dataTransfer.files[0])await replaceAsset(it.id,ev.dataTransfer.files[0])});
+  }
+  if(it.undo)btn('undo','✕','remove this step — moves back one (render file is kept)',()=>undoStep());
   if(it.url)d.onclick=()=>setPreview(it.url,it.url===st.current);
   return d;
+}
+function reveal(url){
+  const path=decodeURIComponent((url.split('path=')[1]||''));
+  fetch('/api/reveal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path})})
+    .then(r=>{if(!r.ok)toast('✕ could not reveal')});
+}
+function pickReplace(id){
+  const inp=document.createElement('input');inp.type='file';inp.accept='video/*,image/*,audio/*';
+  inp.onchange=async()=>{if(inp.files[0])await replaceAsset(id,inp.files[0])};
+  inp.click();
+}
+async function replaceAsset(id,f){
+  const fd=new FormData();fd.append('id',id);fd.append('file',f);
+  addA('Replacing '+id+' with '+f.name+'…');
+  const r=await fetch('/api/asset/replace',{method:'POST',body:fd});const j=await r.json();
+  if(!r.ok){addA('✕ '+(j.error||'replace failed'));return}
+  S.state=j;S.previewURL=null;render();addA('Swapped. Steps that used '+id+' can be replayed with ✎.');
+}
+function openStepEdit(it){
+  const cur=JSON.stringify(it.args||{},null,2);
+  const next=prompt('Edit step '+it.num+' ('+it.name+') args as JSON — everything after it replays:',cur);
+  if(next===null)return;
+  let args;try{args=JSON.parse(next)}catch(e){toast('✕ invalid JSON');return}
+  editStep(it.seq,args);
+}
+async function editStep(seq,args){
+  addA('✎ replaying from step '+seq+'…');
+  const r=await fetch('/api/step/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({seq,args})});
+  const j=await r.json();
+  if(!r.ok){addA('✕ '+(j.error||'replay failed'));return}
+  S.state=j;S.previewURL=null;render();addA('✎ step edited and downstream steps replayed — a checkpoint holds the previous cut.');
 }
 function renderStrip(){
   const st=S.state,strip=$('#strip');strip.innerHTML='';
@@ -618,7 +678,7 @@ function renderStrip(){
   add.onclick=()=>$('#fileInput').click();
   strip.appendChild(add);
   st.assets.forEach((a,i)=>strip.appendChild(stepCard({num:'00'+i,name:'source',sum:a.name,meta:a.info,url:a.url,id:a.id},st,activeURL)));
-  const opItem=(op,i)=>({num:String(op.seq).padStart(3,'0'),name:op.tool,sum:op.summary,meta:'',url:op.url,undo:i===st.ops.length-1});
+  const opItem=(op,i)=>({num:String(op.seq).padStart(3,'0'),name:op.tool,sum:op.summary,meta:'',url:op.url,undo:i===st.ops.length-1,seq:op.seq,args:op.args});
   const cps=[...(st.checkpoints||[])].sort((a,b)=>a.num-b.num);
   if(!cps.length){ // no chat runs recorded (gesture-only projects): flat strip
     st.ops.forEach((op,i)=>strip.appendChild(stepCard(opItem(op,i),st,activeURL)));
@@ -721,12 +781,13 @@ function showGestureChip(){
   let chip=$('#gestureChip');
   if(!chip){
     chip=document.createElement('div');chip.id='gestureChip';
-    chip.innerHTML=`<span class="lbl"></span><span class="apply">✂ apply</span><span class="drop">esc</span>`;
+    chip.innerHTML=`<span class="lbl"></span><span class="apply">✂ keep</span><span class="apply cut">⌦ cut out</span><span class="drop">esc</span>`;
     chip.querySelector('.apply').onclick=applyTrimGesture;
+    chip.querySelector('.cut').onclick=applyCutGesture;
     chip.querySelector('.drop').onclick=clearTrimGesture;
     $('#tracks').appendChild(chip);
   }
-  chip.querySelector('.lbl').textContent='trim to '+fmtT(trimDraft.start)+' – '+fmtT(trimDraft.end);
+  chip.querySelector('.lbl').textContent=fmtT(trimDraft.start)+' – '+fmtT(trimDraft.end);
 }
 async function applyTrimGesture(){
   if(!trimDraft)return;
@@ -736,6 +797,15 @@ async function applyTrimGesture(){
     S.state=r.state;S.previewURL=null;render();
     addA('✂ gesture: '+r.summary+' — landed as op '+(r.state.ops.length)+', undoable like any other.');
   }catch(e){toast('✂ '+e.message)}
+}
+async function applyCutGesture(){
+  if(!trimDraft)return;
+  const d={...trimDraft};clearTrimGesture();
+  try{
+    const r=await api('/api/tool',{name:'cut_range',args:{start:+d.start.toFixed(2),end:+d.end.toFixed(2)}});
+    S.state=r.state;S.previewURL=null;render();
+    addA('⌦ gesture: '+r.summary+' — landed as op '+(r.state.ops.length)+', undoable like any other.');
+  }catch(e){toast('⌦ '+e.message)}
 }
 function clearTrimGesture(){trimDraft=null;$('#gestureChip')?.remove();const l=$('#hL'),r=$('#hR');if(l)l.style.left='-4px';if(r)r.style.right='-4px'}
 $('#tlToggle').onclick=e=>{const v=e.target.dataset.v;if(!v)return;S.tlView=v;$$('#tlToggle span').forEach(el=>el.classList.toggle('on',el.dataset.v===v));render()};
@@ -1110,7 +1180,7 @@ function wireOverlay(btnSel,wrapSel,onOpen){
   const open=()=>{closeOverlays();$(wrapSel).classList.remove('hidden');onOpen&&onOpen()};
   $$(btnSel).forEach(b=>b.onclick=open);
 }
-function closeOverlays(){['#modelWrap','#skillsWrap','#cpWrap','#setWrap','#projWrap'].forEach(s=>$(s).classList.add('hidden'))}
+function closeOverlays(){['#modelWrap','#skillsWrap','#cpWrap','#setWrap','#projWrap','#arrWrap'].forEach(s=>$(s).classList.add('hidden'))}
 document.addEventListener('click',e=>{if(e.target.dataset?.close!==undefined)closeOverlays()});
 wireOverlay('#modelPill','#modelWrap',renderModels);
 wireOverlay('#projChip','#projWrap',renderProjects);
@@ -1141,6 +1211,46 @@ async function switchProject(dir){
   closeOverlays();render();toast('project · '+(j.project||dir));
   loadHistory();
 }
+/* arrange: sequence control without the model — drag rows, assemble = concat gesture */
+wireOverlay('#arrangeBtn','#arrWrap',renderArrange);
+let arrOrder=[];
+function renderArrange(){
+  arrOrder=S.state.assets.map(a=>({id:a.id,label:a.id+' · '+a.name}));
+  if(arrOrder.length<2){$('#arrList').innerHTML='<div class="mrow"><div class="via">add at least two clips (sources or composed scenes) to arrange</div></div>';return}
+  renderArrangeRows(arrOrder);
+}
+function renderArrangeRows(order){
+  const list=$('#arrList');list.innerHTML='';
+  order.forEach((it,i)=>{
+    const d=document.createElement('div');d.className='mrow';d.draggable=true;d.dataset.i=i;
+    d.innerHTML=`<span class="num mono" style="color:var(--t3);font-size:11px">${String(i+1).padStart(2,'0')}</span><div style="flex:1"><div class="nm">${esc(it.label)}</div></div><span style="color:var(--t4);cursor:grab">⠿</span>`;
+    d.addEventListener('dragstart',ev=>{ev.dataTransfer.setData('text/plain',String(i))});
+    d.addEventListener('dragover',ev=>ev.preventDefault());
+    d.addEventListener('drop',ev=>{
+      ev.preventDefault();
+      const from=+ev.dataTransfer.getData('text/plain'),to=+d.dataset.i;
+      if(from===to)return;
+      const[m]=arrOrder.splice(from,1);arrOrder.splice(to,0,m);
+      renderArrangeRows(arrOrder);
+    });
+    list.appendChild(d);
+  });
+}
+$('#arrTrans').onclick=e=>{if(e.target.dataset.t)$$('#arrTrans span').forEach(el=>el.classList.toggle('on',el===e.target))};
+$('#arrGo').onclick=async()=>{
+  if(arrOrder.length<2)return;
+  const trans=$('#arrTrans .on')?.dataset.t||'cut';
+  const args={inputs:arrOrder.map(x=>x.id)};
+  if(trans!=='cut'){args.transition=trans;args.transition_duration=0.5}
+  closeOverlays();
+  addA('⇅ assembling '+arrOrder.length+' clips ('+trans+')…');
+  try{
+    const r=await api('/api/tool',{name:'concat',args});
+    S.state=r.state;S.previewURL=null;render();
+    addA('⇅ '+r.summary+' — landed as op '+(r.state.ops.length)+', undoable.');
+  }catch(e){addA('✕ '+e.message)}
+};
+
 $('#projOpen').onclick=()=>{const v=$('#projPath').value.trim();if(v)switchProject(v)};
 $('#projPath').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#projOpen').onclick()}});
 async function undoStep(){

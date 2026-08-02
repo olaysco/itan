@@ -24,9 +24,22 @@ type Project struct {
 	Assets  []Asset  `json:"assets"`
 	Ops     []EditOp `json:"ops"`
 	Current string   `json:"current"` // path of the working video
+	// Scenes is the storyboard: the declared plan for a multi-scene piece.
+	// It renders into the ledger, so the plan survives compaction and every
+	// turn sees which scenes are still unrendered.
+	Scenes []Scene `json:"scenes,omitempty"`
 
 	mu  sync.Mutex
 	seq int // in-memory output counter; survives parallel tools without collisions
+}
+
+// Scene is one storyboard entry. Status is derived: planned until an Output
+// is attached.
+type Scene struct {
+	N        int     `json:"n"`
+	Intent   string  `json:"intent"` // what this scene must communicate
+	Duration float64 `json:"duration"`
+	Output   string  `json:"output,omitempty"` // render path once composed
 }
 
 type Asset struct {
@@ -105,6 +118,34 @@ func (p *Project) AddAsset(ctx context.Context, path string) (*Asset, error) {
 		p.Current = abs
 	}
 	return &a, p.Save()
+}
+
+// ReplaceAsset swaps the file behind an asset id — the user dropping in a
+// better screenshot or corrected clip. The id is stable (the ledger and
+// conversation may reference it); existing rendered ops are untouched, and
+// Current follows only if it pointed at the old file.
+func (p *Project) ReplaceAsset(ctx context.Context, id, newPath string) (*Asset, error) {
+	abs, err := filepath.Abs(newPath)
+	if err != nil {
+		return nil, err
+	}
+	info, err := Probe(ctx, abs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range p.Assets {
+		if p.Assets[i].ID != id {
+			continue
+		}
+		old := p.Assets[i].Path
+		p.Assets[i].Path = abs
+		p.Assets[i].Info = info
+		if p.Current == old {
+			p.Current = abs
+		}
+		return &p.Assets[i], p.Save()
+	}
+	return nil, fmt.Errorf("no asset %q", id)
 }
 
 // RemoveAsset unregisters a source file from the project; files on disk are
@@ -194,13 +235,25 @@ func (p *Project) Undo() (*EditOp, error) {
 func (p *Project) Ledger(ctx context.Context) string {
 	var b strings.Builder
 	b.WriteString("## Project state\n")
-	if len(p.Assets) == 0 {
-		b.WriteString("No source video loaded yet. Ask the user for one, or use tools once a file is added.\n")
+	if len(p.Assets) == 0 && len(p.Scenes) == 0 && len(p.Ops) == 0 {
+		b.WriteString("No source video loaded yet. Compose scenes from scratch, or ask the user for footage.\n")
 		return b.String()
 	}
-	b.WriteString("Sources:\n")
-	for _, a := range p.Assets {
-		fmt.Fprintf(&b, "  %s: %s (%s)\n", a.ID, filepath.Base(a.Path), a.Info.Compact())
+	if len(p.Assets) > 0 {
+		b.WriteString("Sources:\n")
+		for _, a := range p.Assets {
+			fmt.Fprintf(&b, "  %s: %s (%s)\n", a.ID, filepath.Base(a.Path), a.Info.Compact())
+		}
+	}
+	if len(p.Scenes) > 0 {
+		b.WriteString("Storyboard:\n")
+		for _, s := range p.Scenes {
+			status := "PLANNED"
+			if s.Output != "" {
+				status = "rendered → " + filepath.Base(s.Output)
+			}
+			fmt.Fprintf(&b, "  scene %d (%.1fs, %s): %s\n", s.N, s.Duration, status, s.Intent)
+		}
 	}
 	if len(p.Ops) > 0 {
 		b.WriteString("Edits applied (oldest first):\n")

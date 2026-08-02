@@ -14,9 +14,11 @@ rules.
 1. `fetch_page` the URL. Pull the product name, tagline, and 2–3 concrete
    features from `title` / `description` / `text`. If `theme_color` exists,
    consider it for the accent.
-2. `capture_page` the hero (viewport) — and `full_page` if the page is rich.
-   The result's `embed_as` snippet drops straight into compose scenes.
-3. Compose the arc, one scene each (durations in parentheses):
+2. `capture_page` the hero (viewport, scale 3 if it will be shown large) —
+   and `full_page` if the page is rich. The result's `embed_as` snippet
+   drops straight into compose scenes.
+3. `storyboard` the arc BEFORE composing — one scene each, durations in
+   parentheses (mark_rendered as each lands):
    - Hook (2.5–3.5s): product name + tagline, kinetic type.
    - Tension (3–5s): the problem, in the page's own words.
    - Product beat (4–6s): the captured screenshot, animated — Ken Burns via
@@ -25,7 +27,13 @@ rules.
    - Features (4–6s): 2–3 numbered rows, verbatim or tightly paraphrased
      from the page.
    - CTA close (2.5–3.5s): name + the site's own call to action + URL in mono.
-4. `concat` with `transition: fade` (0.4–0.6s), then `export`.
+4. Per scene: compose → view_frames → revise until it matches the intent.
+5. `concat` with `transition: fade` (0.4–0.6s).
+6. If the user has a music file (or asks for sound): `add_music` — a bed at
+   ~20% with fades, auto-ducked under any voiceover. Silent launch videos
+   read as demos.
+7. `view_strip` the assembly — judge pacing and flow as a whole, fix what
+   reads wrong — then `export`.
 
 ## Honesty rules
 - Every claim must come from the fetched page. Quote or tightly paraphrase;

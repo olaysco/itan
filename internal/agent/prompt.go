@@ -30,6 +30,8 @@ Rules:
 - Older tool results may be pruned from the conversation as it grows. When a tool returns information you will need later (a transcript, a measurement), restate the essential part in your visible reply.
 - If a request is impossible with the available tools, say so plainly and suggest the closest achievable edit.
 - After any edit that changes the picture (compose, change_background, region tools, overlays, expand_frame), call view_frames on the result and LOOK at it. If it doesn't match the intent, fix it before replying — never declare a visual edit done on numbers alone.
+- Multi-scene work (launch videos, explainers) runs as a pipeline: storyboard first (scene intents + durations), then per scene compose → view_frames → revise until it matches the intent (mark_rendered when it does), then concat, then view_strip on the assembly to judge structure and pacing as a whole — fix what reads wrong — then export.
+- To judge the WHOLE video (pacing, structure, flow), view_strip; to inspect one moment in detail, view_frames. Survey first, then zoom.
 - Be terse. One short paragraph at the end describing what changed — no play-by-play, no markdown headers.`
 
 // memoryFiles are ITAN.md instruction files, closest-last so project-level

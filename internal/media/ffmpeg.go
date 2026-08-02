@@ -21,6 +21,32 @@ var (
 	filtersSet  map[string]bool
 )
 
+// SceneCuts returns timestamps (seconds) where ffmpeg detects a scene change
+// above threshold (0.3 is a sensible default). Best-effort: an empty slice
+// just means "treat it as one scene".
+func SceneCuts(ctx context.Context, path string, threshold float64) []float64 {
+	cctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(cctx, "ffmpeg", "-hide_banner", "-i", path,
+		"-vf", fmt.Sprintf("select='gt(scene,%.2f)',showinfo", threshold), "-f", "null", "-")
+	out, _ := cmd.CombinedOutput() // showinfo reports on stderr; exit code irrelevant
+	var cuts []float64
+	for _, line := range strings.Split(string(out), "\n") {
+		i := strings.Index(line, "pts_time:")
+		if i < 0 {
+			continue
+		}
+		rest := line[i+len("pts_time:"):]
+		if j := strings.IndexAny(rest, " \t"); j > 0 {
+			rest = rest[:j]
+		}
+		if t, err := strconv.ParseFloat(rest, 64); err == nil {
+			cuts = append(cuts, t)
+		}
+	}
+	return cuts
+}
+
 // HasFilter reports whether the installed ffmpeg build ships a filter.
 // Static/minimal builds routinely lack drawtext (no freetype) — callers use
 // this to pick a fallback path instead of failing the user's edit.

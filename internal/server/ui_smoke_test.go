@@ -96,7 +96,7 @@ func TestUISmoke(t *testing.T) {
 
 		// Demo clip loads into the strip.
 		chromedp.Click("#demoBtn", chromedp.ByID),
-		chromedp.WaitVisible(".step .rmx", chromedp.ByQuery),
+		chromedp.WaitVisible(".step .rmx.rm", chromedp.ByQuery),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -131,8 +131,8 @@ func TestUISmoke(t *testing.T) {
 	// semantics). The step card is the last one in the strip.
 	err = chromedp.Run(ctx,
 		chromedp.Reload(),
-		chromedp.WaitVisible(".step:last-child .rmx", chromedp.ByQuery),
-		chromedp.Click(".step:last-child .rmx", chromedp.ByQuery),
+		chromedp.WaitVisible(".step:last-child .rmx.undo", chromedp.ByQuery),
+		chromedp.Click(".step:last-child .rmx.undo", chromedp.ByQuery),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -145,7 +145,7 @@ func TestUISmoke(t *testing.T) {
 	// ✕ on the source unregisters it (confirm auto-accepted); with nothing
 	// left, the empty state returns.
 	err = chromedp.Run(ctx,
-		chromedp.Click(".step .rmx", chromedp.ByQuery),
+		chromedp.Click(".step .rmx.rm", chromedp.ByQuery),
 		chromedp.WaitVisible("#empty", chromedp.ByID),
 	)
 	if err != nil {

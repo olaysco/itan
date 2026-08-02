@@ -117,6 +117,13 @@ func New(cfg *config.Config, p provider.Provider, proj *media.Project, sk *skill
 	}
 }
 
+// CheckpointNow records a revert point for work initiated outside the chat
+// loop (step edits, replays) so direct manipulation is as reversible as
+// conversation.
+func (a *Agent) CheckpointNow(label string) {
+	a.pushCheckpoint(label)
+}
+
 // ActiveSkills lists skills whose playbooks have been injected this session.
 func (a *Agent) ActiveSkills() []string {
 	names := make([]string, 0, len(a.activeSkills))

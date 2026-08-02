@@ -57,6 +57,35 @@ func TestTriggerWordBoundaries(t *testing.T) {
 	}
 }
 
+// A skill directory with assets/ is a pack: {ASSETS} resolves to the real
+// path and the asset inventory is appended to the body.
+func TestSkillAssetPack(t *testing.T) {
+	dir := t.TempDir()
+	skillDir := filepath.Join(dir, ".itan", "skills", "brandkit")
+	if err := os.MkdirAll(filepath.Join(skillDir, "assets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "assets", "logo.svg"), []byte("<svg/>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	body := "---\nname: brandkit\ndescription: brand pack\ntriggers: brandkit\n---\nUse <img src=\"file://{ASSETS}/logo.svg\">."
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := Load(config.Default(), dir)
+	sk, ok := s.Get("brandkit")
+	if !ok {
+		t.Fatal("pack skill missing")
+	}
+	assets := filepath.Join(skillDir, "assets")
+	if !strings.Contains(sk.Body, "file://"+assets+"/logo.svg") {
+		t.Fatalf("{ASSETS} not resolved: %s", sk.Body)
+	}
+	if !strings.Contains(sk.Body, "Pack assets") || !strings.Contains(sk.Body, "logo.svg") {
+		t.Fatal("asset inventory not appended")
+	}
+}
+
 func TestProjectSkillOverridesBuiltin(t *testing.T) {
 	dir := t.TempDir()
 	skillDir := filepath.Join(dir, ".itan", "skills", "tiktok")

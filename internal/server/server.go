@@ -19,7 +19,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -116,6 +118,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/permission", s.handlePermission)
 	mux.HandleFunc("POST /api/upload", s.handleUpload)
 	mux.HandleFunc("POST /api/asset/remove", s.handleAssetRemove)
+	mux.HandleFunc("POST /api/asset/replace", s.handleAssetReplace)
+	mux.HandleFunc("POST /api/reveal", s.handleReveal)
+	mux.HandleFunc("POST /api/step/edit", s.handleStepEdit)
 	mux.HandleFunc("GET /api/projects", s.handleProjects)
 	mux.HandleFunc("POST /api/project", s.handleProjectSwitch)
 	mux.HandleFunc("POST /api/undo", s.handleUndo)
@@ -172,10 +177,11 @@ type fileRef struct {
 }
 
 type opView struct {
-	Seq     int    `json:"seq"`
-	Tool    string `json:"tool"`
-	Summary string `json:"summary"`
-	URL     string `json:"url,omitempty"`
+	Seq     int            `json:"seq"`
+	Tool    string         `json:"tool"`
+	Summary string         `json:"summary"`
+	URL     string         `json:"url,omitempty"`
+	Args    map[string]any `json:"args,omitempty"`
 }
 
 type checkpointView struct {
@@ -254,7 +260,7 @@ func (s *Server) state() stateView {
 		v.Assets = append(v.Assets, fileRef{ID: a.ID, Name: filepath.Base(a.Path), URL: mediaURL(a.Path), Info: a.Info.Compact()})
 	}
 	for _, op := range p.Ops {
-		v.Ops = append(v.Ops, opView{Seq: op.Seq, Tool: op.Tool, Summary: op.Summary, URL: mediaURL(op.Output)})
+		v.Ops = append(v.Ops, opView{Seq: op.Seq, Tool: op.Tool, Summary: op.Summary, URL: mediaURL(op.Output), Args: op.Args})
 	}
 
 	active := map[string]bool{}
@@ -519,6 +525,191 @@ func (s *Server) handleAssetRemove(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, s.state())
 }
 
+// handleAssetReplace swaps the file behind an asset id with an uploaded one —
+// the "use MY screenshot instead" move. The id stays stable; rendered steps
+// are untouched.
+func (s *Server) handleAssetReplace(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(512 << 20); err != nil {
+		httpErr(w, 400, "bad upload: "+err.Error())
+		return
+	}
+	id := r.FormValue("id")
+	file, header, err := r.FormFile("file")
+	if err != nil || id == "" {
+		httpErr(w, 400, "id and file required")
+		return
+	}
+	defer file.Close()
+
+	dir := filepath.Join(s.Session.Project.Dir, ".itan", "uploads")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		httpErr(w, 500, err.Error())
+		return
+	}
+	dest := filepath.Join(dir, fmt.Sprintf("replaced-%d-%s", time.Now().Unix(), filepath.Base(header.Filename)))
+	out, err := os.Create(dest)
+	if err != nil {
+		httpErr(w, 500, err.Error())
+		return
+	}
+	if _, err := io.Copy(out, file); err != nil {
+		out.Close()
+		httpErr(w, 500, err.Error())
+		return
+	}
+	out.Close()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, err := s.Session.Project.ReplaceAsset(r.Context(), id, dest); err != nil {
+		httpErr(w, 400, err.Error())
+		return
+	}
+	writeJSON(w, s.state())
+}
+
+// handleReveal opens the OS file manager at a project file — the user's
+// files are real files; hand them over.
+func (s *Server) handleReveal(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Path string `json:"path"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Path == "" {
+		httpErr(w, 400, "path required")
+		return
+	}
+	if !s.allowed(req.Path) {
+		httpErr(w, 403, "not a project file")
+		return
+	}
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", "-R", req.Path)
+	case "windows":
+		cmd = exec.Command("explorer", "/select,", req.Path)
+	default:
+		cmd = exec.Command("xdg-open", filepath.Dir(req.Path))
+	}
+	if err := cmd.Start(); err != nil {
+		httpErr(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, map[string]string{"status": "ok"})
+}
+
+// --- recipe replay ---------------------------------------------------------
+
+// handleStepEdit re-runs a past step with edited args and replays every later
+// step from its recorded recipe — non-destructive editing born from the
+// ledger. A checkpoint is pushed first so /revert undoes the whole replay.
+func (s *Server) handleStepEdit(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Seq  int            `json:"seq"`
+		Args map[string]any `json:"args"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Seq <= 0 {
+		httpErr(w, 400, "seq required")
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.replayFrom(r.Context(), req.Seq, req.Args); err != nil {
+		httpErr(w, 400, err.Error())
+		return
+	}
+	if s.Session.Agent != nil {
+		_ = s.Session.Agent.SaveSession()
+	}
+	writeJSON(w, s.state())
+}
+
+// replayFrom is the recipe engine: every op recorded its tool + args + input,
+// so the ledger is a replayable program, not just history. Steps whose input
+// was CURRENT re-resolve naturally as the replay advances; explicit paths are
+// rewired along the old→new output chain. Old renders stay on disk.
+func (s *Server) replayFrom(ctx context.Context, seq int, newArgs map[string]any) error {
+	p := s.Session.Project
+	idx := -1
+	for i, op := range p.Ops {
+		if op.Seq == seq {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return fmt.Errorf("no step %d", seq)
+	}
+	if s.Session.Agent != nil {
+		s.Session.Agent.CheckpointNow(fmt.Sprintf("edit step %d (%s)", seq, p.Ops[idx].Tool))
+	}
+
+	recipe := append([]media.EditOp{}, p.Ops[idx:]...)
+	p.Ops = p.Ops[:idx]
+	p.Current = ""
+	for i := len(p.Ops) - 1; i >= 0; i-- {
+		if p.Ops[i].Output != "" {
+			p.Current = p.Ops[i].Output
+			break
+		}
+	}
+	if p.Current == "" && len(p.Assets) > 0 {
+		p.Current = p.Assets[0].Path
+	}
+	if err := p.Save(); err != nil {
+		return err
+	}
+
+	reg := tools.NewRegistry()
+	gate := permission.NewGate(permission.Mode(s.Session.Cfg.Mode), s.Session.Cfg.Permissions, nil)
+	if s.Session.Agent != nil {
+		gate = s.Session.Agent.Gate
+	}
+	tctx := &tools.Ctx{
+		Context: ctx, Project: p, Config: s.Session.Cfg,
+		TTS: voice.TTSFromConfig(s.Session.Cfg), STT: voice.STTFromConfig(s.Session.Cfg),
+	}
+
+	rewire := map[string]string{} // old output path → new output path
+	for i, op := range recipe {
+		args := map[string]any{}
+		for k, v := range op.Args {
+			args[k] = v
+		}
+		if i == 0 {
+			for k, v := range newArgs {
+				args[k] = v
+			}
+		}
+		if in, ok := args["input"].(string); ok && in != "" {
+			if nw, hit := rewire[in]; hit {
+				args["input"] = nw
+			}
+		} else if op.Input != "" {
+			if nw, hit := rewire[op.Input]; hit {
+				args["input"] = nw
+			}
+		}
+
+		tool, ok := reg.Get(op.Tool)
+		if !ok {
+			return fmt.Errorf("step %d: unknown tool %s", op.Seq, op.Tool)
+		}
+		if dec := gate.Check(permission.Request{Tool: op.Tool, Args: args, Mutating: tool.Mutating}); dec.Action != permission.Allow {
+			return fmt.Errorf("step %d (%s) denied: %s", op.Seq, op.Tool, dec.Feedback)
+		}
+		raw, _ := json.Marshal(args)
+		res := reg.Execute(tctx, op.Tool, raw)
+		if res.Err != nil {
+			return fmt.Errorf("replay of %s (step %d): %v", op.Tool, op.Seq, res.Err)
+		}
+		if op.Output != "" && res.Output != "" {
+			rewire[op.Output] = res.Output
+		}
+	}
+	return nil
+}
+
 // --- projects --------------------------------------------------------------
 
 // A project is a directory; its .itan/ subfolder carries the ledger,
@@ -676,7 +867,7 @@ func (s *Server) handleMode(w http.ResponseWriter, r *http.Request) {
 // without the model in the loop. Each maps 1:1 onto a registry tool and lands
 // as a normal ledger op — undoable, checkpointed, permission-gated. The
 // whitelist keeps chat as the control surface for everything else.
-var gestureTools = map[string]bool{"trim": true}
+var gestureTools = map[string]bool{"trim": true, "cut_range": true, "concat": true}
 
 // handleTool executes one whitelisted tool call directly (no LLM): instant,
 // token-free, and honest — plan mode and deny rules still block it.
