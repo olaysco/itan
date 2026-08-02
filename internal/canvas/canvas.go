@@ -57,7 +57,7 @@ const seekRuntime = `
 if (window.gsap) { try { gsap.ticker.lagSmoothing(0); gsap.globalTimeline.pause(); } catch (e) {} }
 window.__itanSeek = (ms) => {
   document.getAnimations().forEach(a => { try { a.pause(); a.currentTime = ms; } catch (e) {} });
-  if (window.gsap) { try { gsap.globalTimeline.time(ms / 1000, false); } catch (e) {} }
+  if (window.gsap) { try { gsap.globalTimeline.time(ms / 1000); } catch (e) {} }
   document.querySelectorAll('[data-start],[data-duration]').forEach(el => {
     const s = parseFloat(el.dataset.start || 0) * 1000;
     const d = el.dataset.duration ? parseFloat(el.dataset.duration) * 1000 : Infinity;
