@@ -4,6 +4,52 @@ State of the system as of 2026-08, the honest comparison against production
 systems, and the agreed build order. This is the working memory for
 architecture decisions — update it when direction changes.
 
+## Overall architecture (`*` = planned, not yet built)
+
+```
+                                   USERS
+     CLI (itan · -p · -c)    │    web UI / native app    │    voice (hands-free)
+             └───────────────┴──────────┬────────────────┴───────────────┘
+                                        ▼
+┌────────────────────────  CONTROL PLANE · the harness  ────────────────────────┐
+│  projects: folder = session (ledger · conversation · checkpoints · revert)    │
+│  static cached prompt + <project-state> ledger deltas · compaction            │
+│  permission gate (auto/ask/plan · bypass-immune tier · deny-with-feedback)    │
+│  defenses: doom loop · repeat-failure block · stall nudge · budget escalation │
+│  skills: triggered markdown playbooks     *6 asset/template packs             │
+│  providers: anthropic ⇄ openai-compatible (claude ⇄ kimi ⇄ local)             │
+│  vision router (model.vision) · reasoning-model handling (thinking, caps)     │
+│                                                                               │
+│  *3 SCENE PIPELINE:  storyboard spec ─→ per-scene workers ─→ critic/QA pass   │
+│                      (plan)             (compose→look→revise)  (assemble)     │
+└──────────────────────────────────┬────────────────────────────────────────────┘
+                                   ▼  tool calls — every mutation ledger-committed
+┌─────────────────────────────  TOOL PLANES  ───────────────────────────────────┐
+│                                                                               │
+│  MEDIA · hands              GRAPHICS · pen               PERCEPTION · eyes    │
+│  trim · concat+xfade        compose: HTML/CSS/GSAP       probe                │
+│  crop · expand · speed      → seek-stepped Chromium      view_frames (detail) │
+│  regions (blur/pixelate/    → frames → mp4               *7 view_strip:       │
+│  zoom) · overlay_video      embedded fonts · charset     scene-detected       │
+│  overlay_text (+browser     snapshot → transparent PNG   contact sheet        │
+│  fallback) · render         *2 GEN ASSETS: image-gen     (structure/pacing)   │
+│  export (stream-copy)       tool for backdrops/heroes                         │
+│                             (cloud · permission-gated)   WEB                  │
+│  AUDIO · voice                                           fetch_page           │
+│  tts (kokoro/elevenlabs)    *1 SOUND DESIGN              capture_page         │
+│  stt (whisper, auto-        music bed · auto-duck                             │
+│  install) · mix/replace     under voice · SFX vocabulary                      │
+└──────────────────────────────────┬────────────────────────────────────────────┘
+                                   ▼
+┌───────────────────────  STATE · per project folder  ──────────────────────────┐
+│  .itan/  project.json (ledger)  ·  session.json (conversation+checkpoints)    │
+│          out/ (immutable numbered renders + scene HTML)  ·  uploads/          │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+  Build order: *1 sound → *3 scene pipeline → *2 gen assets → *6 packs · *7 fits
+  inside *3 as the critic's storyboard view but ships standalone first.
+```
+
 ## The four planes
 
 1. **Control plane (harness)** — `internal/agent`, `provider`, `permission`,
