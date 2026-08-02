@@ -32,7 +32,7 @@ overrides that make graphics look intentional.
   where it "comes from" (replies from the left, user messages from the
   right, counters count up).
 
-## Kinetic type patterns (all seek-safe: CSS animations only)
+## Kinetic type patterns (seek-safe: CSS animations)
 - Word-stagger: wrap each word in a span, `animation:up .6s var(--out) both`
   with incremental delays.
 - Mask reveal: parent `overflow:hidden`, child translates up from 100%.
@@ -41,6 +41,21 @@ overrides that make graphics look intentional.
   with a blink animation.
 - Count-up numbers: pre-render the final number, reveal digits with a short
   mask; do not fake randomness.
+
+## GSAP (bundled — reference `gsap` anywhere and it is injected)
+The render engine ships GSAP 3 + SplitText offline; the frame stepper
+drives `gsap.globalTimeline`, so GSAP scenes render deterministically.
+- WHEN: complex sequencing (one timeline choreographing many elements),
+  per-character text, motion along paths, overlapping tweens. For a single
+  fade/slide, plain CSS is still lighter.
+- Build ONE `gsap.timeline()` per scene with absolute position labels;
+  never `delay` chains you can't reason about.
+- Per-character reveals: `new SplitText('.h1',{type:'chars'})` then
+  `tl.from(split.chars,{yPercent:110,opacity:0,stagger:0.03,ease:'power3.out'})`.
+- Eases: `power3.out` for entrances, `back.out(1.4)` for small emphasis —
+  same discipline as --out/--spring. Never `none`/`linear` for movement.
+- Do NOT call `gsap.ticker` / use `Math.random()` / rely on wall-clock —
+  determinism depends on the timeline being a pure function of time.
 
 ## Layout & color
 - Compose on a 12-col grid with ≥64px margins at 1280×720. Asymmetry beats

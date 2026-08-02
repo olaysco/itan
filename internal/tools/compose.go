@@ -16,11 +16,13 @@ func composeTools() []Tool {
 			Name: "compose",
 			Description: "Create a motion-graphics clip (intro/title card, animated caption, explainer scene, " +
 				"end screen) by writing a complete self-contained HTML document — it renders to video in a real " +
-				"browser. Use CSS animations/transitions or the Web Animations API for motion; give elements " +
-				"data-start=\"2\" data-duration=\"3\" (seconds) to control when they appear. Inline all CSS/JS; " +
-				"no external URLs (renders are offline). The fonts 'Bricolage Grotesque' (display, weights 200-800) " +
-				"and 'IBM Plex Mono' are pre-installed — use them, never system-ui. The result becomes a new project " +
-				"ASSET (it does not replace CURRENT) — chain with concat for intros/outros or overlay_video to put it on footage.",
+				"browser. Use CSS animations/transitions, the Web Animations API, or GSAP 3 (+SplitText) which is " +
+				"pre-bundled: just reference `gsap` and it is injected — build one gsap.timeline() per scene; " +
+				"renders are deterministic. Give elements data-start=\"2\" data-duration=\"3\" (seconds) to control " +
+				"when they appear. Inline all CSS/JS; no other external URLs (renders are offline). The fonts " +
+				"'Bricolage Grotesque' (display, weights 200-800) and 'IBM Plex Mono' are pre-installed — use them, " +
+				"never system-ui. The result becomes a new project ASSET (it does not replace CURRENT) — chain with " +
+				"concat for intros/outros or overlay_video to put it on footage.",
 			Schema: schema([]string{"html", "duration"}, map[string]map[string]any{
 				"html":     prop("string", "Complete HTML document, self-contained."),
 				"duration": prop("number", "Clip length in seconds (max 120)."),

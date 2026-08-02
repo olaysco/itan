@@ -50,10 +50,14 @@ type Opts struct {
 }
 
 // seekRuntime is injected once per render. __itanSeek(ms) makes the page
-// show exactly the state it should have at that timestamp.
+// show exactly the state it should have at that timestamp — CSS/WAAPI
+// animations via currentTime, GSAP via its global timeline (GSAP animates
+// with rAF + inline styles, so getAnimations() cannot see it).
 const seekRuntime = `
+if (window.gsap) { try { gsap.ticker.lagSmoothing(0); gsap.globalTimeline.pause(); } catch (e) {} }
 window.__itanSeek = (ms) => {
   document.getAnimations().forEach(a => { try { a.pause(); a.currentTime = ms; } catch (e) {} });
+  if (window.gsap) { try { gsap.globalTimeline.time(ms / 1000, false); } catch (e) {} }
   document.querySelectorAll('[data-start],[data-duration]').forEach(el => {
     const s = parseFloat(el.dataset.start || 0) * 1000;
     const d = el.dataset.duration ? parseFloat(el.dataset.duration) * 1000 : Infinity;
@@ -99,7 +103,7 @@ func Render(ctx context.Context, opts Opts) error {
 	defer os.RemoveAll(work)
 
 	htmlPath := filepath.Join(work, "composition.html")
-	if err := os.WriteFile(htmlPath, []byte(injectFonts(opts.HTML)), 0o600); err != nil {
+	if err := os.WriteFile(htmlPath, []byte(injectGSAP(injectFonts(opts.HTML))), 0o600); err != nil {
 		return err
 	}
 
