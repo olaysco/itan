@@ -38,7 +38,8 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 #fileChip{font-size:10.5px;color:var(--t3);background:var(--surface2);border-radius:5px;padding:3px 8px}
 #projChip{font-size:10.5px;color:var(--t2);background:var(--surface2);border-radius:5px;padding:3px 8px;cursor:pointer}
 #projChip:hover{color:var(--t1)}
-.rmx{margin-left:auto;color:var(--t4);cursor:pointer;font-size:10px;padding:0 2px}
+.rmx{margin-left:auto;color:var(--t4);cursor:pointer;font-size:10px;padding:0 2px;flex:none}
+.step .tag+.rmx,.step .tag~.rmx{margin-left:0}
 .rmx:hover{color:#e5484d}
 .addTile{border-style:dashed;cursor:pointer;color:var(--t3)}
 .addTile:hover{color:var(--t1);border-color:var(--accent-border)}
@@ -135,11 +136,13 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 .step:hover{background:var(--fill2)}
 .step.active{border-color:var(--accent);background:var(--accent-tint)}
 .step.rendering{border-color:var(--accent-border2);background:var(--accent-tint)}
-.step .row{display:flex;align-items:baseline;gap:7px;font-size:10.5px;font-family:'IBM Plex Mono',ui-monospace,monospace}
-.step .num{color:var(--t3);font-weight:700}
+.step .row{display:flex;align-items:baseline;gap:7px;font-size:10.5px;font-family:'IBM Plex Mono',ui-monospace,monospace;min-width:0}
+.step .num{color:var(--t3);font-weight:700;flex:none}
 .step.active .num,.step.rendering .num{color:var(--accent)}
-.step .nm{color:var(--t1);font-weight:500}
-.step .tag{margin-left:auto;font-size:8.5px;letter-spacing:.06em;color:var(--accent)}
+/* long tool names (replace_audio, change_background) ellipsize instead of
+   pushing the tag and ✕ outside the card border */
+.step .nm{color:var(--t1);font-weight:500;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.step .tag{margin-left:auto;font-size:8.5px;letter-spacing:.06em;color:var(--accent);flex:none}
 .step.rendering .tag{animation:pulse 1.2s ease-in-out infinite}
 .step .sum{font-size:11.5px;color:var(--t2);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .step .meta{font-size:9.5px;color:var(--t3);margin-top:4px;font-family:'IBM Plex Mono',ui-monospace,monospace}
