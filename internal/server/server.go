@@ -121,6 +121,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/asset/replace", s.handleAssetReplace)
 	mux.HandleFunc("POST /api/reveal", s.handleReveal)
 	mux.HandleFunc("POST /api/step/edit", s.handleStepEdit)
+	mux.HandleFunc("POST /api/step/revert", s.handleStepRevert)
+	mux.HandleFunc("GET /api/assets", s.handleAssets)
 	mux.HandleFunc("GET /api/projects", s.handleProjects)
 	mux.HandleFunc("POST /api/project", s.handleProjectSwitch)
 	mux.HandleFunc("POST /api/undo", s.handleUndo)
@@ -222,8 +224,34 @@ type stateView struct {
 	Models      []modelView      `json:"models"`
 	TokensIn    int              `json:"tokens_in"`
 	TokensOut   int              `json:"tokens_out"`
+	Cost        string           `json:"cost,omitempty"` // "≈$0.31" when the model's rates are known
 	TTS         string           `json:"tts"`
 	STT         string           `json:"stt"`
+}
+
+// modelRates maps model-id substrings to $/1M token (in, out) for the header
+// cost estimate. Approximate by design — the readout says ≈.
+var modelRates = []struct {
+	match   string
+	in, out float64
+}{
+	{"opus", 15, 75}, {"sonnet", 3, 15}, {"haiku", 1, 5},
+	{"kimi-k3", 3, 15}, {"kimi-k2.5", 0.6, 3}, {"kimi", 0.6, 3},
+	{"glm", 1.4, 4.4}, {"deepseek-v4-flash", 0.14, 0.28}, {"deepseek", 0.435, 0.87},
+}
+
+func estimateCost(modelID string, in, out int) string {
+	id := strings.ToLower(modelID)
+	for _, r := range modelRates {
+		if strings.Contains(id, r.match) {
+			usd := float64(in)/1e6*r.in + float64(out)/1e6*r.out
+			if usd < 0.005 {
+				return ""
+			}
+			return fmt.Sprintf("≈$%.2f", usd)
+		}
+	}
+	return ""
 }
 
 func mediaURL(path string) string {
@@ -267,6 +295,7 @@ func (s *Server) state() stateView {
 	if s.Session.Agent != nil {
 		v.Mode = string(s.Session.Agent.Gate.Mode())
 		v.TokensIn, v.TokensOut = s.Session.Agent.InputTokens, s.Session.Agent.OutputTokens
+		v.Cost = estimateCost(cfg.Model.ID, v.TokensIn, v.TokensOut)
 		cps := s.Session.Agent.Checkpoints()
 		for i := len(cps) - 1; i >= 0; i-- { // newest first
 			cp := cps[i]
@@ -710,6 +739,101 @@ func (s *Server) replayFrom(ctx context.Context, seq int, newArgs map[string]any
 	return nil
 }
 
+// --- assets inventory ------------------------------------------------------
+
+type assetView struct {
+	ID      string `json:"id,omitempty"` // sources only
+	Seq     int    `json:"seq,omitempty"`
+	Kind    string `json:"kind"` // "source" | "render" | "audio"
+	Name    string `json:"name"`
+	URL     string `json:"url"`
+	Meta    string `json:"meta"`
+	Dur     string `json:"dur,omitempty"`
+	Missing bool   `json:"missing,omitempty"`
+	Current bool   `json:"current,omitempty"`
+}
+
+// handleAssets returns everything the project references, with honest issue
+// flags: a moved/deleted file says so instead of failing later mid-edit.
+func (s *Server) handleAssets(w http.ResponseWriter, _ *http.Request) {
+	p := s.Session.Project
+	out := []assetView{}
+	add := func(v assetView, path string) {
+		if _, err := os.Stat(path); err != nil {
+			v.Missing = true
+			v.Meta = "file moved or deleted"
+		}
+		v.Current = path == p.Current
+		out = append(out, v)
+	}
+	for _, a := range p.Assets {
+		kind := "source"
+		if strings.HasSuffix(strings.ToLower(a.Path), ".wav") || strings.HasSuffix(strings.ToLower(a.Path), ".mp3") {
+			kind = "audio"
+		}
+		add(assetView{
+			ID: a.ID, Kind: kind, Name: filepath.Base(a.Path), URL: mediaURL(a.Path),
+			Meta: a.Info.Compact(), Dur: fmt.Sprintf("%.1fs", a.Info.Duration),
+		}, a.Path)
+	}
+	for _, op := range p.Ops {
+		if op.Output == "" {
+			continue
+		}
+		kind := "render"
+		if strings.HasSuffix(strings.ToLower(op.Output), ".wav") || strings.HasSuffix(strings.ToLower(op.Output), ".png") {
+			kind = "audio"
+		}
+		add(assetView{
+			Seq: op.Seq, Kind: kind, Name: filepath.Base(op.Output), URL: mediaURL(op.Output),
+			Meta: fmt.Sprintf("step %03d · %s", op.Seq, op.Tool),
+		}, op.Output)
+	}
+	writeJSON(w, map[string]any{"assets": out})
+}
+
+// handleStepRevert rewinds the ledger to a selected step: later steps drop
+// off (their render files stay on disk) and CURRENT becomes that step's
+// output. Checkpointed, so /revert can undo the rewind itself.
+func (s *Server) handleStepRevert(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Seq int `json:"seq"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Seq <= 0 {
+		httpErr(w, 400, "seq required")
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.Session.Project
+	idx := -1
+	for i, op := range p.Ops {
+		if op.Seq == req.Seq {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		httpErr(w, 400, fmt.Sprintf("no step %d", req.Seq))
+		return
+	}
+	if s.Session.Agent != nil {
+		s.Session.Agent.CheckpointNow(fmt.Sprintf("revert to step %d", req.Seq))
+	}
+	p.Ops = p.Ops[:idx+1]
+	if p.Ops[idx].Output != "" {
+		p.Current = p.Ops[idx].Output
+	}
+	if err := p.Save(); err != nil {
+		httpErr(w, 500, err.Error())
+		return
+	}
+	if s.Session.Agent != nil {
+		_ = s.Session.Agent.SaveSession()
+	}
+	writeJSON(w, s.state())
+}
+
 // --- projects --------------------------------------------------------------
 
 // A project is a directory; its .itan/ subfolder carries the ledger,
@@ -720,6 +844,26 @@ type projectRef struct {
 	Dir    string `json:"dir"`
 	Name   string `json:"name"`
 	Active bool   `json:"active"`
+	Meta   string `json:"meta,omitempty"` // "4 edits · today 14:12"
+}
+
+func projectMeta(dir string) string {
+	path := filepath.Join(dir, ".itan", "project.json")
+	st, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	var p struct {
+		Ops []any `json:"ops"`
+	}
+	if data, err := os.ReadFile(path); err == nil {
+		_ = json.Unmarshal(data, &p)
+	}
+	when := st.ModTime().Format("Jan 2 15:04")
+	if time.Since(st.ModTime()) < 24*time.Hour {
+		when = "today " + st.ModTime().Format("15:04")
+	}
+	return fmt.Sprintf("%d edits · %s", len(p.Ops), when)
 }
 
 func (s *Server) handleProjects(w http.ResponseWriter, _ *http.Request) {
@@ -730,10 +874,10 @@ func (s *Server) handleProjects(w http.ResponseWriter, _ *http.Request) {
 		if d == cur {
 			seen = true
 		}
-		refs = append(refs, projectRef{Dir: d, Name: filepath.Base(d), Active: d == cur})
+		refs = append(refs, projectRef{Dir: d, Name: filepath.Base(d), Active: d == cur, Meta: projectMeta(d)})
 	}
 	if !seen {
-		refs = append([]projectRef{{Dir: cur, Name: filepath.Base(cur), Active: true}}, refs...)
+		refs = append([]projectRef{{Dir: cur, Name: filepath.Base(cur), Active: true, Meta: projectMeta(cur)}}, refs...)
 	}
 	writeJSON(w, map[string]any{"projects": refs})
 }
@@ -867,7 +1011,7 @@ func (s *Server) handleMode(w http.ResponseWriter, r *http.Request) {
 // without the model in the loop. Each maps 1:1 onto a registry tool and lands
 // as a normal ledger op — undoable, checkpointed, permission-gated. The
 // whitelist keeps chat as the control surface for everything else.
-var gestureTools = map[string]bool{"trim": true, "cut_range": true, "concat": true}
+var gestureTools = map[string]bool{"trim": true, "cut_range": true, "concat": true, "export": true}
 
 // handleTool executes one whitelisted tool call directly (no LLM): instant,
 // token-free, and honest — plan mode and deny rules still block it.
