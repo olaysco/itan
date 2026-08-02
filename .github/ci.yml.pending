@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install Chrome (compose engine e2e)
+        id: chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        env:
+          ITAN_BROWSER: ${{ steps.chrome.outputs.chrome-path }}
+        run: go test ./...
+
+      - name: build all binaries
+        run: go build ./...
+
+# NOTE: this session's GitHub credentials cannot push workflow files
+# (missing `workflow` scope). Activate CI with:
+#   git mv .github/ci.yml.pending .github/workflows/ci.yml && git commit -m "Enable CI" && git push

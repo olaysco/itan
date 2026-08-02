@@ -1,0 +1,17 @@
+# Binaries
+/heydit
+heydit.exe
+dist/
+
+# Project/session state and rendered media
+.itan/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.log
+launch-build/
+/launch
+/itan
+itan.exe
