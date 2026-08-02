@@ -297,6 +297,13 @@ func cmdDoctor(dir string) error {
 	} else {
 		check("compose (browser)", false, "no Chromium-family browser; compose is disabled until one is installed")
 	}
+	if media.Available() {
+		if media.HasFilter(context.Background(), "drawtext") {
+			check("text overlays", true, "ffmpeg drawtext")
+		} else {
+			check("text overlays", true, "ffmpeg lacks drawtext — captions render via the browser engine")
+		}
+	}
 	check("tts", true, fmt.Sprintf("%s @ %s (voice %s)", cfg.Audio.TTS.Provider, cfg.Audio.TTS.BaseURL, cfg.Audio.TTS.Voice))
 	check("stt", true, fmt.Sprintf("%s @ %s", cfg.Audio.STT.Provider, cfg.Audio.STT.BaseURL))
 	fmt.Println("\nvoice endpoints are only contacted when a request needs them;")

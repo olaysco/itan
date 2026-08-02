@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/olaysco/itan/internal/canvas"
 	"github.com/olaysco/itan/internal/media"
 )
 
@@ -466,6 +467,14 @@ func runOverlayText(c *Ctx, args Args) Result {
 	}
 	start := args.Float("start", 0)
 	end := args.Float("end", -1)
+
+	// Static ffmpeg builds ship without drawtext (no freetype). Fall back to
+	// rasterizing the text in the browser engine — embedded fonts included —
+	// and compositing with the core overlay filter, which every build has.
+	if !media.HasFilter(c.Context, "drawtext") {
+		return overlayTextViaBrowser(c, in, text, args.Str("position"), color, size, start, end)
+	}
+
 	enable := fmt.Sprintf("gte(t\\,%.3f)", start)
 	if end > start {
 		enable = fmt.Sprintf("between(t\\,%.3f\\,%.3f)", start, end)
@@ -479,6 +488,53 @@ func runOverlayText(c *Ctx, args Args) Result {
 		return Result{Err: err}
 	}
 	return Result{Summary: fmt.Sprintf("caption %q burned in", clip(text, 40)), Output: out}
+}
+
+// overlayTextViaBrowser renders the caption as a transparent PNG (browser
+// engine, embedded fonts) and composites it over the video.
+func overlayTextViaBrowser(c *Ctx, in, text, position, color string, size int, start, end float64) Result {
+	info, err := media.Probe(c.Context, in)
+	if err != nil {
+		return Result{Err: err}
+	}
+	align := "flex-end"
+	switch position {
+	case "top":
+		align = "flex-start"
+	case "center":
+		align = "center"
+	}
+	page := fmt.Sprintf(`<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;width:%dpx;height:%dpx;background:transparent;overflow:hidden}
+.wrap{width:100%%;height:100%%;display:flex;justify-content:center;align-items:%s;box-sizing:border-box;padding:7%% 6%%}
+.t{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:%dpx;color:%s;text-align:center;letter-spacing:-0.02em;line-height:1.15;text-shadow:0 2px 14px rgba(0,0,0,0.45)}
+</style></head><body><div class="wrap"><div class="t">%s</div></div></body></html>`,
+		info.Width, info.Height, align, size, color, htmlEscape(text))
+
+	png, err := canvas.Snapshot(c.Context, page, info.Width, info.Height)
+	if err != nil {
+		return Result{Err: fmt.Errorf("ffmpeg lacks drawtext and browser fallback failed: %w", err)}
+	}
+	overlayPNG := c.Project.NextOutput("textoverlay", ".png")
+	if err := os.WriteFile(overlayPNG, png, 0o644); err != nil {
+		return Result{Err: err}
+	}
+
+	enable := fmt.Sprintf("gte(t,%.3f)", start)
+	if end > start {
+		enable = fmt.Sprintf("between(t,%.3f,%.3f)", start, end)
+	}
+	out := c.Project.NextOutput("text", ".mp4")
+	fc := fmt.Sprintf("[0:v][1:v]overlay=0:0:enable='%s'", enable)
+	if err := media.Run(c.Context, "-i", in, "-i", overlayPNG, "-filter_complex", fc, "-c:a", "copy", out); err != nil {
+		return Result{Err: err}
+	}
+	return Result{Summary: fmt.Sprintf("caption %q burned in (browser-rendered text)", clip(text, 40)), Output: out}
+}
+
+func htmlEscape(s string) string {
+	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+	return r.Replace(s)
 }
 
 func runRender(c *Ctx, args Args) Result {

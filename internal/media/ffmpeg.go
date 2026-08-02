@@ -8,12 +8,38 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 // RenderTimeout bounds every ffmpeg invocation so a bad filtergraph can never
 // hang the harness.
 var RenderTimeout = 10 * time.Minute
+
+var (
+	filtersOnce sync.Once
+	filtersSet  map[string]bool
+)
+
+// HasFilter reports whether the installed ffmpeg build ships a filter.
+// Static/minimal builds routinely lack drawtext (no freetype) — callers use
+// this to pick a fallback path instead of failing the user's edit.
+func HasFilter(ctx context.Context, name string) bool {
+	filtersOnce.Do(func() {
+		filtersSet = map[string]bool{}
+		out, err := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-filters").Output()
+		if err != nil {
+			return
+		}
+		for _, line := range strings.Split(string(out), "\n") {
+			fields := strings.Fields(line)
+			if len(fields) >= 3 && strings.Contains(fields[2], "->") {
+				filtersSet[fields[1]] = true
+			}
+		}
+	})
+	return filtersSet[name]
+}
 
 type Info struct {
 	Width    int     `json:"w"`

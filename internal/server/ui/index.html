@@ -43,6 +43,9 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 .rmx:hover{color:#e5484d}
 .addTile{border-style:dashed;cursor:pointer;color:var(--t3)}
 .addTile:hover{color:var(--t1);border-color:var(--accent-border)}
+.runHdr{background:var(--fill2);width:186px}
+.runHdr:hover{border-color:var(--accent-border)}
+.runHdr .sum{color:var(--t3)}
 .hpill{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--t2);background:var(--fill);border-radius:999px;padding:5px 12px;cursor:pointer}
 .hpill:hover{background:var(--border1)}
 .hbtn{font-size:12px;color:var(--t2);background:var(--fill);border-radius:7px;padding:5px 11px;cursor:pointer}
@@ -203,8 +206,8 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 #chips{display:flex;gap:7px;flex-wrap:wrap}
 #chips span{cursor:pointer;font-size:12px;color:var(--t2);background:var(--fill);border-radius:999px;padding:5px 12px}
 #chips span:hover{background:var(--fill2);color:var(--t1)}
-#composeBar{display:flex;align-items:center;gap:10px;background:var(--fill);border-radius:13px;padding:10px 10px 10px 15px}
-#input{flex:1;font-size:13.5px;color:var(--t1)}
+#composeBar{display:flex;align-items:flex-end;gap:10px;background:var(--fill);border-radius:13px;padding:10px 10px 10px 15px}
+#input{flex:1;font-size:13.5px;color:var(--t1);resize:none;border:none;background:transparent;outline:none;font-family:inherit;line-height:1.45;max-height:140px;overflow-y:auto;padding:6px 0}
 #input::placeholder{color:var(--t3)}
 #hfBtn{cursor:pointer;font-size:9.5px;color:var(--t3);background:var(--fill2);border-radius:999px;padding:3px 9px;font-family:'IBM Plex Mono',ui-monospace,monospace;flex:none}
 #hfBtn:hover{color:var(--accent)}
@@ -411,7 +414,7 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
         </div>
         <div id="chips"></div>
         <div id="composeBar">
-          <input id="input" placeholder='Tell the story: "cut the first 4 seconds and caption what she says"' autocomplete="off">
+          <textarea id="input" rows="1" placeholder='Tell the story: "cut the first 4 seconds and caption what she says"' autocomplete="off"></textarea>
           <span id="hfBtn">hands-free</span>
           <div id="micBtn" title="hold to talk"><div class="micIco"><i></i><i></i><i></i></div></div>
           <div id="sendBtn"><span>↑</span></div>
@@ -596,26 +599,51 @@ function renderChips(has){
   $('#chips').innerHTML=chips.map(c=>`<span>${esc(c)}</span>`).join('');
   $$('#chips span').forEach(el=>el.onclick=()=>send(el.textContent));
 }
+function stepCard(it,st,activeURL){
+  const d=document.createElement('div');
+  const isCur=it.url&&it.url===st.current, isSel=it.url&&it.url===activeURL;
+  d.className='step'+(isSel?' active':'');
+  d.innerHTML=`<div class="row"><span class="num">${it.num}</span><span class="nm">${esc(it.name)}</span>${isCur?'<span class="tag">CURRENT</span>':''}</div><div class="sum">${esc(it.sum)}</div><div class="meta">${esc(it.meta)}</div>`;
+  if(it.id){const x=document.createElement('span');x.className='rmx';x.textContent='✕';x.title='remove from project (file on disk is kept)';x.onclick=ev=>{ev.stopPropagation();removeAsset(it.id,it.sum)};d.querySelector('.row').appendChild(x)}
+  if(it.undo){const x=document.createElement('span');x.className='rmx';x.textContent='✕';x.title='remove this step — moves back one (render file is kept)';x.onclick=ev=>{ev.stopPropagation();undoStep()};d.querySelector('.row').appendChild(x)}
+  if(it.url)d.onclick=()=>setPreview(it.url,it.url===st.current);
+  return d;
+}
 function renderStrip(){
   const st=S.state,strip=$('#strip');strip.innerHTML='';
+  const activeURL=S.previewURL??st.current;
   const add=document.createElement('div');
   add.className='step addTile';add.title='add more footage';
   add.innerHTML='<div class="row"><span class="num">+</span><span class="nm">add media</span></div><div class="sum">click, or drop files anywhere</div>';
   add.onclick=()=>$('#fileInput').click();
   strip.appendChild(add);
-  const items=[];
-  st.assets.forEach((a,i)=>items.push({num:'00'+i,name:'source',sum:a.name,meta:a.info,url:a.url,id:a.id}));
-  st.ops.forEach((op,i)=>items.push({num:String(op.seq).padStart(3,'0'),name:op.tool,sum:op.summary,meta:'',url:op.url,undo:i===st.ops.length-1}));
-  const activeURL=S.previewURL??st.current;
-  items.forEach(it=>{
-    const d=document.createElement('div');
-    const isCur=it.url&&it.url===st.current, isSel=it.url&&it.url===activeURL;
-    d.className='step'+(isSel?' active':'');
-    d.innerHTML=`<div class="row"><span class="num">${it.num}</span><span class="nm">${esc(it.name)}</span>${isCur?'<span class="tag">CURRENT</span>':''}</div><div class="sum">${esc(it.sum)}</div><div class="meta">${esc(it.meta)}</div>`;
-    if(it.id){const x=document.createElement('span');x.className='rmx';x.textContent='✕';x.title='remove from project (file on disk is kept)';x.onclick=ev=>{ev.stopPropagation();removeAsset(it.id,it.sum)};d.querySelector('.row').appendChild(x)}
-    if(it.undo){const x=document.createElement('span');x.className='rmx';x.textContent='✕';x.title='remove this step — moves back one (render file is kept)';x.onclick=ev=>{ev.stopPropagation();undoStep()};d.querySelector('.row').appendChild(x)}
-    if(it.url)d.onclick=()=>setPreview(it.url,it.url===st.current);
-    strip.appendChild(d);
+  st.assets.forEach((a,i)=>strip.appendChild(stepCard({num:'00'+i,name:'source',sum:a.name,meta:a.info,url:a.url,id:a.id},st,activeURL)));
+  const opItem=(op,i)=>({num:String(op.seq).padStart(3,'0'),name:op.tool,sum:op.summary,meta:'',url:op.url,undo:i===st.ops.length-1});
+  const cps=[...(st.checkpoints||[])].sort((a,b)=>a.num-b.num);
+  if(!cps.length){ // no chat runs recorded (gesture-only projects): flat strip
+    st.ops.forEach((op,i)=>strip.appendChild(stepCard(opItem(op,i),st,activeURL)));
+    return;
+  }
+  /* One collapsible group per chat request: closed shows the request and its
+     edit count; open shows every step so any one can be selected. The
+     newest run opens automatically. */
+  if(!S.openRuns)S.openRuns=new Set();
+  const latest=cps[cps.length-1].num;
+  if(S.lastRunSeen!==latest){S.openRuns.add(latest);S.lastRunSeen=latest}
+  st.ops.slice(0,cps[0].edits).forEach((op,i)=>strip.appendChild(stepCard(opItem(op,i),st,activeURL)));
+  cps.forEach((cp,k)=>{
+    const s0=cp.edits, s1=(cps[k+1]?cps[k+1].edits:st.ops.length);
+    const ops=st.ops.slice(s0,s1);
+    if(!ops.length)return;
+    const open=S.openRuns.has(cp.num);
+    const holdsSel=ops.some(op=>op.url&&op.url===activeURL);
+    const g=document.createElement('div');
+    g.className='step runHdr'+(holdsSel&&!open?' active':'');
+    g.title=cp.label;
+    g.innerHTML=`<div class="row"><span class="num">${open?'▾':'▸'}</span><span class="nm">${esc(cp.label||('run '+cp.num))}</span><span class="tag">${ops.length}</span></div><div class="sum">${open?'collapse':ops.length+' step'+(ops.length===1?'':'s')+' · expand'}</div>`;
+    g.onclick=()=>{open?S.openRuns.delete(cp.num):S.openRuns.add(cp.num);renderStrip()};
+    strip.appendChild(g);
+    if(open)ops.forEach((op,j)=>strip.appendChild(stepCard(opItem(op,s0+j),st,activeURL)));
   });
 }
 /* Tracks: click seeks · drag selects a range into the composer · edge
@@ -832,7 +860,7 @@ async function send(text){
   /* no footage gate: compose-only requests (title cards, launch videos,
      explainers) are legitimate on an empty project — the agent says so
      itself when a request genuinely needs source footage */
-  $('#input').value='';S.busy=true;setSendStop(true);
+  $('#input').value='';$('#input').style.height='auto';S.busy=true;setSendStop(true);
   addU(text);trace=null;liveA=null;
   startWork();
   S.abort=new AbortController();
@@ -889,7 +917,9 @@ function handleEvent(ev,rows){
 async function refreshDuringRun(){try{const st=await (await fetch('/api/state')).json();S.state=st;S.previewURL=null;render()}catch(e){}}
 function setSendStop(stop){const b=$('#sendBtn');b.classList.toggle('stop',stop);b.innerHTML=stop?'<span></span>':'<span>↑</span>'}
 $('#sendBtn').onclick=()=>{if(S.busy){S.abort?.abort()}else send()};
-$('#input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();send()}});
+$('#input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
+/* long prompts flow down, not sideways: grow up to 140px then scroll */
+$('#input').addEventListener('input',()=>{const i=$('#input');i.style.height='auto';i.style.height=Math.min(i.scrollHeight,140)+'px'});
 
 /* working banner + elapsed */
 let workT0=0;
@@ -1107,7 +1137,7 @@ async function switchProject(dir){
   if(!r.ok){ /* keep the dialog open and show the error where the eye already is */
     const f=$('#projFoot');f.textContent='✕ '+(j.error||'switch failed');f.style.color='#e5484d';
     toast('✕ '+(j.error||'switch failed'));return}
-  S.state=j;S.previewURL=null;S.selStep=null;msgs.innerHTML='';trace=null;liveA=null;
+  S.state=j;S.previewURL=null;S.selStep=null;S.openRuns=null;S.lastRunSeen=null;msgs.innerHTML='';trace=null;liveA=null;
   closeOverlays();render();toast('project · '+(j.project||dir));
   loadHistory();
 }

@@ -134,9 +134,32 @@ func (s *OpenAISTT) Describe() string {
 }
 
 func (s *OpenAISTT) Transcribe(ctx context.Context, audioPath string) (string, error) {
-	file, err := os.Open(audioPath)
+	status, payload, err := s.transcribeOnce(ctx, audioPath)
 	if err != nil {
 		return "", err
+	}
+	// Speaches-style servers 404 until the model is downloaded — install it
+	// ourselves and retry, instead of failing the user's edit.
+	if status == 404 && bytes.Contains(payload, []byte("not installed")) {
+		if ierr := s.installModel(ctx); ierr != nil {
+			return "", fmt.Errorf("%s: model %q is not installed on the STT server and auto-install failed: %v — install manually: curl -X POST %s/models/%s",
+				s.Label, s.Model, ierr, s.BaseURL, s.Model)
+		}
+		status, payload, err = s.transcribeOnce(ctx, audioPath)
+		if err != nil {
+			return "", err
+		}
+	}
+	if status >= 400 {
+		return "", fmt.Errorf("%s: %d: %s", s.Label, status, payload[:min(len(payload), 300)])
+	}
+	return strings.TrimSpace(string(payload)), nil
+}
+
+func (s *OpenAISTT) transcribeOnce(ctx context.Context, audioPath string) (int, []byte, error) {
+	file, err := os.Open(audioPath)
+	if err != nil {
+		return 0, nil, err
 	}
 	defer file.Close()
 
@@ -144,20 +167,20 @@ func (s *OpenAISTT) Transcribe(ctx context.Context, audioPath string) (string, e
 	mw := multipart.NewWriter(&buf)
 	part, err := mw.CreateFormFile("file", filepath.Base(audioPath))
 	if err != nil {
-		return "", err
+		return 0, nil, err
 	}
 	if _, err := io.Copy(part, file); err != nil {
-		return "", err
+		return 0, nil, err
 	}
 	_ = mw.WriteField("model", s.Model)
 	_ = mw.WriteField("response_format", "text")
 	if err := mw.Close(); err != nil {
-		return "", err
+		return 0, nil, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", s.BaseURL+"/audio/transcriptions", &buf)
 	if err != nil {
-		return "", err
+		return 0, nil, err
 	}
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	if s.APIKey != "" {
@@ -165,14 +188,35 @@ func (s *OpenAISTT) Transcribe(ctx context.Context, audioPath string) (string, e
 	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("%s unreachable (server not running? check itan doctor): %w", s.Label, err)
+		return 0, nil, fmt.Errorf("%s unreachable (server not running? check itan doctor): %w", s.Label, err)
 	}
 	defer resp.Body.Close()
 	payload, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("%s: %s: %s", s.Label, resp.Status, payload[:min(len(payload), 300)])
+	return resp.StatusCode, payload, nil
+}
+
+// installModel asks the STT server to download the configured model. First
+// downloads take minutes — the generous timeout is deliberate.
+func (s *OpenAISTT) installModel(ctx context.Context) error {
+	ictx, cancel := context.WithTimeout(ctx, 15*time.Minute)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ictx, "POST", s.BaseURL+"/models/"+s.Model, nil)
+	if err != nil {
+		return err
 	}
-	return strings.TrimSpace(string(payload)), nil
+	if s.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+s.APIKey)
+	}
+	resp, err := (&http.Client{}).Do(req) // no client timeout: ctx bounds it
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		payload, _ := io.ReadAll(io.LimitReader(resp.Body, 300))
+		return fmt.Errorf("install returned %s: %s", resp.Status, payload)
+	}
+	return nil
 }
 
 func min(a, b int) int {
