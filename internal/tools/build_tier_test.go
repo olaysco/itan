@@ -151,3 +151,35 @@ func TestViewStrip(t *testing.T) {
 		t.Fatalf("sheet too small: %dx%d", info.Width, info.Height)
 	}
 }
+
+// list_files must surface material the user simply dropped in — the model
+// cannot use add_music (or any user-supplied file) if it cannot find it.
+func TestListFiles(t *testing.T) {
+	c := composeCtx(t)
+	clip := makeTierClip(t, c.Project.Dir, "clip.mp4", 2)
+	if _, err := c.Project.AddAsset(context.Background(), clip); err != nil {
+		t.Fatal(err)
+	}
+	music := filepath.Join(c.Project.Dir, "bed.wav")
+	cmd := exec.Command("ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=220:duration=1", music)
+	if raw, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("music: %v\n%s", err, raw)
+	}
+
+	res := NewRegistry().Execute(c, "list_files", []byte(`{}`))
+	if res.Err != nil {
+		t.Fatalf("list_files: %v", res.Err)
+	}
+	listing, _ := res.Data["files"].(string)
+	if !strings.Contains(listing, "clip.mp4") || !strings.Contains(listing, "asset a1") {
+		t.Fatalf("registered asset not marked: %s", listing)
+	}
+	if !strings.Contains(listing, "bed.wav") || !strings.Contains(listing, "unregistered") {
+		t.Fatalf("dropped-in music not discoverable: %s", listing)
+	}
+	// Audio-only filter must exclude the video.
+	res = NewRegistry().Execute(c, "list_files", []byte(`{"kind":"audio"}`))
+	if l, _ := res.Data["files"].(string); strings.Contains(l, "clip.mp4") {
+		t.Fatalf("kind filter ignored: %s", l)
+	}
+}
