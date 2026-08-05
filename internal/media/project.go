@@ -102,7 +102,13 @@ func (p *Project) AddAsset(ctx context.Context, path string) (*Asset, error) {
 	}
 	info, err := Probe(ctx, abs)
 	if err != nil {
-		return nil, err
+		// Vector stills (SVG) are unreadable to ffprobe but render fine in
+		// compose — a user's own logo must not be turned away.
+		still, ok := StillInfo(abs)
+		if !ok {
+			return nil, err
+		}
+		info = still
 	}
 	// IDs are max+1, not len+1: after a removal, len+1 would mint a duplicate
 	// of an id the ledger and conversation still reference.

@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -121,5 +122,84 @@ func TestAssetIDsStayUniqueAfterRemove(t *testing.T) {
 	}
 	if a3.ID == a2.ID {
 		t.Fatalf("duplicate asset id %s after remove", a3.ID)
+	}
+}
+
+// SVG is invisible to ffprobe but renders natively in compose — importing a
+// logo must work, carry its dimensions, and never become the working video.
+func TestAddSVGAsset(t *testing.T) {
+	dir := t.TempDir()
+	svg := filepath.Join(dir, "logo.svg")
+	body := `<svg width="1024" height="768" viewBox="0 0 1024 768" xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10"/></svg>`
+	if err := os.WriteFile(svg, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p := &Project{Dir: dir}
+	a, err := p.AddAsset(context.Background(), svg)
+	if err != nil {
+		t.Fatalf("SVG import rejected: %v", err)
+	}
+	if a.Info.Width != 1024 || a.Info.Height != 768 {
+		t.Fatalf("svg dims = %dx%d, want 1024x768", a.Info.Width, a.Info.Height)
+	}
+	if p.Current != "" {
+		t.Fatalf("a still must not become the working video: %q", p.Current)
+	}
+	if got := a.Info.Compact(); got != "1024x768 still image" {
+		t.Fatalf("still metadata reads as broken video: %q", got)
+	}
+	// viewBox-only SVGs import too (exact dimensions depend on whether the
+	// local ffprobe can decode SVG at all — the contract is that it lands).
+	svg2 := filepath.Join(dir, "vb.svg")
+	if err := os.WriteFile(svg2, []byte(`<svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg"/>`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	b, err := p.AddAsset(context.Background(), svg2)
+	if err != nil || b.Info.Width == 0 {
+		t.Fatalf("viewBox svg import: %v %+v", err, b)
+	}
+	// A genuinely unreadable file is still rejected.
+	junk := filepath.Join(dir, "notes.svg")
+	if err := os.WriteFile(junk, []byte("this is not markup"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.AddAsset(context.Background(), junk); err == nil {
+		t.Fatal("a non-SVG file with an .svg name must still be rejected")
+	}
+}
+
+// StillInfo parses SVG dimensions without ffmpeg — the deterministic half of
+// the import path, independent of whether the local ffprobe decodes SVG.
+func TestStillInfoSVG(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	cases := []struct {
+		name, body string
+		w, h       int
+	}{
+		{"attrs.svg", `<svg width="640" height="480" xmlns="http://www.w3.org/2000/svg"/>`, 640, 480},
+		{"viewbox.svg", `<svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg"/>`, 200, 100},
+		{"float.svg", `<svg width="99.5" height="50.2" xmlns="http://www.w3.org/2000/svg"/>`, 99, 50},
+	}
+	for _, c := range cases {
+		info, ok := StillInfo(write(c.name, c.body))
+		if !ok || info.Width != c.w || info.Height != c.h {
+			t.Errorf("%s = %dx%d (ok=%v), want %dx%d", c.name, info.Width, info.Height, ok, c.w, c.h)
+		}
+		if info.Duration != 0 {
+			t.Errorf("%s: a still must have no duration", c.name)
+		}
+	}
+	if _, ok := StillInfo(write("notes.svg", "plain text")); ok {
+		t.Error("non-markup .svg must not be treated as a still")
+	}
+	if _, ok := StillInfo(write("clip.mp4", "whatever")); ok {
+		t.Error("only SVG takes the still path")
 	}
 }

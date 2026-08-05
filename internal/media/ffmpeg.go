@@ -86,6 +86,14 @@ func (i Info) Aspect() float64 {
 // Compact renders metadata in the terse form used by the ledger and tool
 // results, e.g. "640x360 25fps 4.0s audio:yes".
 func (i Info) Compact() string {
+	// Stills and audio-only files have no fps/duration worth printing;
+	// padding them with zeros reads as broken metadata.
+	if i.Duration == 0 && i.Width > 0 {
+		return fmt.Sprintf("%dx%d still image", i.Width, i.Height)
+	}
+	if i.Width == 0 && i.HasAudio {
+		return fmt.Sprintf("audio only · %.1fs", i.Duration)
+	}
 	audio := "no"
 	if i.HasAudio {
 		audio = "yes"

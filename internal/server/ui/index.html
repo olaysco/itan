@@ -973,10 +973,15 @@ window.addEventListener('drop',async e=>{
 });
 async function upload(f){
   const fd=new FormData();fd.append('file',f);
+  const before=S.state?.current||'';
   addA('Uploading '+f.name+'…');
   const r=await fetch('/api/upload',{method:'POST',body:fd});const j=await r.json();
   if(!r.ok){addA('✕ '+(j.error||'upload failed'));return}
-  S.state=j;S.previewURL=null;render();addA('Got it. What should this footage become?');
+  S.state=j;S.previewURL=null;render();
+  /* a logo or music bed is an asset, not the story — say the right thing */
+  const added=(j.assets||[]).slice(-1)[0];
+  if(j.current&&j.current!==before)addA('Got it. What should this footage become?');
+  else addA('Added '+f.name+(added?.id?' as '+added.id:'')+' — reference it by name and I can use it in a scene.');
 }
 $('#demoBtn').onclick=async()=>{try{addA('Rendering a demo clip…');S.state=await api('/api/demo');S.previewURL=null;render();addA('Demo clip loaded. Try "make this a tiktok".')}catch(e){addA('✕ '+e.message)}};
 
