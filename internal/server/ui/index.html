@@ -215,6 +215,7 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 #msgs{flex:1;overflow-y:auto;padding:16px 16px 8px;display:flex;flex-direction:column;gap:16px}
 .mU{flex:none;align-self:flex-end;max-width:88%;background:var(--accent-tint);border-radius:14px;padding:8px 13px;font-size:13px;line-height:1.5;color:var(--t1);white-space:pre-wrap}
 .mA{flex:none;align-self:flex-start;max-width:96%;font-size:13px;line-height:1.55;color:var(--t2);white-space:pre-wrap}
+#chatHint{margin:auto;align-self:center;max-width:250px;text-align:center;font-size:12.5px;line-height:1.5;color:var(--t4);text-wrap:pretty}
 .speakChip{display:inline-flex;align-items:center;gap:7px;margin-top:8px;background:var(--accent-tint);border-radius:999px;padding:4px 11px;font-size:10px;color:var(--accent);font-family:'IBM Plex Mono',ui-monospace,monospace}
 .speakChip .mute{cursor:pointer;color:var(--t3)}
 .speakChip .mute:hover{color:var(--t1)}
@@ -987,8 +988,15 @@ $('#demoBtn').onclick=async()=>{try{addA('Rendering a demo clip…');S.state=awa
 
 /* ---------- chat rendering ---------- */
 const msgs=$('#msgs');
-function addU(t){const d=document.createElement('div');d.className='mU';d.textContent=t;msgs.appendChild(d);scrollBot();return d}
-function addA(t){const d=document.createElement('div');d.className='mA';d.textContent=t;msgs.appendChild(d);scrollBot();return d}
+function showChatHint(){
+  if($('#chatHint'))return;
+  const d=document.createElement('div');d.id='chatHint';
+  d.textContent='Tell ìtàn the story this footage should become. Type it, or hold the mic.';
+  msgs.appendChild(d);
+}
+function clearChatHint(){$('#chatHint')?.remove()}
+function addU(t){clearChatHint();const d=document.createElement('div');d.className='mU';d.textContent=t;msgs.appendChild(d);scrollBot();return d}
+function addA(t){clearChatHint();const d=document.createElement('div');d.className='mA';d.textContent=t;msgs.appendChild(d);scrollBot();return d}
 function scrollBot(){msgs.scrollTop=1e9}
 function glyph(state){return {run:['⚙','var(--accent)','spin 1.6s linear infinite'],done:['✓','var(--ok)','none'],err:['✕','var(--err)','none'],retry:['↻','var(--plan)','none']}[state]}
 
@@ -1554,7 +1562,7 @@ async function loadHistory(){
       restored=true;
     }
   }catch(e){}
-  if(!restored&&!msgs.children.length)addA('Tell ìtàn the story this footage should become. Type it, or hold the mic and just say it. Everything runs on this machine; nothing uploads.');
+  if(!restored&&!msgs.children.length)showChatHint();
 }
 refresh();
 loadHistory();
