@@ -251,16 +251,19 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 #chips span{cursor:pointer;font-size:12px;color:var(--t2);background:var(--fill);border-radius:999px;padding:5px 12px}
 #chips span:hover{background:var(--fill2);color:var(--t1)}
 #composeBar{display:flex;flex-direction:column;background:var(--surface2);border-radius:16px;box-shadow:0 1px 4px var(--shadow);padding:6px 9px 9px 15px}
-#composeRow{display:flex;align-items:center;gap:6px;padding-top:4px}
+#composeRow{display:flex;align-items:center;gap:6px;padding-top:4px;min-width:0;flex-wrap:nowrap}
+#expandBtn{cursor:pointer;width:28px;height:28px;border-radius:50%;background:var(--fill);color:var(--t2);font-size:12px;display:flex;align-items:center;justify-content:center;flex:none}
+#expandBtn:hover{background:var(--fill2);color:var(--t1)}
+#composeBar.expanded #input{flex:none!important;height:42vh!important;max-height:42vh}
 #plusBtn{cursor:pointer;width:28px;height:28px;border-radius:50%;background:var(--fill);color:var(--t2);font-size:15px;display:flex;align-items:center;justify-content:center;flex:none}
 #plusBtn:hover{background:var(--fill2);color:var(--t1)}
-#cmdChip{cursor:pointer;font-size:10px;color:var(--t3);background:var(--fill);border-radius:999px;padding:5px 10px}
+#cmdChip{cursor:pointer;font-size:11px;color:var(--t3);background:var(--fill);border-radius:999px;padding:5px 11px;white-space:nowrap;flex:none}
 #cmdChip:hover{background:var(--fill2);color:var(--t1)}
-#liveChip{display:flex;align-items:center;gap:5px;font-size:9.5px;color:var(--ok);background:var(--fill);border-radius:999px;padding:4px 10px;flex:none}
-#liveChip i{width:6px;height:6px;border-radius:50%;background:var(--ok);animation:pulse 1.2s ease-in-out infinite}
+#liveChip{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--fill);flex:none}
+#liveChip i{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:pulse 1.2s ease-in-out infinite}
 #input{flex:1;font-size:13.5px;color:var(--t1);resize:none;border:none;background:transparent;outline:none;font-family:inherit;line-height:1.45;max-height:140px;overflow-y:auto;padding:6px 0}
 #input::placeholder{color:var(--t3)}
-#hfBtn{cursor:pointer;font-size:9.5px;color:var(--t3);background:var(--fill2);border-radius:999px;padding:3px 9px;font-family:'IBM Plex Mono',ui-monospace,monospace;flex:none}
+#hfBtn{cursor:pointer;font-size:9.5px;color:var(--t3);background:var(--fill2);border-radius:999px;padding:3px 9px;font-family:'IBM Plex Mono',ui-monospace,monospace;flex:none;white-space:nowrap}
 #hfBtn:hover{color:var(--accent)}
 #micBtn{cursor:pointer;width:34px;height:34px;border-radius:50%;background:var(--fill);color:var(--t2);display:flex;align-items:center;justify-content:center;flex:none}
 #micBtn:hover{color:var(--rec)}
@@ -475,9 +478,10 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
           <textarea id="input" rows="1" placeholder='Tell the story: "cut the first 4 seconds and caption what she says"' autocomplete="off"></textarea>
           <div id="composeRow">
             <div id="plusBtn" title="assets — drop files anywhere, or pick one">＋</div>
-            <span id="cmdChip" class="mono">/ commands</span>
-            <span id="liveChip" class="mono hidden"><i></i>live · sends steer the run</span>
+            <span id="cmdChip" class="mono" title="slash commands">/</span>
+            <span id="liveChip" class="hidden" title="live — what you send now steers the run"><i></i></span>
             <div style="flex:1"></div>
+            <div id="expandBtn" title="expand the composer (⌘⏎ toggles)">⤢</div>
             <span id="hfBtn">hands-free</span>
             <div id="micBtn" title="hold to talk"><div class="micIco"><i></i><i></i><i></i></div></div>
             <div id="sendBtn"><span>↑</span></div>
@@ -1124,15 +1128,30 @@ function handleEvent(ev,rows){
 async function refreshDuringRun(){try{const st=await (await fetch('/api/state')).json();S.state=st;S.previewURL=null;render()}catch(e){}}
 function setSendStop(stop){const b=$('#sendBtn');b.classList.toggle('stop',stop);b.innerHTML=stop?'<span></span>':'<span>↑</span>'}
 $('#sendBtn').onclick=()=>{if(S.busy){S.abort?.abort()}else send()};
-$('#input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
+$('#input').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();toggleComposer();return}
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}
+});
 /* long prompts flow down, not sideways: grow up to 140px then scroll */
-$('#input').addEventListener('input',()=>{const i=$('#input');i.style.height='auto';i.style.height=Math.min(i.scrollHeight,140)+'px'});
+$('#input').addEventListener('input',()=>{
+  if($('#composeBar').classList.contains('expanded'))return; /* fixed tall height */
+  const i=$('#input');i.style.height='auto';i.style.height=Math.min(i.scrollHeight,140)+'px';
+});
+function toggleComposer(){
+  const bar=$('#composeBar'),i=$('#input');
+  const on=bar.classList.toggle('expanded');
+  $('#expandBtn').textContent=on?'⤡':'⤢';
+  $('#expandBtn').title=on?'collapse the composer (⌘⏎ toggles)':'expand the composer (⌘⏎ toggles)';
+  if(!on){i.style.height='auto';i.style.height=Math.min(i.scrollHeight,140)+'px'}
+  i.focus();
+}
+$('#expandBtn').onclick=toggleComposer;
 
 /* working banner + elapsed */
 let workT0=0;
-function startWork(){workT0=Date.now();$('#workBanner').classList.remove('hidden');$('#liveChip').classList.remove('hidden');runTimer=setInterval(()=>{$('#workText').textContent='working · '+((Date.now()-workT0)/1000).toFixed(1)+'s elapsed';
+function startWork(){workT0=Date.now();$('#workBanner').classList.remove('hidden');$('#liveChip').classList.remove('hidden');$('#cmdChip').classList.add('hidden');$('#hfBtn').classList.add('hidden');runTimer=setInterval(()=>{$('#workText').textContent='working · '+((Date.now()-workT0)/1000).toFixed(1)+'s elapsed';
   $$('#strip .step.rendering .meta').forEach(m=>m.textContent=((Date.now()-workT0)/1000).toFixed(1)+'s elapsed')},200)}
-function stopWork(){clearInterval(runTimer);$('#workBanner').classList.add('hidden');$('#liveChip').classList.add('hidden')}
+function stopWork(){clearInterval(runTimer);$('#workBanner').classList.add('hidden');$('#liveChip').classList.add('hidden');$('#cmdChip').classList.remove('hidden');$('#hfBtn').classList.remove('hidden')}
 
 /* ---------- permission dialog ---------- */
 function openPerm(ev){
