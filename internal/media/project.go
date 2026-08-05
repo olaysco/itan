@@ -114,7 +114,10 @@ func (p *Project) AddAsset(ctx context.Context, path string) (*Asset, error) {
 	}
 	a := Asset{ID: fmt.Sprintf("a%d", next+1), Path: abs, Info: info}
 	p.Assets = append(p.Assets, a)
-	if p.Current == "" {
+	// Only actual footage can become the working video — importing a logo or
+	// a music bed must not hijack CURRENT. Stills report a width but no
+	// duration, which is what separates them from video.
+	if p.Current == "" && info.Width > 0 && info.Duration > 0 {
 		p.Current = abs
 	}
 	return &a, p.Save()

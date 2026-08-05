@@ -2,11 +2,13 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -306,4 +308,81 @@ func waitFor(t *testing.T, cond func() bool) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatal("condition not reached in time")
+}
+
+// Files dropped anywhere in the window must register — the chat column had
+// no handler, which is exactly where people drop. Images and audio must be
+// accepted too, and must not hijack CURRENT.
+func TestDropAnywhereAcceptsAllMedia(t *testing.T) {
+	chrome, err := browser.Find()
+	if err != nil {
+		t.Skip("no Chromium-family browser:", err)
+	}
+	if !media.Available() {
+		t.Skip("ffmpeg not installed")
+	}
+	dir := t.TempDir()
+	session, err := cli.NewSession(dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(New(session).Handler())
+	defer srv.Close()
+
+	png := filepath.Join(dir, "logo.png")
+	if out, err := exec.Command("ffmpeg", "-y", "-f", "lavfi", "-i", "color=orange:size=64x64:d=1",
+		"-frames:v", "1", png).CombinedOutput(); err != nil {
+		t.Fatalf("png: %v\n%s", err, out)
+	}
+	raw, err := os.ReadFile(png)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b64 := base64.StdEncoding.EncodeToString(raw)
+
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.ExecPath(chrome), chromedp.WindowSize(1600, 1000))
+	actx, cancelA := chromedp.NewExecAllocator(context.Background(), opts...)
+	defer cancelA()
+	ctx, cancelC := chromedp.NewContext(actx)
+	defer cancelC()
+	ctx, cancelT := context.WithTimeout(ctx, 90*time.Second)
+	defer cancelT()
+
+	dropOnChat := `(() => {
+	  const bin=atob("` + b64 + `"); const arr=new Uint8Array(bin.length);
+	  for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+	  const dt=new DataTransfer(); dt.items.add(new File([arr],'logo.png',{type:'image/png'}));
+	  Object.defineProperty(dt,'types',{value:['Files']});
+	  const el=document.querySelector('#chatcol');
+	  el.dispatchEvent(new DragEvent('dragover',{dataTransfer:dt,bubbles:true,cancelable:true}));
+	  el.dispatchEvent(new DragEvent('drop',{dataTransfer:dt,bubbles:true,cancelable:true}));
+	  return 1;
+	})()`
+
+	var inputsFree bool
+	var accept string
+	err = chromedp.Run(ctx,
+		chromedp.Navigate(srv.URL),
+		chromedp.WaitVisible("#projChip", chromedp.ByID),
+		// the pickers must never live inside the empty-state subtree, which
+		// is display:none once footage loads
+		chromedp.Evaluate(`(()=>{const a=document.querySelector('#fileInput'),b=document.querySelector('#assetInput');
+			return !!a&&!!b&&!a.closest('#empty')&&!b.closest('#empty')})()`, &inputsFree),
+		chromedp.Evaluate(`document.querySelector('#assetInput').accept`, &accept),
+		chromedp.Evaluate(dropOnChat, nil),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !inputsFree {
+		t.Fatal("file pickers live inside the hidden empty-state subtree")
+	}
+	if !strings.Contains(accept, "image/") || !strings.Contains(accept, "audio/") {
+		t.Fatalf("asset import must accept images and audio, got %q", accept)
+	}
+	waitFor(t, func() bool { a, _, _ := stateOf(t, srv.URL); return a == 1 })
+	if _, _, cur := stateOf(t, srv.URL); cur != "" {
+		t.Fatalf("an image must not become the working video: %q", cur)
+	}
 }

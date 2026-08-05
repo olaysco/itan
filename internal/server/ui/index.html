@@ -208,6 +208,8 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 #expDlg .preset .radio{width:16px;height:16px;border-radius:50%;background:var(--accent);flex:none;display:flex;align-items:center;justify-content:center}
 #expDlg .preset .radio i{width:6px;height:6px;border-radius:50%;background:#FFF}
 #expName{flex:1;background:var(--fill);border-radius:7px;padding:7px 10px;font-size:11.5px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#dropVeil{position:absolute;inset:0;z-index:70;background:var(--accent-tint);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;pointer-events:none}
+#dropVeil .box{border:2px dashed var(--accent);border-radius:16px;padding:22px 34px;background:var(--surface2);font-size:15px;font-weight:600;color:var(--accent);box-shadow:0 20px 60px var(--shadow)}
 /* chat */
 #chatcol{width:clamp(340px,27vw,430px);flex:none;display:flex;flex-direction:column;border-left:1px solid var(--border1);background-color:var(--surface);background-image:radial-gradient(var(--dots) 1px,transparent 1px);background-size:20px 20px;min-height:0;animation:rise .55s .16s ease both}
 #msgs{flex:1;overflow-y:auto;padding:16px 16px 8px;display:flex;flex-direction:column;gap:16px}
@@ -315,7 +317,8 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 #hfPause b{color:var(--t1);font-weight:400}
 #hfFoot{position:absolute;bottom:26px;font-size:10px;color:var(--t4);font-family:'IBM Plex Mono',ui-monospace,monospace}
 #modelDlg{top:50px;right:230px;width:312px;border-radius:12px}
-#projDlg{top:50px;left:96px;width:420px;border-radius:12px}
+#projDlg{top:50px;left:96px;width:420px;border-radius:12px;max-height:calc(100vh - 80px);display:flex;flex-direction:column}
+#projList{overflow-y:auto;min-height:0}
 .mrow{cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--border1)}
 .mrow:hover{background:var(--fill2)}
 .mrow .dot{width:6px;height:6px;border-radius:50%;flex:none}
@@ -374,6 +377,9 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 <body>
 <div id="app">
   <div id="topbar"></div>
+  <input type="file" id="fileInput" accept="video/*" multiple hidden>
+  <input type="file" id="assetInput" accept="video/*,image/*,audio/*" multiple hidden>
+  <div id="dropVeil" class="hidden"><div class="box">drop to add to this project</div></div>
   <header>
     <div class="logo"><div class="bars"><i></i><i></i><i></i></div><b>ìtàn</b></div>
     <div id="projChip" class="mono" title="projects — each folder is its own session">▤ …</div>
@@ -406,7 +412,6 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
           <div class="btnS" id="demoBtn">try a demo clip</div>
         </div>
         <div id="resumeCard" class="hidden"></div>
-        <input type="file" id="fileInput" accept="video/*" multiple hidden>
       </div>
 
       <div id="stage" class="hidden">
@@ -951,10 +956,21 @@ $('#tBar').onclick=e=>{const r=e.currentTarget.getBoundingClientRect();video.cur
 /* ---------- upload / demo ---------- */
 $('#browseBtn').onclick=()=>$('#fileInput').click();
 $('#fileInput').onchange=async e=>{for(const f of e.target.files)await upload(f);e.target.value=''};
+$('#assetInput').onchange=async e=>{for(const f of e.target.files)await upload(f);e.target.value='';if(!$('#astWrap').classList.contains('hidden'))renderAssets()};
 /* drop anywhere on the stage column — works with or without footage loaded */
-$('#stagecol').addEventListener('dragover',e=>{e.preventDefault();$('#empty').classList.add('drag')});
-$('#stagecol').addEventListener('dragleave',()=>$('#empty').classList.remove('drag'));
-$('#stagecol').addEventListener('drop',async e=>{e.preventDefault();$('#empty').classList.remove('drag');for(const f of e.dataTransfer.files)await upload(f)});
+/* Drop anywhere in the window — chat, stage, timeline. A file dropped is
+   always an intentional add, so every panel accepts it. */
+let dragDepth=0;
+const hasFiles=e=>[...(e.dataTransfer?.types||[])].includes('Files');
+window.addEventListener('dragenter',e=>{if(!hasFiles(e))return;e.preventDefault();dragDepth++;$('#dropVeil').classList.remove('hidden')});
+window.addEventListener('dragover',e=>{if(hasFiles(e))e.preventDefault()});
+window.addEventListener('dragleave',e=>{if(!hasFiles(e))return;dragDepth=Math.max(0,dragDepth-1);if(!dragDepth)$('#dropVeil').classList.add('hidden')});
+window.addEventListener('drop',async e=>{
+  if(!hasFiles(e))return;
+  e.preventDefault();dragDepth=0;$('#dropVeil').classList.add('hidden');
+  for(const f of e.dataTransfer.files)await upload(f);
+  if(!$('#astWrap').classList.contains('hidden'))renderAssets();
+});
 async function upload(f){
   const fd=new FormData();fd.append('file',f);
   addA('Uploading '+f.name+'…');
@@ -1472,7 +1488,7 @@ function drawAssets(){
     g.appendChild(d);
   });
 }
-$('#astImport').onclick=()=>$('#fileInput').click();
+$('#astImport').onclick=()=>$('#assetInput').click();
 
 /* ---------- export dialog ---------- */
 wireOverlay('#exportBtn','#expWrap',()=>{
