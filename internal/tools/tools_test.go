@@ -119,6 +119,7 @@ func TestRegistryHasExpectedTools(t *testing.T) {
 		"transcribe", "tts", "extract_audio", "replace_audio", "mix_audio",
 		"read_text", "view_frames", "view_strip", "storyboard",
 		"cut_range", "add_music", "list_files",
+		"voice_scenes", "assemble", "find_media",
 	} {
 		if _, ok := r.Get(name); !ok {
 			t.Errorf("missing tool %s", name)

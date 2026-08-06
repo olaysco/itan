@@ -94,7 +94,7 @@ func TestStoryboard(t *testing.T) {
 		t.Fatalf("scenes = %d", len(c.Project.Scenes))
 	}
 	ledger := c.Project.Ledger(context.Background())
-	if !strings.Contains(ledger, "Storyboard:") || !strings.Contains(ledger, "PLANNED") {
+	if !strings.Contains(ledger, "Storyboard") || !strings.Contains(ledger, "PLANNED") {
 		t.Fatalf("ledger missing storyboard: %s", ledger)
 	}
 

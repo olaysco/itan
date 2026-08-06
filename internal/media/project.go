@@ -35,11 +35,18 @@ type Project struct {
 
 // Scene is one storyboard entry. Status is derived: planned until an Output
 // is attached.
+// Scene is one beat of the storyboard, and the storyboard is the script:
+// Say is what is heard, Visual is what is seen, Intent is why the scene
+// exists. Keeping all three means a later request can address content
+// ("redo scene 3") instead of an operation number.
 type Scene struct {
 	N        int     `json:"n"`
-	Intent   string  `json:"intent"` // what this scene must communicate
+	Intent   string  `json:"intent"`           // why this scene exists
+	Say      string  `json:"say,omitempty"`    // narration spoken over it
+	Visual   string  `json:"visual,omitempty"` // what is on screen
 	Duration float64 `json:"duration"`
 	Output   string  `json:"output,omitempty"` // render path once composed
+	Voice    string  `json:"voice,omitempty"`  // synthesized narration for Say
 }
 
 type Asset struct {
@@ -255,13 +262,23 @@ func (p *Project) Ledger(ctx context.Context) string {
 		}
 	}
 	if len(p.Scenes) > 0 {
-		b.WriteString("Storyboard:\n")
+		b.WriteString("Storyboard (address a scene as `scene N` in any tool's input):\n")
 		for _, s := range p.Scenes {
 			status := "PLANNED"
 			if s.Output != "" {
 				status = "rendered → " + filepath.Base(s.Output)
 			}
 			fmt.Fprintf(&b, "  scene %d (%.1fs, %s): %s\n", s.N, s.Duration, status, s.Intent)
+			if s.Visual != "" {
+				fmt.Fprintf(&b, "      see: %s\n", s.Visual)
+			}
+			if s.Say != "" {
+				voiced := ""
+				if s.Voice != "" {
+					voiced = " [voiced]"
+				}
+				fmt.Fprintf(&b, "      say%s: %s\n", voiced, s.Say)
+			}
 		}
 	}
 	if len(p.Ops) > 0 {

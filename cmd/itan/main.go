@@ -178,6 +178,7 @@ const usage = `itan — agentic AI video editor
   itan model                  show the active model
   itan models                 list provider presets
   itan config [get|set|list]  inspect or change configuration
+                              stock footage: itan config set media.pixabay_key <key>
   itan skills                 list available skills
   itan doctor                 check ffmpeg, model, and voice endpoints
   itan version                print version
@@ -305,6 +306,11 @@ func cmdDoctor(dir string) error {
 		} else {
 			check("text overlays", true, "ffmpeg lacks drawtext — captions render via the browser engine")
 		}
+	}
+	if key := cfg.PixabayKey(); key != "" {
+		check("stock media", true, "Pixabay key set — find_media can source footage and stills")
+	} else {
+		check("stock media", false, "no Pixabay key: free at https://pixabay.com/api/docs, then `itan config set media.pixabay_key <key>` (or set PIXABAY_API_KEY). Without it a project can only show what you already have.")
 	}
 	check("tts", true, fmt.Sprintf("%s @ %s (voice %s)", cfg.Audio.TTS.Provider, cfg.Audio.TTS.BaseURL, cfg.Audio.TTS.Voice))
 	check("stt", true, fmt.Sprintf("%s @ %s", cfg.Audio.STT.Provider, cfg.Audio.STT.BaseURL))

@@ -16,16 +16,20 @@ func planTools() []Tool {
 	return []Tool{
 		{
 			Name: "storyboard",
-			Description: "Declare or update the scene plan for a multi-scene piece BEFORE composing. Each scene: " +
-				"n, intent (what it must communicate), duration. The plan lives in <project-state> so every turn " +
-				"sees which scenes are still unrendered. Attach output once a scene is composed (mark_rendered). " +
-				"Workflow: storyboard → per scene [compose → view_frames → revise] → concat → view_strip to judge " +
-				"the assembly → export.",
+			Description: "Declare or update the script for a multi-scene piece BEFORE composing. This IS the " +
+				"script: each scene carries n, intent (why it exists), say (the narration line, verbatim — leave " +
+				"empty for a silent scene), visual (what is on screen), and duration. Write `say` as speech, not " +
+				"prose. The plan lives in <project-state> so every turn sees what is still unrendered, and any " +
+				"tool can address a finished scene as `scene 3`. Attach a render with mark_rendered. " +
+				"Workflow: storyboard → voice_scenes (retimes to the real narration) → per scene " +
+				"[find_media / compose → view_frames → revise] → assemble → view_strip to judge it → export.",
 			Schema: schema(nil, map[string]map[string]any{
-				"scenes": {"type": "array", "description": "Full plan (replaces existing): [{n, intent, duration}].",
+				"scenes": {"type": "array", "description": "Full script (replaces existing): [{n, intent, say, visual, duration}].",
 					"items": map[string]any{"type": "object", "properties": map[string]any{
 						"n":        map[string]any{"type": "integer"},
 						"intent":   map[string]any{"type": "string"},
+						"say":      map[string]any{"type": "string"},
+						"visual":   map[string]any{"type": "string"},
 						"duration": map[string]any{"type": "number"},
 					}}},
 				"mark_rendered": {"type": "object", "description": "Attach a render to a scene: {n, output}.",
@@ -53,8 +57,18 @@ func runStoryboard(c *Ctx, args Args) Result {
 				s.N = int(n)
 			}
 			s.Intent, _ = m["intent"].(string)
+			s.Say, _ = m["say"].(string)
+			s.Visual, _ = m["visual"].(string)
 			if d, ok := m["duration"].(float64); ok {
 				s.Duration = d
+			}
+			// Rewriting the script drops stale renders and voice tracks for
+			// scenes whose words changed: keeping them would silently pair
+			// new narration with old pictures.
+			for _, prev := range c.Project.Scenes {
+				if prev.N == s.N && prev.Say == s.Say && prev.Visual == s.Visual {
+					s.Output, s.Voice = prev.Output, prev.Voice
+				}
 			}
 			scenes = append(scenes, s)
 		}
@@ -66,10 +80,18 @@ func runStoryboard(c *Ctx, args Args) Result {
 			return Result{Err: err}
 		}
 		var total float64
+		spoken := 0
 		for _, s := range scenes {
 			total += s.Duration
+			if strings.TrimSpace(s.Say) != "" {
+				spoken++
+			}
 		}
-		return Result{Summary: fmt.Sprintf("storyboard set: %d scenes, %.1fs planned", len(scenes), total)}
+		msg := fmt.Sprintf("script set: %d scenes, %.1fs planned", len(scenes), total)
+		if spoken > 0 {
+			msg += fmt.Sprintf(", %d narrated — run voice_scenes to retime to the real read", spoken)
+		}
+		return Result{Summary: msg}
 	}
 
 	if m, ok := args["mark_rendered"].(map[string]any); ok {

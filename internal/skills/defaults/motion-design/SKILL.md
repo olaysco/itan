@@ -10,6 +10,28 @@ Two layers. The CRAFT rules are universal — never break them. The STYLE is
 decided fresh per project — two different users' videos must never look
 like the same designer's work.
 
+## The arc of a narrated piece
+
+`storyboard` (the script: intent, say, visual, duration) → `voice_scenes`
+(synthesizes each `say` and retimes every scene to the real read — a line you
+guessed at 4s may take 6.2s) → per scene `find_media` and/or `compose` →
+`assemble` (joins the scenes and lays the narration back on at the offsets
+the cut actually produced, over a ducked bed) → `view_strip` to judge it →
+`export`. Compose to the durations `voice_scenes` returns, never to the
+guesses. Any finished scene is addressable as `scene 3` in any tool.
+
+Not every piece is narrated. A silent title card needs none of this — go
+straight to compose.
+
+## Find the picture before inventing one
+
+`find_media` searches Pixabay for footage and stills and adds them as
+project assets. A real photograph of the subject beats a rectangle standing
+in for it. Write a visual query (subject + setting + treatment), not the
+narration line, and LOOK at the result with `view_frames` before building
+on it — tags lie. Stock is a ground to compose *over*, not the whole scene:
+put type, product UI, and the brand on top of it.
+
 ## First: write the style brief
 
 Before composing scene 1, decide — and state in one short paragraph of your

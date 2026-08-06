@@ -74,6 +74,7 @@ type Context struct {
 type Config struct {
 	Model   Model   `yaml:"model"`
 	Audio   Audio   `yaml:"audio"`
+	Media   Media   `yaml:"media"`
 	Context Context `yaml:"context"`
 	// Mode is the permission mode: auto (default), ask, or plan.
 	Mode string `yaml:"mode,omitempty"`
@@ -83,6 +84,22 @@ type Config struct {
 	// SkillDirs are extra directories scanned for skills, beyond the
 	// built-ins and ~/.itan/skills.
 	SkillDirs []string `yaml:"skill_dirs,omitempty"`
+}
+
+// Media holds credentials for sourcing footage the project does not own.
+type Media struct {
+	// PixabayKey authorizes stock lookups. Free key from
+	// https://pixabay.com/api/docs; $PIXABAY_API_KEY is honored as a
+	// fallback so a key never has to be written to disk.
+	PixabayKey string `yaml:"pixabay_key,omitempty"`
+}
+
+// PixabayKey resolves the key from config, then the environment.
+func (c *Config) PixabayKey() string {
+	if c.Media.PixabayKey != "" {
+		return c.Media.PixabayKey
+	}
+	return os.Getenv("PIXABAY_API_KEY")
 }
 
 // ProviderPreset describes a known model host so users can switch with
