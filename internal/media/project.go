@@ -107,6 +107,14 @@ func (p *Project) AddAsset(ctx context.Context, path string) (*Asset, error) {
 	if _, err := os.Stat(abs); err != nil {
 		return nil, fmt.Errorf("no such file: %s", path)
 	}
+	// The same file added twice is one asset. Dropping a clip in again, or a
+	// tool re-registering its own output, must not mint a second id for it —
+	// the ledger and the conversation would then disagree about what a1 is.
+	for i := range p.Assets {
+		if p.Assets[i].Path == abs {
+			return &p.Assets[i], nil
+		}
+	}
 	info, err := Probe(ctx, abs)
 	if err != nil {
 		// Vector stills (SVG) are unreadable to ffprobe but render fine in

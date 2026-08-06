@@ -95,28 +95,33 @@ func TestAssetIDsStayUniqueAfterRemove(t *testing.T) {
 		t.Skip("ffmpeg not installed")
 	}
 	dir := t.TempDir()
-	clip := filepath.Join(dir, "clip.mp4")
-	cmd := exec.Command("ffmpeg", "-y",
-		"-f", "lavfi", "-i", "testsrc=duration=1:size=160x120:rate=10",
-		"-c:v", "libx264", "-pix_fmt", "yuv420p", clip)
-	if raw, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("test clip: %v\n%s", err, raw)
+	// Distinct files: the same path twice is one asset by design, so proving
+	// the id rule needs two real clips.
+	mk := func(name string) string {
+		path := filepath.Join(dir, name)
+		cmd := exec.Command("ffmpeg", "-y",
+			"-f", "lavfi", "-i", "testsrc=duration=1:size=160x120:rate=10",
+			"-c:v", "libx264", "-pix_fmt", "yuv420p", path)
+		if raw, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("test clip: %v\n%s", err, raw)
+		}
+		return path
 	}
 
 	p := &Project{Dir: dir}
 	ctx := context.Background()
-	a1, err := p.AddAsset(ctx, clip)
+	a1, err := p.AddAsset(ctx, mk("one.mp4"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	a2, err := p.AddAsset(ctx, clip)
+	a2, err := p.AddAsset(ctx, mk("two.mp4"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := p.RemoveAsset(a1.ID); err != nil {
 		t.Fatal(err)
 	}
-	a3, err := p.AddAsset(ctx, clip)
+	a3, err := p.AddAsset(ctx, mk("three.mp4"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,5 +206,41 @@ func TestStillInfoSVG(t *testing.T) {
 	}
 	if _, ok := StillInfo(write("clip.mp4", "whatever")); ok {
 		t.Error("only SVG takes the still path")
+	}
+}
+
+// Adding the same file twice is one asset: drag-and-drop makes a repeat easy,
+// and a second id for the same path would leave the ledger and the
+// conversation disagreeing about what a1 refers to.
+func TestAddAssetIsIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	p, err := LoadProject(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clip := filepath.Join(dir, "clip.mp4")
+	if out, err := exec.Command("ffmpeg", "-y", "-loglevel", "error",
+		"-f", "lavfi", "-i", "testsrc=duration=1:size=160x120:rate=10",
+		"-c:v", "libx264", "-pix_fmt", "yuv420p", clip).CombinedOutput(); err != nil {
+		t.Skipf("ffmpeg unavailable: %v %s", err, out)
+	}
+
+	a, err := p.AddAsset(context.Background(), clip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := p.AddAsset(context.Background(), clip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Assets) != 1 {
+		t.Fatalf("%d assets after adding the same file twice", len(p.Assets))
+	}
+	if a.ID != b.ID {
+		t.Errorf("same file got two ids: %s and %s", a.ID, b.ID)
+	}
+	// A relative path naming the same file is still the same file.
+	if _, err := p.AddAsset(context.Background(), "./"+filepath.Base(clip)); err == nil && len(p.Assets) != 1 {
+		t.Errorf("a relative path to the same file added a duplicate: %d assets", len(p.Assets))
 	}
 }

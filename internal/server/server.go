@@ -135,6 +135,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/voice/transcribe", s.handleTranscribe)
 	mux.HandleFunc("POST /api/voice/speak", s.handleSpeak)
 	mux.HandleFunc("GET /media", s.handleMedia)
+	mux.HandleFunc("GET /thumb", s.handleThumb)
 	return mux
 }
 
@@ -226,6 +227,20 @@ type modelView struct {
 	ModelID string `json:"model_id,omitempty"`
 }
 
+// sceneView is the storyboard as the UI should show it: what the viewer will
+// see and hear, not which ffmpeg call produced it.
+type sceneView struct {
+	N        int     `json:"n"`
+	Intent   string  `json:"intent"`
+	Say      string  `json:"say,omitempty"`
+	Visual   string  `json:"visual,omitempty"`
+	Duration float64 `json:"duration"`
+	URL      string  `json:"url,omitempty"`
+	Thumb    string  `json:"thumb,omitempty"`
+	Rendered bool    `json:"rendered"`
+	Voiced   bool    `json:"voiced"`
+}
+
 type stateView struct {
 	Model       string           `json:"model"`
 	Project     string           `json:"project"`
@@ -239,6 +254,7 @@ type stateView struct {
 	Original    string           `json:"original,omitempty"`
 	Checkpoints []checkpointView `json:"checkpoints"`
 	Skills      []skillView      `json:"skills"`
+	Scenes      []sceneView      `json:"scenes"`
 	Models      []modelView      `json:"models"`
 	TokensIn    int              `json:"tokens_in"`
 	TokensOut   int              `json:"tokens_out"`
@@ -290,7 +306,7 @@ func (s *Server) state() stateView {
 		Ffmpeg:     media.Available(),
 		Current:    mediaURL(p.Current),
 		Assets:     []fileRef{}, Ops: []opView{}, Checkpoints: []checkpointView{},
-		Skills: []skillView{}, Models: []modelView{},
+		Skills: []skillView{}, Models: []modelView{}, Scenes: []sceneView{},
 		TTS: cfg.Audio.TTS.Provider + " · " + cfg.Audio.TTS.Voice,
 		STT: cfg.Audio.STT.Provider,
 	}
@@ -307,6 +323,13 @@ func (s *Server) state() stateView {
 	}
 	for _, op := range p.Ops {
 		v.Ops = append(v.Ops, opView{Seq: op.Seq, Tool: op.Tool, Summary: op.Summary, URL: mediaURL(op.Output), Args: op.Args})
+	}
+	for _, sc := range p.Scenes {
+		v.Scenes = append(v.Scenes, sceneView{
+			N: sc.N, Intent: sc.Intent, Say: sc.Say, Visual: sc.Visual, Duration: sc.Duration,
+			URL: mediaURL(sc.Output), Thumb: thumbURL(sc.Output),
+			Rendered: sc.Output != "", Voiced: sc.Voice != "",
+		})
 	}
 
 	active := map[string]bool{}
@@ -768,15 +791,22 @@ func (s *Server) replayFrom(ctx context.Context, seq int, newArgs map[string]any
 // --- assets inventory ------------------------------------------------------
 
 type assetView struct {
-	ID      string `json:"id,omitempty"` // sources only
-	Seq     int    `json:"seq,omitempty"`
-	Kind    string `json:"kind"` // "source" | "render" | "audio"
-	Name    string `json:"name"`
-	URL     string `json:"url"`
-	Meta    string `json:"meta"`
-	Dur     string `json:"dur,omitempty"`
-	Missing bool   `json:"missing,omitempty"`
-	Current bool   `json:"current,omitempty"`
+	ID   string `json:"id,omitempty"` // sources only
+	Seq  int    `json:"seq,omitempty"`
+	Kind string `json:"kind"` // "source" | "image" | "audio" | "render"
+	Name string `json:"name"`
+	URL  string `json:"url"`
+	// Thumb is a poster frame; empty for files that cannot have one.
+	Thumb string `json:"thumb,omitempty"`
+	Meta  string `json:"meta"`
+	Dur   string `json:"dur,omitempty"`
+	// Material separates the project's raw stock — sources, imported
+	// stills, audio, composed clips — from the intermediate renders each
+	// edit leaves behind. The drawer is a library, not a log; the timeline
+	// is where the log belongs.
+	Material bool `json:"material,omitempty"`
+	Missing  bool `json:"missing,omitempty"`
+	Current  bool `json:"current,omitempty"`
 }
 
 // handleAssets returns everything the project references, with honest issue
@@ -808,7 +838,8 @@ func (s *Server) handleAssets(w http.ResponseWriter, _ *http.Request) {
 	for _, a := range p.Assets {
 		v := assetView{
 			ID: a.ID, Kind: assetKind(a.Path, "source"), Name: filepath.Base(a.Path),
-			URL: mediaURL(a.Path), Meta: a.Info.Compact(),
+			URL: mediaURL(a.Path), Thumb: thumbURL(a.Path), Meta: a.Info.Compact(),
+			Material: true,
 		}
 		// A still has no duration; showing "0.0s" reads as a broken clip.
 		if a.Info.Duration > 0 {
@@ -821,8 +852,9 @@ func (s *Server) handleAssets(w http.ResponseWriter, _ *http.Request) {
 			continue
 		}
 		add(assetView{
-			Seq: op.Seq, Kind: assetKind(op.Output, "render"), Name: filepath.Base(op.Output),
-			URL: mediaURL(op.Output), Meta: fmt.Sprintf("step %03d · %s", op.Seq, op.Tool),
+			Seq: op.Seq, Kind: "render", Name: filepath.Base(op.Output),
+			URL: mediaURL(op.Output), Thumb: thumbURL(op.Output),
+			Meta: fmt.Sprintf("step %03d · %s", op.Seq, op.Tool),
 		}, op.Output)
 	}
 	writeJSON(w, map[string]any{"assets": out})
@@ -1188,6 +1220,13 @@ func (s *Server) allowed(path string) bool {
 	}
 	for _, op := range p.Ops {
 		if op.Output == path {
+			return true
+		}
+	}
+	// A scene render marked from a path that is neither an asset nor an op
+	// output is still part of this project.
+	for _, sc := range p.Scenes {
+		if sc.Output == path {
 			return true
 		}
 	}
