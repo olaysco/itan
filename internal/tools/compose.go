@@ -69,6 +69,11 @@ func runCompose(c *Ctx, args Args) Result {
 	if dur <= 0 || dur > 120 {
 		return fail("duration must be in (0, 120] seconds, got %v", dur)
 	}
+	// A composition that reaches for the network renders wrong, silently:
+	// the page loads, the library never arrives, and nothing moves. Drop the
+	// dead references and say so instead of shipping a still video.
+	html, external := canvas.StripExternal(html)
+
 	out := c.Project.NextOutput("compose", ".mp4")
 	// Keep the source next to the render so the composition is inspectable
 	// and re-editable later (read_text can fetch it back).
@@ -93,13 +98,16 @@ func runCompose(c *Ctx, args Args) Result {
 	if err != nil {
 		return Result{Err: fmt.Errorf("rendered but could not register asset: %w", err)}
 	}
-	return Result{
-		Summary: fmt.Sprintf("composed %.1fs graphic as asset %s", dur, asset.ID),
-		Data: map[string]any{
-			"asset": asset.ID, "file": out, "html": htmlPath,
-			"now": asset.Info.Compact(),
-		},
+	summary := fmt.Sprintf("composed %.1fs graphic as asset %s", dur, asset.ID)
+	data := map[string]any{
+		"asset": asset.ID, "file": out, "html": htmlPath,
+		"now": asset.Info.Compact(),
 	}
+	if note := canvas.ExternalNote(external); note != "" {
+		summary += " — " + note
+		data["external_dropped"] = external
+	}
+	return Result{Summary: summary, Data: data}
 }
 
 func runOverlayVideo(c *Ctx, args Args) Result {
