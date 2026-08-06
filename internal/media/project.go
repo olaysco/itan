@@ -209,16 +209,53 @@ func (p *Project) RemoveAsset(id string) (*Asset, error) {
 // NextOutput reserves a numbered output path for a tool run. The counter is
 // monotonic and mutex-guarded so concurrency-safe tools running in parallel
 // never collide on a filename.
+//
+// The floor is what is actually on disk, not the op count. Tools that produce
+// material rather than an edit — compose, tts, find_media — register an asset
+// and commit no op, so a process that reopened the project and trusted
+// len(Ops) would start numbering back at the beginning and overwrite finished
+// renders. That is silent data loss, and it happened: a re-rendered scene
+// landed on top of a different scene's video.
 func (p *Project) NextOutput(tool, ext string) string {
 	_ = os.MkdirAll(p.OutDir(), 0o755)
 	p.mu.Lock()
+	defer p.mu.Unlock()
 	if p.seq < len(p.Ops) {
 		p.seq = len(p.Ops)
 	}
-	p.seq++
-	n := p.seq
-	p.mu.Unlock()
-	return filepath.Join(p.OutDir(), fmt.Sprintf("%03d-%s%s", n, tool, ext))
+	if n := p.highestOnDisk(); p.seq < n {
+		p.seq = n
+	}
+	for {
+		p.seq++
+		path := filepath.Join(p.OutDir(), fmt.Sprintf("%03d-%s%s", p.seq, tool, ext))
+		// Belt and braces: another process may have written a name we have
+		// not seen. Never hand back a path that already exists.
+		if _, err := os.Stat(path); err != nil {
+			return path
+		}
+	}
+}
+
+// highestOnDisk returns the largest NNN- prefix already used in the out dir,
+// so numbering resumes past everything a previous session produced.
+func (p *Project) highestOnDisk() int {
+	entries, err := os.ReadDir(p.OutDir())
+	if err != nil {
+		return 0
+	}
+	high := 0
+	for _, e := range entries {
+		name := e.Name()
+		if len(name) < 4 || name[3] != '-' {
+			continue
+		}
+		n, err := strconv.Atoi(name[:3])
+		if err == nil && n > high {
+			high = n
+		}
+	}
+	return high
 }
 
 // Commit records a completed edit and advances the working video when the
