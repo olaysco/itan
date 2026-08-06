@@ -96,8 +96,13 @@ none of them is what makes a video look like a slide deck.
   children. Device mockups, receding planes, card flips, cover flow.
 - **Atmosphere**: `backdrop-filter:blur()` for glass, a large
   `radial-gradient` under `filter:blur(40px)` for a light source, depth of
-  field by blurring what is not the subject, and 3–5% grain (a tiled SVG
-  `feTurbulence`) to stop dark gradients banding.
+  field by blurring what is not the subject, and 3–5% grain to stop dark
+  gradients banding. Blurs are cheap — measured at about 0.1s per frame at
+  1080x1920. Grain is not, if you write it as an SVG `feTurbulence` filter:
+  the browser re-rasterizes that on every captured frame and it cost 0.80s
+  per frame in the same test, more than half the frame. Use a small
+  pre-rasterized PNG tile as a repeating background instead; it looks the
+  same and costs a fraction.
 - **Canvas 2D and WebGL** both render, and are deterministic when — and only
   when — you draw from `itan.frame` instead of `requestAnimationFrame`:
   `itan.frame(({frame}) => draw(ctx, frame))`. That is the door to particle
@@ -127,6 +132,16 @@ none of them is what makes a video look like a slide deck.
   choreographed sequences, per-character text, motion paths. Deterministic
   under the renderer. No `Math.random()`, no wall-clock.
 
+## Render cost is part of the craft
+
+A composition you cannot afford to render is not finished. At 1080x1920 the
+default 2x supersampling costs about 5.2s per frame against 1.4s at
+`scale: 1` — over a 45-second piece that is two hours against half an hour.
+Pass `scale: 1` when the type is large (it is visually identical above ~50px)
+and keep 2 for small type and thin strokes. Watch what you put behind every
+pixel: full-frame filters and generated textures are paid once per frame, not
+once per scene.
+
 ## Checklist before rendering
 
 1. Style brief stated and followed — would this video look different from
@@ -138,6 +153,8 @@ none of them is what makes a video look like a slide deck.
 6. Two type sizes per scene; labels tracked-out caps?
 7. All movement on the brief's eases, with stagger?
 8. Rest beat at scene end?
+9. Can this actually be rendered in reasonable time — scale chosen, no
+   per-frame filter over the whole canvas?
 
 ## Make it yours
 
