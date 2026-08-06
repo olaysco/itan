@@ -38,6 +38,7 @@ func composeTools() []Tool {
 				"width":    prop("integer", "Canvas width px (default 1920)."),
 				"height":   prop("integer", "Canvas height px (default 1080)."),
 				"fps":      prop("integer", "Frame rate (default 30)."),
+				"scale":    prop("integer", "Supersampling 1-3 (default 2). 2 keeps small type and thin strokes crisp through 4:2:0; 1 renders ~3.7x faster and is visually identical for large type. Drop to 1 for long or vertical pieces where render time is the constraint."),
 			}),
 			Run: runCompose,
 		},
