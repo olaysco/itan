@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/olaysco/itan/internal/canvas"
 	"github.com/olaysco/itan/internal/media"
@@ -80,14 +81,18 @@ func runCompose(c *Ctx, args Args) Result {
 	// and re-editable later (read_text can fetch it back).
 	htmlPath := strings.TrimSuffix(out, ".mp4") + ".html"
 
-	err := canvas.Render(c.Context, canvas.Opts{
+	opts := canvas.Opts{
 		HTML:     html,
 		Width:    args.Int("width", 1920),
 		Height:   args.Int("height", 1080),
 		FPS:      args.Int("fps", 30),
+		Scale:    args.Int("scale", 0), // 0 → the engine's default of 2
 		Duration: dur,
 		OutPath:  out,
-	})
+	}
+	started := time.Now()
+	err := canvas.Render(c.Context, opts)
+	elapsed := time.Since(started)
 	if err != nil {
 		return Result{Err: err}
 	}
@@ -100,9 +105,22 @@ func runCompose(c *Ctx, args Args) Result {
 		return Result{Err: fmt.Errorf("rendered but could not register asset: %w", err)}
 	}
 	summary := fmt.Sprintf("composed %.1fs graphic as asset %s", dur, asset.ID)
+	// Report what the render actually cost, and at what settings. A model
+	// that cannot see the price of a composition cannot make the next one
+	// cheaper — and a scale that silently never arrived stays invisible.
+	frames := int(dur*float64(opts.FPS) + 0.5)
+	scale := opts.Scale
+	if scale <= 0 {
+		scale = 2
+	}
 	data := map[string]any{
 		"asset": asset.ID, "file": out, "html": htmlPath,
-		"now": asset.Info.Compact(),
+		"now":     asset.Info.Compact(),
+		"scale":   scale,
+		"seconds": elapsed.Seconds(),
+		"render": fmt.Sprintf("%d frames at %dx%d, scale %d, in %s (%.2fs/frame)",
+			frames, opts.Width, opts.Height, scale, elapsed.Round(time.Second),
+			elapsed.Seconds()/float64(frames)),
 	}
 	if note := canvas.ExternalNote(external); note != "" {
 		summary += " — " + note
