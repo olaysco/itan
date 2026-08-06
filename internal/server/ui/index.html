@@ -260,6 +260,12 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 #expandBtn{cursor:pointer;width:28px;height:28px;border-radius:50%;background:var(--fill);color:var(--t2);font-size:12px;display:flex;align-items:center;justify-content:center;flex:none}
 #expandBtn:hover{background:var(--fill2);color:var(--t1)}
 #composeBar.expanded #input{flex:none!important;height:42vh!important;max-height:42vh}
+/* Maximized: the composer takes over the chat column so a long prompt can be
+   read and edited whole, without leaving the panel it belongs to. */
+#composer.maximized{position:absolute;inset:0;z-index:6;background:var(--surface);padding:12px 16px;border-top:none}
+#composer.maximized #composeBar{flex:1;min-height:0}
+#composer.maximized #input{flex:1!important;height:auto!important;max-height:none!important}
+#chatcol{position:relative}
 #plusBtn{cursor:pointer;width:28px;height:28px;border-radius:50%;background:var(--fill);color:var(--t2);font-size:15px;display:flex;align-items:center;justify-content:center;flex:none}
 #plusBtn:hover{background:var(--fill2);color:var(--t1)}
 #cmdChip{cursor:pointer;font-size:11px;color:var(--t3);background:var(--fill);border-radius:999px;padding:5px 11px;white-space:nowrap;flex:none}
@@ -335,6 +341,29 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 .mrow .via{font-size:9.5px;color:var(--t3);margin-top:2px;font-family:'IBM Plex Mono',ui-monospace,monospace}
 .badgeL{font-size:9px;color:var(--ok);background:var(--fill2);border-radius:4px;padding:1px 6px;font-family:'IBM Plex Mono',ui-monospace,monospace}
 #modelFoot{padding:9px 14px;border-top:1px solid var(--border1);font-size:11px;color:var(--t3);line-height:1.5}
+#modelDlg{width:352px}
+#mdlTabs{display:flex;gap:2px;padding:8px 12px 0;border-top:1px solid var(--border1)}
+#mdlTabs span{cursor:pointer;font-size:10px;letter-spacing:.06em;color:var(--t3);padding:5px 10px;border-radius:6px}
+#mdlTabs span:hover{background:var(--fill2);color:var(--t2)}
+#mdlTabs span.on{background:var(--fill);color:var(--t1)}
+.mrow.dim{opacity:.55}
+.mrow .need{font-size:9px;color:var(--warn,#b7791f);margin-top:2px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#mdlIdRow{display:flex;gap:6px;align-items:center;padding:9px 14px;border-top:1px solid var(--border1)}
+#mdlId{flex:1;min-width:0;font-size:11px;font-family:'IBM Plex Mono',ui-monospace,monospace;color:var(--t1);background:var(--fill);border:1px solid var(--border1);border-radius:7px;padding:6px 9px;outline:none}
+#mdlId:focus{border-color:var(--accent)}
+#mdlApply{cursor:pointer;font-size:10px;color:var(--t2);background:var(--fill);border-radius:7px;padding:6px 10px;flex:none;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#mdlApply:hover{background:var(--fill2);color:var(--t1)}
+#orSearch{width:calc(100% - 28px);margin:9px 14px;font-size:11.5px;color:var(--t1);background:var(--fill);border:1px solid var(--border1);border-radius:8px;padding:7px 10px;outline:none}
+#orSearch:focus{border-color:var(--accent)}
+#orList{max-height:44vh;overflow-y:auto}
+#orNote{padding:0 14px 9px;font-size:10px;color:var(--t3);line-height:1.5;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.orRow{cursor:pointer;display:flex;align-items:center;gap:9px;padding:8px 14px;border-top:1px solid var(--border1)}
+.orRow:hover{background:var(--fill2)}
+.orRow .l{flex:1;min-width:0}
+.orRow .n{font-size:11.5px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.orRow .i{font-size:9px;color:var(--t3);font-family:'IBM Plex Mono',ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.orRow .p{font-size:9px;color:var(--t3);font-family:'IBM Plex Mono',ui-monospace,monospace;flex:none}
+.orRow .v{font-size:8.5px;color:var(--ok);background:var(--fill2);border-radius:4px;padding:1px 5px;flex:none;font-family:'IBM Plex Mono',ui-monospace,monospace}
 #skillsDlg{top:50%;left:50%;transform:translate(-50%,-50%);width:640px}
 #skillsDlg .top{padding:13px 18px;display:flex;align-items:baseline;gap:10px;border-bottom:1px solid var(--border1)}
 #skillsDlg .top h2{font-size:16px;font-weight:600;margin:0}
@@ -488,7 +517,7 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
             <span id="cmdChip" class="mono" title="slash commands">/</span>
             <span id="liveChip" class="hidden" title="live — what you send now steers the run"><i></i></span>
             <div style="flex:1"></div>
-            <div id="expandBtn" title="expand the composer (⌘⏎ toggles)">⤢</div>
+            <div id="expandBtn" title="taller composer (⌘⏎ cycles)">⤢</div>
             <span id="hfBtn">hands-free</span>
             <div id="micBtn" title="hold to talk"><div class="micIco"><i></i><i></i><i></i></div></div>
             <div id="sendBtn"><span>↑</span></div>
@@ -538,7 +567,19 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
     <div class="scrimClear" data-close></div>
     <div class="dlg" id="modelDlg">
       <div class="dlgHd">SWAP THE BRAIN, MID-SESSION</div>
-      <div id="modelList"></div>
+      <div id="mdlTabs" class="mono"><span data-t="direct" class="on">direct</span><span data-t="or">via openrouter</span></div>
+      <div id="mdlDirect">
+        <div id="modelList"></div>
+        <div id="mdlIdRow">
+          <input id="mdlId" placeholder="model id" spellcheck="false">
+          <span id="mdlApply">apply</span>
+        </div>
+      </div>
+      <div id="mdlOR" class="hidden">
+        <input id="orSearch" placeholder="search OpenRouter models…" spellcheck="false">
+        <div id="orNote"></div>
+        <div id="orList"></div>
+      </div>
       <div id="modelFoot"></div>
     </div>
   </div>
@@ -1104,7 +1145,7 @@ async function send(text){
   /* no footage gate: compose-only requests (title cards, launch videos,
      explainers) are legitimate on an empty project — the agent says so
      itself when a request genuinely needs source footage */
-  $('#input').value='';$('#input').style.height='auto';S.busy=true;setSendStop(true);
+  $('#input').value='';$('#input').style.height='auto';resetComposer();S.busy=true;setSendStop(true);
   addU(text);trace=null;liveA=null;
   startWork();
   S.abort=new AbortController();
@@ -1167,17 +1208,25 @@ $('#input').addEventListener('keydown',e=>{
 });
 /* long prompts flow down, not sideways: grow up to 140px then scroll */
 $('#input').addEventListener('input',()=>{
-  if($('#composeBar').classList.contains('expanded'))return; /* fixed tall height */
+  if(COMPOSE_SIZES[composeSize]!=='inline')return; /* sized by the layout, not the content */
   const i=$('#input');i.style.height='auto';i.style.height=Math.min(i.scrollHeight,140)+'px';
 });
-function toggleComposer(){
-  const bar=$('#composeBar'),i=$('#input');
-  const on=bar.classList.toggle('expanded');
-  $('#expandBtn').textContent=on?'⤡':'⤢';
-  $('#expandBtn').title=on?'collapse the composer (⌘⏎ toggles)':'expand the composer (⌘⏎ toggles)';
-  if(!on){i.style.height='auto';i.style.height=Math.min(i.scrollHeight,140)+'px'}
+/* Three sizes, one control: inline → taller → the whole chat column.
+   Editing a long prompt should never mean squinting at a 140px window. */
+const COMPOSE_SIZES=['inline','tall','max'];
+let composeSize=0;
+function applyComposeSize(){
+  const mode=COMPOSE_SIZES[composeSize],bar=$('#composeBar'),wrap=$('#composer'),i=$('#input'),btn=$('#expandBtn');
+  bar.classList.toggle('expanded',mode==='tall');
+  wrap.classList.toggle('maximized',mode==='max');
+  btn.textContent=mode==='max'?'⤡':'⤢';
+  btn.title={inline:'taller composer (⌘⏎ cycles)',tall:'maximize the composer (⌘⏎ cycles)',max:'back to inline (⌘⏎ cycles, esc exits)'}[mode];
+  if(mode==='inline'){i.style.height='auto';i.style.height=Math.min(i.scrollHeight,140)+'px'}
+  else{i.style.removeProperty('height')}
   i.focus();
 }
+function toggleComposer(){composeSize=(composeSize+1)%COMPOSE_SIZES.length;applyComposeSize()}
+function resetComposer(){if(composeSize){composeSize=0;applyComposeSize()}}
 $('#expandBtn').onclick=toggleComposer;
 
 /* working banner + elapsed */
@@ -1269,6 +1318,7 @@ async function startListening(hf){
 function stopListening(){if(rec&&rec.state!=='inactive')rec.stop();audioCtx?.close().catch(()=>{});audioCtx=null}
 function discardListening(){if(rec){rec.onstop=()=>{rec.stream?.getTracks?.().forEach(t=>t.stop());rec=null};rec.stop()}clearInterval(recTimer);clearInterval(vadTimer);uiListening(false);exitHF();audioCtx?.close().catch(()=>{});audioCtx=null}
 function uiListening(on){
+  if(on)resetComposer(); // a maximized composer would cover the listening UI
   $('#composeBar').classList.toggle('hidden',on);
   $('#hints').classList.toggle('hidden',on);
   $('#listenBar').classList.toggle('hidden',!on||handsFree);
@@ -1461,19 +1511,106 @@ wireOverlay('#gear','#setWrap',()=>{
   $('#setStt').textContent=S.state?.stt||'whisper';
   $('#setTts').textContent='▶ '+(S.state?.tts||'kokoro');
 });
+let mdlTab='direct',orCache=null,orLoading=false;
+
+async function applySpec(spec){
+  try{
+    S.state=await api('/api/model',{spec});
+    closeOverlays();render();
+    toast('now '+S.state.model);
+  }catch(e){toast('✕ '+e.message)}
+}
+
 function renderModels(){
   const st=S.state,list=$('#modelList');list.innerHTML='';
   st.models.forEach(m=>{
-    const d=document.createElement('div');d.className='mrow';
-    d.innerHTML=`<span class="dot" style="background:${m.active?'var(--accent)':(m.local?'var(--ok)':'var(--t3)')}"></span>
-      <div style="flex:1"><div class="nm">${esc(m.active?st.model.split('/')[1]:m.name)}</div><div class="via">${esc(m.via)}</div></div>
+    const d=document.createElement('div');d.className='mrow'+(m.ready?'':' dim');
+    d.innerHTML=`<span class="dot" style="background:${m.active?'var(--accent)':(m.ready?(m.local?'var(--ok)':'var(--t3)'):'var(--err,#c2410c)')}"></span>
+      <div style="flex:1;min-width:0"><div class="nm">${esc(m.name)}</div><div class="via">${esc(m.via)}</div>
+      ${m.ready?'':`<div class="need">needs ${esc(m.key_env)} — set it, then reopen</div>`}</div>
       ${m.local?'<span class="badgeL">local</span>':''}${m.active?'<span class="mono" style="font-size:11px;color:var(--accent)">✓</span>':''}`;
-    d.onclick=async()=>{try{S.state=await api('/api/model',{spec:m.spec});closeOverlays();render();toast('now '+S.state.model)}catch(e){toast('✕ '+e.message)}};
+    d.onclick=()=>{
+      // Fill the id field too, so switching provider and then refining the
+      // exact model is one continuous move rather than two dialogs.
+      $('#mdlId').value=m.model_id||m.name;
+      applySpec(m.spec);
+    };
     list.appendChild(d);
   });
+  const active=st.models.find(m=>m.active);
+  $('#mdlId').value=active?(active.model_id||active.name):(st.model||'').split('/').slice(1).join('/');
+  $('#mdlId').placeholder=active?`model id on ${active.spec}`:'model id';
   const tok=((st.tokens_in+st.tokens_out)/1000).toFixed(1);
   $('#modelFoot').innerHTML=`Context survives the switch: <span class="mono" style="font-size:10px;color:var(--t2)">${tok}k tok</span> carried over.`;
+  // Open on the tab that matches where you actually are, so the dialog never
+  // shows a view that has nothing to do with the running model.
+  setModelTab(active&&active.spec==='openrouter'?'or':'direct');
 }
+
+function setModelTab(t){
+  mdlTab=t;
+  $$('#mdlTabs span').forEach(el=>el.classList.toggle('on',el.dataset.t===t));
+  $('#mdlDirect').classList.toggle('hidden',t!=='direct');
+  $('#mdlOR').classList.toggle('hidden',t!=='or');
+  if(t==='or')loadOpenRouter();
+}
+$$('#mdlTabs span').forEach(el=>el.onclick=()=>setModelTab(el.dataset.t));
+
+// Applying a bare id keeps the current provider; "provider/id" switches both.
+$('#mdlApply').onclick=()=>{
+  const v=$('#mdlId').value.trim();
+  if(!v){toast('type a model id first');return}
+  const active=(S.state.models||[]).find(m=>m.active);
+  applySpec(v.includes('/')&&!v.startsWith(active?.spec+'/')?v:(active?active.spec+'/'+v.replace(active.spec+'/',''):v));
+};
+$('#mdlId').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#mdlApply').onclick()}});
+
+async function loadOpenRouter(){
+  const note=$('#orNote');
+  const or=(S.state.models||[]).find(m=>m.spec==='openrouter');
+  if(or&&!or.ready)note.textContent='OpenRouter needs '+or.key_env+' — set it before switching.';
+  else note.textContent='';
+  if(orCache){drawOpenRouter();return}
+  if(orLoading)return;
+  orLoading=true;
+  $('#orList').innerHTML='<div class="orRow"><div class="l"><div class="i">loading the catalogue…</div></div></div>';
+  try{
+    const r=await fetch('/api/models/openrouter');
+    const j=await r.json();
+    if(!r.ok)throw new Error(j.error||'could not load');
+    orCache=j.models||[];
+    drawOpenRouter();
+  }catch(e){
+    // The catalogue is a convenience; typing an id must still work.
+    $('#orList').innerHTML='';
+    note.textContent=e.message+' — switch to the direct tab and type the id under openrouter.';
+  }finally{orLoading=false}
+}
+
+function drawOpenRouter(){
+  const q=$('#orSearch').value.trim().toLowerCase();
+  const matches=(orCache||[]).filter(m=>!q||m.id.toLowerCase().includes(q)||m.name.toLowerCase().includes(q));
+  const CAP=120,rows=matches.slice(0,CAP);
+  const list=$('#orList');list.innerHTML='';
+  if(!rows.length){list.innerHTML='<div class="orRow"><div class="l"><div class="i">nothing matches — try a shorter term</div></div></div>';return}
+  rows.forEach(m=>{
+    const d=document.createElement('div');d.className='orRow';
+    const ctx=m.context?Math.round(m.context/1000)+'k':'';
+    d.innerHTML=`<div class="l"><div class="n">${esc(m.name)}</div><div class="i">${esc(m.id)}${ctx?' · '+ctx:''}</div></div>
+      ${m.vision?'<span class="v">vision</span>':''}<span class="p">${esc(m.price)}</span>`;
+    d.onclick=()=>applySpec('openrouter/'+m.id);
+    list.appendChild(d);
+  });
+  // Never let a truncated list read as the whole catalogue.
+  if(matches.length>CAP){
+    const more=document.createElement('div');more.className='orRow';
+    more.innerHTML=`<div class="l"><div class="i">showing ${CAP} of ${matches.length} — search to narrow</div></div>`;
+    more.style.cursor='default';
+    list.appendChild(more);
+  }
+}
+$('#orSearch').addEventListener('input',drawOpenRouter);
+
 function renderSkills(){
   const g=$('#skillsGrid');g.innerHTML='';
   (S.state?.skills||[]).forEach(sk=>{
@@ -1512,6 +1649,9 @@ document.addEventListener('keydown',e=>{
     if(handsFree||rec){discardListening();return}
     if(S.region!==null||$('#regionLayer').style.display==='block'){clearRegion();return}
     if(trimDraft){clearTrimGesture();return}
+    // A maximized composer covers the panel, so esc should shrink it before
+    // it reaches for anything else.
+    if(COMPOSE_SIZES[composeSize]==='max'){resetComposer();return}
     if(S.busy){S.abort?.abort();return}
     closeOverlays();
   }

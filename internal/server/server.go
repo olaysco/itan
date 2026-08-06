@@ -128,6 +128,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/undo", s.handleUndo)
 	mux.HandleFunc("POST /api/revert", s.handleRevert)
 	mux.HandleFunc("POST /api/model", s.handleModel)
+	mux.HandleFunc("GET /api/models/openrouter", s.handleOpenRouterModels)
 	mux.HandleFunc("POST /api/mode", s.handleMode)
 	mux.HandleFunc("POST /api/demo", s.handleDemo)
 	mux.HandleFunc("POST /api/tool", s.handleTool)
@@ -215,6 +216,14 @@ type modelView struct {
 	Via    string `json:"via"`
 	Local  bool   `json:"local"`
 	Active bool   `json:"active"`
+	// Ready reports whether this provider has a key (or needs none), and
+	// KeyEnv names the variable to set when it does not. Picking a provider
+	// with no key used to fail only on the next message.
+	Ready  bool   `json:"ready"`
+	KeyEnv string `json:"key_env,omitempty"`
+	// ModelID is what is actually in use for the active provider, so the
+	// picker can show and edit it rather than only the preset default.
+	ModelID string `json:"model_id,omitempty"`
 }
 
 type stateView struct {
@@ -321,10 +330,18 @@ func (s *Server) state() stateView {
 	}
 	for _, name := range config.PresetNames() {
 		preset := config.Presets[name]
+		active := cfg.Model.Provider == name
+		id := preset.DefaultModel
+		if active {
+			id = cfg.Model.ID
+		}
 		v.Models = append(v.Models, modelView{
-			Spec: name, Name: preset.DefaultModel, Via: preset.Note,
-			Local:  preset.KeyEnv == "",
-			Active: cfg.Model.Provider == name,
+			Spec: name, Name: id, Via: preset.Note,
+			Local:   preset.KeyEnv == "",
+			Active:  active,
+			Ready:   preset.KeyEnv == "" || os.Getenv(preset.KeyEnv) != "",
+			KeyEnv:  preset.KeyEnv,
+			ModelID: id,
 		})
 	}
 	return v
