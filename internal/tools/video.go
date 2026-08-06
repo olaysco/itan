@@ -197,11 +197,24 @@ func runConcat(c *Ctx, args Args) Result {
 		}
 		paths = append(paths, p)
 	}
-	first, err := media.Probe(c.Context, paths[0])
-	if err != nil {
-		return Result{Err: err}
+	// The join canvas is the largest clip, not the first. Every clip is
+	// scaled to it, so taking the first would silently downscale a 1080p
+	// title card because it happened to be joined onto a smaller clip —
+	// detail that no later step can recover.
+	var w, h int
+	for _, p := range paths {
+		info, perr := media.Probe(c.Context, p)
+		if perr != nil {
+			return Result{Err: perr}
+		}
+		if info.Width*info.Height > w*h {
+			w, h = info.Width, info.Height
+		}
 	}
-	w, h := media.EvenDims(first.Width, first.Height)
+	if w <= 0 || h <= 0 {
+		return fail("none of the clips have a video stream to join")
+	}
+	w, h = media.EvenDims(w, h)
 
 	ff := []string{}
 	var fc strings.Builder

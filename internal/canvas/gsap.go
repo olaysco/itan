@@ -18,6 +18,23 @@ import (
 //go:embed vendor_js/gsap.min.js vendor_js/SplitText.min.js
 var gsapFS embed.FS
 
+//go:embed frameapi.js
+var frameAPI string
+
+// injectFrameAPI puts the frame-indexed composition API in front of every
+// scene. It is small and always present: a scene that never calls itan.frame
+// is unaffected, and one that does gets determinism by construction rather
+// than by seeking a self-running timeline.
+func injectFrameAPI(html string) string {
+	inject := "<script data-itan-frameapi>" + frameAPI + "</script>"
+	lower := strings.ToLower(html)
+	if i := strings.Index(lower, "<head>"); i >= 0 {
+		at := i + len("<head>")
+		return html[:at] + inject + html[at:]
+	}
+	return inject + html
+}
+
 // injectGSAP adds the bundled GSAP (and SplitText) to a composition that
 // references gsap. Compositions that don't mention it pay nothing.
 func injectGSAP(html string) string {

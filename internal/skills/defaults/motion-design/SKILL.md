@@ -33,9 +33,20 @@ reply — this project's style brief. Then hold it for every scene.
 
 ## Craft (non-negotiable, any style)
 
-- Two type sizes per scene max. Labels: support face, 11–13px-at-720p,
-  tracked-out caps. Display: letter-spacing −0.01 to −0.03em, line-height
-  ≈1.05. Never center-align paragraphs.
+- Compose every scene at the delivery size — 1920x1080 unless the user
+  says otherwise — and keep all of a video's scenes the same size. `concat`
+  joins on the largest clip's canvas and letterboxes the rest, so a scene
+  authored smaller arrives padded, not filled.
+- Size type against the canvas, not against a remembered pixel value: at
+  1080p, display ≈120–160px, subhead ≈52–64px, label ≈18–22px. Scale those
+  proportionally for any other canvas.
+- Two type sizes per scene max. Labels: support face, tracked-out caps.
+  Display: letter-spacing −0.01 to −0.03em, line-height ≈1.05. Never
+  center-align paragraphs.
+- Use the project's real assets. A logo, screenshot, or capture_page result
+  embeds directly: `<img src="file:///absolute/path/logo.svg">` — local
+  files are allowed and render offline. A launch video without the product's
+  own mark is a draft, not a deliverable.
 - Entrances 500–800ms; emphasis 200–350ms; sibling stagger 60–120ms. Ban
   `ease` and `linear` for movement. Define eases once, reuse everywhere.
 - Motion has a direction that means something: content enters from where it
@@ -55,6 +66,14 @@ reply — this project's style brief. Then hold it for every scene.
 - Typewriter: mono text, `width` via `steps(N)`, caret as blinking border.
 - Count-up numbers: pre-render the final number, reveal digits with a short
   mask — never fake randomness.
+- Frame-indexed motion (always available, nothing to import): write what a
+  scene looks like AT a frame and the renderer does the rest —
+  `itan.frame(({frame, fps}) => { el.style.opacity =
+  interpolate(frame, [0, 15], [0, 1], {easing: 'out'}); })`. Also
+  `spring({frame, fps, config:{damping, stiffness}})` and
+  `Seq(fromFrame, durationInFrames)`. Exact at every frame and immune to
+  timing drift; reach for it when motion needs to be precise, or when a
+  value has to be computed rather than tweened.
 - GSAP (bundled — reference `gsap` and it is injected, with SplitText):
   build ONE `gsap.timeline()` per scene with position labels for
   choreographed sequences, per-character text, motion paths. Deterministic
@@ -64,10 +83,12 @@ reply — this project's style brief. Then hold it for every scene.
 
 1. Style brief stated and followed — would this video look different from
    the last project's?
-2. Fonts declared, no system-ui leaking in?
-3. Two type sizes per scene; labels tracked-out caps?
-4. All movement on the brief's eases, with stagger?
-5. Rest beat at scene end?
+2. Every scene composed at the delivery size, type sized for that canvas?
+3. The project's own logo/screenshots actually used where they belong?
+4. Fonts declared, no system-ui leaking in?
+5. Two type sizes per scene; labels tracked-out caps?
+6. All movement on the brief's eases, with stagger?
+7. Rest beat at scene end?
 
 ## Make it yours
 

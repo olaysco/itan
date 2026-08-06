@@ -16,13 +16,19 @@ func composeTools() []Tool {
 			Name: "compose",
 			Description: "Create a motion-graphics clip (intro/title card, animated caption, explainer scene, " +
 				"end screen) by writing a complete self-contained HTML document — it renders to video in a real " +
-				"browser. Use CSS animations/transitions, the Web Animations API, or GSAP 3 (+SplitText) which is " +
-				"pre-bundled: just reference `gsap` and it is injected — build one gsap.timeline() per scene; " +
-				"renders are deterministic. Give elements data-start=\"2\" data-duration=\"3\" (seconds) to control " +
-				"when they appear. Inline all CSS/JS; no other external URLs (renders are offline). The fonts " +
-				"'Bricolage Grotesque' (display, weights 200-800) and 'IBM Plex Mono' are pre-installed — use them, " +
-				"never system-ui. The result becomes a new project ASSET (it does not replace CURRENT) — chain with " +
-				"concat for intros/outros or overlay_video to put it on footage.",
+				"browser. Animate with the built-in frame API (exact at every frame, nothing to import): " +
+				"`itan.frame(({frame, fps}) => { el.style.opacity = interpolate(frame, [0,15], [0,1]); })`, plus " +
+				"`spring({frame, fps, config})` and `Seq(from, durationInFrames)`. CSS animations/transitions, the " +
+				"Web Animations API, and GSAP 3 (+SplitText, pre-bundled — reference `gsap` and it is injected) all " +
+				"work too; build one gsap.timeline() per scene. Renders are deterministic. Give elements " +
+				"data-start=\"2\" data-duration=\"3\" (seconds) to control when they appear. Inline all CSS/JS — " +
+				"renders are offline, so no network URLs, but LOCAL FILES ARE FINE and encouraged: embed the " +
+				"project's logo, screenshots, or capture_page output with " +
+				"<img src=\"file:///absolute/path.png\">. Compose at the delivery size (default 1920x1080) and " +
+				"size type for that canvas — concat joins on the largest clip and letterboxes smaller ones. The " +
+				"fonts 'Bricolage Grotesque' (display, weights 200-800) and 'IBM Plex Mono' are pre-installed — " +
+				"use them, never system-ui. The result becomes a new project ASSET (it does not replace CURRENT) — " +
+				"chain with concat for intros/outros or overlay_video to put it on footage.",
 			Schema: schema([]string{"html", "duration"}, map[string]map[string]any{
 				"html":     prop("string", "Complete HTML document, self-contained."),
 				"duration": prop("number", "Clip length in seconds (max 120)."),

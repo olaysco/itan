@@ -11,11 +11,18 @@
 // video ecosystem. Each frame is screenshotted and ffmpeg encodes the
 // sequence. Same input, same frames, same output.
 //
-// Supported in compositions: inline CSS/JS, CSS animations & transitions,
-// Web Animations API, data-start/data-duration timing, data URIs and local
-// file references. Not supported: external network resources (renders are
-// offline by design) and rAF-driven animation libraries (their clocks don't
-// seek); the compose tool's description steers the model accordingly.
+// Compositions can also skip the seeking problem entirely: frameapi.js is
+// injected into every render and lets a scene declare what it looks like AT
+// a frame (interpolate/spring/Seq via itan.frame). That is a pure function of
+// frame number, so it is exact at any frame, in any seek order, on every run
+// — measured against analytic ground truth in frameapi_test.go.
+//
+// Supported in compositions: inline CSS/JS, the frame API, CSS animations &
+// transitions, Web Animations API, data-start/data-duration timing, data URIs
+// and local file references. Not supported: external network resources
+// (renders are offline by design) and rAF-driven animation libraries (their
+// clocks don't seek — express that motion with the frame API instead); the
+// compose tool's description steers the model accordingly.
 package canvas
 
 import (
@@ -58,6 +65,10 @@ if (window.gsap) { try { gsap.ticker.lagSmoothing(0); gsap.globalTimeline.pause(
 window.__itanSeek = (ms) => {
   document.getAnimations().forEach(a => { try { a.pause(); a.currentTime = ms; } catch (e) {} });
   if (window.gsap) { try { gsap.globalTimeline.time(ms / 1000); } catch (e) {} }
+  if (window.__itanApplyFrame) {
+    const fps = window.__itanFPS || 30;
+    window.__itanApplyFrame(Math.round(ms / 1000 * fps), fps, window.__itanTotalFrames || 0);
+  }
   document.querySelectorAll('[data-start],[data-duration]').forEach(el => {
     const s = parseFloat(el.dataset.start || 0) * 1000;
     const d = el.dataset.duration ? parseFloat(el.dataset.duration) * 1000 : Infinity;
@@ -103,7 +114,7 @@ func Render(ctx context.Context, opts Opts) error {
 	defer os.RemoveAll(work)
 
 	htmlPath := filepath.Join(work, "composition.html")
-	if err := os.WriteFile(htmlPath, []byte(injectGSAP(injectFonts(opts.HTML))), 0o600); err != nil {
+	if err := os.WriteFile(htmlPath, []byte(injectFrameAPI(injectGSAP(injectFonts(opts.HTML)))), 0o600); err != nil {
 		return err
 	}
 
@@ -139,6 +150,7 @@ func Render(ctx context.Context, opts Opts) error {
 		chromedp.Navigate("file://"+htmlPath),
 		chromedp.WaitReady("body"),
 		chromedp.Evaluate(`document.fonts.ready.then(() => true)`, nil, awaitFonts),
+		chromedp.Evaluate(fmt.Sprintf("window.__itanFPS=%d;window.__itanTotalFrames=%d;true", opts.FPS, frames), nil),
 		chromedp.Evaluate(seekRuntime, nil),
 	); err != nil {
 		return fmt.Errorf("compose: page load: %w", err)
