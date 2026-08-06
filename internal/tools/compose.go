@@ -26,6 +26,9 @@ func composeTools() []Tool {
 				"project's logo, screenshots, or capture_page output with " +
 				"<img src=\"file:///absolute/path.png\">. Compose at the delivery size (default 1920x1080) and " +
 				"size type for that canvas — concat joins on the largest clip and letterboxes smaller ones. The " +
+				"engine is a full browser, so depth is available and expected: CSS 3D (perspective/rotateY/" +
+				"preserve-3d), layered box-shadows, backdrop-filter glass, blurred radial glows, and Canvas 2D or " +
+				"WebGL when you draw from itan.frame rather than requestAnimationFrame. The " +
 				"fonts 'Bricolage Grotesque' (display, weights 200-800) and 'IBM Plex Mono' are pre-installed — " +
 				"use them, never system-ui. The result becomes a new project ASSET (it does not replace CURRENT) — " +
 				"chain with concat for intros/outros or overlay_video to put it on footage.",

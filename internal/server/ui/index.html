@@ -89,6 +89,11 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 /* stage */
 #stage{flex:1;min-height:0;background:var(--stage);border-radius:14px;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
 #stage video{max-width:100%;max-height:100%;border-radius:4px}
+#stage img{max-width:100%;max-height:100%;border-radius:4px;object-fit:contain}
+#stageAudio{display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--t2)}
+#stageAudio.hidden{display:none}
+#stageAudio .g{font-size:34px;color:var(--accent)}
+#stageAudio .n{font-size:11px}
 .hud{font-size:10.5px;color:var(--t2);background:var(--hud);border-radius:6px;padding:4px 9px}
 #hudFile{position:absolute;top:12px;left:12px;z-index:3}
 #hudRight{position:absolute;top:12px;right:12px;display:flex;gap:8px;align-items:center;z-index:3}
@@ -420,6 +425,8 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 
       <div id="stage" class="hidden">
         <video id="video" playsinline></video>
+        <img id="stageImg" class="hidden" alt="">
+        <div id="stageAudio" class="hidden"><span class="g">♫</span><span class="n mono"></span></div>
         <div id="hudFile" class="hud mono"></div>
         <div id="hudRight">
           <div id="viewToggle" class="mono"><span data-v="original">original</span><span data-v="current" class="on">current</span></div>
@@ -684,7 +691,8 @@ function render(){
   renderReplies();
   $('#empty').classList.toggle('hidden',has);
   $('#stage').classList.toggle('hidden',!has);
-  $('#transport').classList.toggle('hidden',!has);
+  // setPreview owns transport visibility beyond this (a still has none).
+  $('#transport').classList.toggle('hidden',!has||mediaKind(S.previewURL||st.current)==='image');
   $('#tlToggle').classList.toggle('hidden',!has);
   $('#undoBtn').classList.toggle('hidden',!st.ops.length);
   $('#revStepBtn').classList.toggle('hidden',selectedOpSeq()==null);
@@ -928,15 +936,40 @@ $('#tlToggle').onclick=e=>{const v=e.target.dataset.v;if(!v)return;S.tlView=v;$$
 
 /* ---------- preview / transport ---------- */
 const video=$('#video');
+/* An asset is not always a video: images and audio need their own element,
+   and a <video> pointed at a PNG is just a dead player. */
+const RE_IMG=/\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i, RE_AUD=/\.(mp3|wav|m4a|aac|flac|ogg|opus)$/i;
+function mediaKind(url){
+  const p=decodeURIComponent((url||'').split('path=')[1]||'');
+  if(RE_IMG.test(p))return 'image';
+  if(RE_AUD.test(p))return 'audio';
+  return 'video';
+}
 function setPreview(url,followCurrent){
   const st=S.state;S.previewURL=followCurrent?null:url;
   const src=(followCurrent?st.current:url)||st.current||'';
   S.view=followCurrent&&url===st.original&&st.original!==st.current?'original':(S.previewURL?'step':'current');
   if(!src)return;
-  if(video.dataset.src!==src){video.dataset.src=src;video.src=src+'&t='+Date.now()}
+  const kind=mediaKind(src), name=decodeURIComponent(src.split('path=')[1]||'').split('/').pop();
+  if(kind==='image'){
+    // Stop playback before swapping: a still has no timeline to scrub.
+    video.pause();video.removeAttribute('src');video.dataset.src='';video.load();
+    const img=$('#stageImg');
+    if(img.dataset.src!==src){img.dataset.src=src;img.src=src+'&t='+Date.now()}
+  }else{
+    $('#stageImg').classList.add('hidden');$('#stageImg').dataset.src='';
+    if(video.dataset.src!==src){video.dataset.src=src;video.src=src+'&t='+Date.now()}
+  }
+  video.classList.toggle('hidden',kind!=='video');
+  $('#stageImg').classList.toggle('hidden',kind!=='image');
+  $('#stageAudio').classList.toggle('hidden',kind!=='audio');
+  if(kind==='audio')$('#stageAudio .n').textContent=name;
+  // A still has nothing to transport; audio still scrubs.
+  $('#transport').classList.toggle('hidden',kind==='image');
   
-  $('#hudFile').textContent=(S.previewURL?'preview · ':'')+decodeURIComponent(src.split('path=')[1]||'').split('/').pop()+(st.current_info&&!S.previewURL?' · '+st.current_info.split(' ').slice(0,1):'');
-  $$('#viewToggle span').forEach(el=>el.classList.toggle('on',(el.dataset.v==='current')===(S.previewURL===null)));
+  $('#hudFile').textContent=(S.previewURL?'preview · ':'')+name+(st.current_info&&!S.previewURL?' · '+st.current_info.split(' ').slice(0,1):'');
+  // Previewing an asset is neither "original" nor "current" — light neither.
+  $$('#viewToggle span').forEach(el=>el.classList.toggle('on',el.dataset.v===S.view));
   $('#tDims').textContent=st.current_info?st.current_info.split(' ').filter((_,i)=>i<2).join(' · '):'';
   $('#revStepBtn').classList.toggle('hidden',selectedOpSeq()==null);
   renderStrip();
@@ -1498,7 +1531,7 @@ function drawAssets(){
   const counts={all:astCache.length,source:0,render:0,audio:0,issues:0};
   astCache.forEach(a=>{counts[a.kind]=(counts[a.kind]||0)+1;if(a.missing)counts.issues++});
   const f=$('#astFilters');f.innerHTML='';
-  [['all','all'],['source','sources'],['render','renders'],['audio','audio'],['issues','issues']].forEach(([k,label])=>{
+  [['all','all'],['source','sources'],['render','renders'],['image','images'],['audio','audio'],['issues','issues']].forEach(([k,label])=>{
     if(k!=='all'&&!counts[k])return;
     const el=document.createElement('span');
     el.textContent=label+' '+(counts[k]||0);
@@ -1509,9 +1542,12 @@ function drawAssets(){
   const g=$('#astGrid');g.innerHTML='';
   astCache.filter(a=>astFilter==='all'||(astFilter==='issues'?a.missing:a.kind===astFilter)).forEach(a=>{
     const d=document.createElement('div');d.className='astCard';
-    const glyphc=a.missing?'⚠':(a.kind==='audio'?'♫':'▶');
+    const glyphc=a.missing?'⚠':(a.kind==='audio'?'♫':(a.kind==='image'?'▣':'▶'));
     const badge=a.current?'current':(a.kind==='source'?'source':'');
-    d.innerHTML=`<div class="astThumb"${a.missing?' style="background:var(--err-tint)"':''}>${glyphc}${badge?`<span class="badge"${badge==='source'?' style="background:var(--t3)"':''}>${badge}</span>`:''}${a.dur?`<span class="dur mono">${esc(a.dur)}</span>`:''}</div>
+    // An image is its own thumbnail — a play triangle over a still is a lie.
+    const thumbStyle=a.missing?' style="background:var(--err-tint)"'
+      :(a.kind==='image'?` style="background:#000 center/contain no-repeat url('${a.url}')"`:'');
+    d.innerHTML=`<div class="astThumb"${thumbStyle}>${a.kind==='image'&&!a.missing?'':glyphc}${badge?`<span class="badge"${badge==='source'?' style="background:var(--t3)"':''}>${badge}</span>`:''}${a.dur?`<span class="dur mono">${esc(a.dur)}</span>`:''}</div>
       <div class="nm mono">${esc(a.name)}</div><div class="mt mono${a.missing?' bad':''}">${esc(a.meta)}</div>${a.missing&&a.id?'<div class="fix mono">locate / replace →</div>':''}`;
     d.onclick=()=>{
       if(a.missing&&a.id){pickReplace(a.id);return}

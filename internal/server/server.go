@@ -764,6 +764,19 @@ type assetView struct {
 
 // handleAssets returns everything the project references, with honest issue
 // flags: a moved/deleted file says so instead of failing later mid-edit.
+// assetKind classifies a file for the drawer. Audio and images each need
+// their own preview element, so guessing from a couple of extensions is not
+// enough — a rendered frame is an image, not an audio track.
+func assetKind(path, fallback string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus":
+		return "audio"
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".avif":
+		return "image"
+	}
+	return fallback
+}
+
 func (s *Server) handleAssets(w http.ResponseWriter, _ *http.Request) {
 	p := s.Session.Project
 	out := []assetView{}
@@ -776,26 +789,23 @@ func (s *Server) handleAssets(w http.ResponseWriter, _ *http.Request) {
 		out = append(out, v)
 	}
 	for _, a := range p.Assets {
-		kind := "source"
-		if strings.HasSuffix(strings.ToLower(a.Path), ".wav") || strings.HasSuffix(strings.ToLower(a.Path), ".mp3") {
-			kind = "audio"
+		v := assetView{
+			ID: a.ID, Kind: assetKind(a.Path, "source"), Name: filepath.Base(a.Path),
+			URL: mediaURL(a.Path), Meta: a.Info.Compact(),
 		}
-		add(assetView{
-			ID: a.ID, Kind: kind, Name: filepath.Base(a.Path), URL: mediaURL(a.Path),
-			Meta: a.Info.Compact(), Dur: fmt.Sprintf("%.1fs", a.Info.Duration),
-		}, a.Path)
+		// A still has no duration; showing "0.0s" reads as a broken clip.
+		if a.Info.Duration > 0 {
+			v.Dur = fmt.Sprintf("%.1fs", a.Info.Duration)
+		}
+		add(v, a.Path)
 	}
 	for _, op := range p.Ops {
 		if op.Output == "" {
 			continue
 		}
-		kind := "render"
-		if strings.HasSuffix(strings.ToLower(op.Output), ".wav") || strings.HasSuffix(strings.ToLower(op.Output), ".png") {
-			kind = "audio"
-		}
 		add(assetView{
-			Seq: op.Seq, Kind: kind, Name: filepath.Base(op.Output), URL: mediaURL(op.Output),
-			Meta: fmt.Sprintf("step %03d · %s", op.Seq, op.Tool),
+			Seq: op.Seq, Kind: assetKind(op.Output, "render"), Name: filepath.Base(op.Output),
+			URL: mediaURL(op.Output), Meta: fmt.Sprintf("step %03d · %s", op.Seq, op.Tool),
 		}, op.Output)
 	}
 	writeJSON(w, map[string]any{"assets": out})

@@ -54,10 +54,36 @@ reply — this project's style brief. Then hold it for every scene.
 - One idea per scene — a scene needing three sentences is three scenes.
   Hook ≤3s; no scene over 6s without internal motion; end every scene with
   400–600ms of rest before the cut.
-- Contrast ≥7:1 for body, 4.5:1 for large display. Layered panels with 1px
-  hairlines over heavy drop shadows; subtle radial tint for depth.
+- Contrast ≥7:1 for body, 4.5:1 for large display.
 - Concat transitions sparingly: `fade` 0.4–0.6s, `fadeblack` for chapter
   breaks; never wipe/slide unless the content literally moves.
+
+## Depth — flat is a choice, not the default
+
+Every technique below is verified to render in this engine. Reaching for
+none of them is what makes a video look like a slide deck.
+
+- **Build in three layers**: a ground (gradient or vignette, never one flat
+  fill), the content, and atmosphere in front (glow, blur, grain). Move them
+  at different rates and the frame has space in it.
+- **Pick a light direction and keep it.** Shadow offset, gradient angle, and
+  the inset top highlight all agree, in every scene. Two layered shadows
+  read as real: a tight contact shadow plus a wide soft one.
+- **CSS 3D** works fully: `perspective:1200px` on the parent,
+  `transform-style:preserve-3d`, then `rotateY/rotateX/translateZ` on
+  children. Device mockups, receding planes, card flips, cover flow.
+- **Atmosphere**: `backdrop-filter:blur()` for glass, a large
+  `radial-gradient` under `filter:blur(40px)` for a light source, depth of
+  field by blurring what is not the subject, and 3–5% grain (a tiled SVG
+  `feTurbulence`) to stop dark gradients banding.
+- **Canvas 2D and WebGL** both render, and are deterministic when — and only
+  when — you draw from `itan.frame` instead of `requestAnimationFrame`:
+  `itan.frame(({frame}) => draw(ctx, frame))`. That is the door to particle
+  fields, shader gradients, waveforms, and generative grounds.
+- Hairlines still earn their place: 1px borders define an edge, shadows and
+  glows define space. Use both — they are not alternatives.
+- Depth is not decoration. If a layer does not help the viewer understand
+  what is in front of what, delete it.
 
 ## Pattern vocabulary (pick what fits the brief — not all of it)
 
@@ -85,10 +111,11 @@ reply — this project's style brief. Then hold it for every scene.
    the last project's?
 2. Every scene composed at the delivery size, type sized for that canvas?
 3. The project's own logo/screenshots actually used where they belong?
-4. Fonts declared, no system-ui leaking in?
-5. Two type sizes per scene; labels tracked-out caps?
-6. All movement on the brief's eases, with stagger?
-7. Rest beat at scene end?
+4. Does the frame have depth — ground, content, atmosphere — or is it flat?
+5. Fonts declared, no system-ui leaking in?
+6. Two type sizes per scene; labels tracked-out caps?
+7. All movement on the brief's eases, with stagger?
+8. Rest beat at scene end?
 
 ## Make it yours
 
