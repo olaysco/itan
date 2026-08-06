@@ -27,6 +27,7 @@ package canvas
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,6 +43,12 @@ import (
 // maxFrames bounds a render so a runaway duration/fps pair cannot fill the
 // disk: 3600 frames is two minutes at 30fps.
 const maxFrames = 3600
+
+// perFrameBudget is deliberately generous: measured cost at 1080x1920 is
+// around a second a frame, and a composition with full-canvas effects on a
+// loaded machine can be several times that. This is a stuck-render backstop,
+// not a performance target.
+const perFrameBudget = 15 * time.Second
 
 type Opts struct {
 	HTML     string // complete, self-contained document
@@ -139,7 +146,13 @@ func Render(ctx context.Context, opts Opts) error {
 	defer cancelAlloc()
 	cctx, cancelCtx := chromedp.NewContext(allocCtx)
 	defer cancelCtx()
-	cctx, cancelTimeout := context.WithTimeout(cctx, 5*time.Minute)
+	// The deadline has to scale with the work. A flat cap silently made long
+	// or high-resolution compositions impossible: a 45-second 1080x1920 piece
+	// is over a thousand frames, and it died mid-render with nothing to show
+	// and "context deadline exceeded" as the only explanation. Budget per
+	// frame, with a floor that covers browser start and font loading.
+	budget := time.Duration(frames)*perFrameBudget + 2*time.Minute
+	cctx, cancelTimeout := context.WithTimeout(cctx, budget)
 	defer cancelTimeout()
 
 	awaitFonts := func(p *cdruntime.EvaluateParams) *cdruntime.EvaluateParams {
@@ -163,6 +176,12 @@ func Render(ctx context.Context, opts Opts) error {
 			chromedp.Evaluate(fmt.Sprintf("__itanSeek(%.3f)", ms), nil),
 			chromedp.CaptureScreenshot(&shot),
 		); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return fmt.Errorf("compose: gave up at frame %d of %d after %s — this composition renders too slowly to finish. "+
+					"Lower fps, shorten the clip, split it into scenes, pass scale:1, or remove a full-canvas effect "+
+					"(an SVG filter background is re-rasterized every frame and is usually the cause)",
+					i+1, frames, budget.Round(time.Second))
+			}
 			return fmt.Errorf("compose: frame %d/%d: %w", i+1, frames, err)
 		}
 		frame := filepath.Join(work, fmt.Sprintf("f_%05d.png", i))
