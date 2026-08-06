@@ -180,6 +180,8 @@ const usage = `itan — agentic AI video editor
   itan config [get|set|list]  inspect or change configuration
   itan skills                 list available skills
   itan doctor                 check ffmpeg, model, and voice endpoints
+
+  ITAN_UI=<path/to/index.html>  serve the UI from disk (edit, refresh, no rebuild)
   itan version                print version
 `
 

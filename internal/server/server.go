@@ -165,6 +165,15 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	page, _ := uiFS.ReadFile("ui/index.html")
+	// $ITAN_UI serves the page from disk instead of the embedded copy, so a
+	// CSS or markup change is a browser refresh rather than a rebuild. The
+	// shipped binary is unaffected — the variable is a development switch.
+	if dev := os.Getenv("ITAN_UI"); dev != "" {
+		if live, err := os.ReadFile(dev); err == nil {
+			page = live
+			w.Header().Set("Cache-Control", "no-store")
+		}
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(page)
 }
