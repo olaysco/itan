@@ -32,7 +32,8 @@ func composeTools() []Tool {
 				"WebGL when you draw from itan.frame rather than requestAnimationFrame. The " +
 				"fonts 'Bricolage Grotesque' (display, weights 200-800) and 'IBM Plex Mono' are pre-installed — " +
 				"use them, never system-ui. The result becomes a new project ASSET (it does not replace CURRENT) — " +
-				"chain with concat for intros/outros or overlay_video to put it on footage.",
+				"chain with concat for intros/outros or overlay_video to put it on footage. If the project has a " +
+				"style_kit, its CSS is already in the document — use its classes instead of restyling from scratch.",
 			Schema: schema([]string{"html", "duration"}, map[string]map[string]any{
 				"html":     prop("string", "Complete HTML document, self-contained."),
 				"duration": prop("number", "Clip length in seconds (max 120)."),
@@ -89,6 +90,9 @@ func runCompose(c *Ctx, args Args) Result {
 		Scale:    args.Int("scale", 0), // 0 → the engine's default of 2
 		Duration: dur,
 		OutPath:  out,
+		// Every scene inherits the project's design; the scene's own styles
+		// still win, because the kit is injected ahead of them.
+		StyleCSS: c.Project.Style.CSS,
 	}
 	started := time.Now()
 	err := canvas.Render(c.Context, opts)

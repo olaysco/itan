@@ -61,6 +61,9 @@ type Opts struct {
 	// Scale× device pixels and ffmpeg downscales with Lanczos, which is
 	// what keeps text crisp through 4:2:0 encoding. 1–3.
 	Scale int
+	// StyleCSS is the project's shared style kit, injected into every scene
+	// so a video looks like one piece rather than a run of unrelated designs.
+	StyleCSS string
 }
 
 // seekRuntime is injected once per render. __itanSeek(ms) makes the page
@@ -121,7 +124,7 @@ func Render(ctx context.Context, opts Opts) error {
 	defer os.RemoveAll(work)
 
 	htmlPath := filepath.Join(work, "composition.html")
-	if err := os.WriteFile(htmlPath, []byte(injectFrameAPI(injectGSAP(injectFonts(opts.HTML)))), 0o600); err != nil {
+	if err := os.WriteFile(htmlPath, []byte(injectFrameAPI(injectGSAP(injectStyleKit(injectFonts(opts.HTML), opts.StyleCSS)))), 0o600); err != nil {
 		return err
 	}
 

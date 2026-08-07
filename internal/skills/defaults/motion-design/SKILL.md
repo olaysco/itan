@@ -12,7 +12,8 @@ like the same designer's work.
 
 ## The arc of a narrated piece
 
-`storyboard` (the script: intent, say, visual, duration) → `voice_scenes`
+`style_kit` (decide the design once) → `storyboard` (the script: intent,
+say, visual, duration) → `voice_scenes`
 (synthesizes each `say` and retimes every scene to the real read — a line you
 guessed at 4s may take 6.2s) → per scene `find_media` and/or `compose` →
 `assemble` (joins the scenes and lays the narration back on at the offsets
@@ -32,10 +33,18 @@ narration line, and LOOK at the result with `view_frames` before building
 on it — tags lie. Stock is a ground to compose *over*, not the whole scene:
 put type, product UI, and the brand on top of it.
 
-## First: write the style brief
+## First: write the style brief — then make it executable
 
-Before composing scene 1, decide — and state in one short paragraph of your
-reply — this project's style brief. Then hold it for every scene.
+Before composing scene 1, decide this project's style brief, then record it
+with `style_kit`: the prose decision in `brief`, and the same decision as CSS
+in `css` — ground, type scale, panels, captions, the classes every scene will
+use. That CSS is injected into every compose automatically, ahead of the
+scene's own styles, so scenes inherit the design and can still override any
+rule.
+
+Do this once. A brief you only state in a reply lasts as long as your
+context; scene 4 then looks nothing like scene 1, and nothing in the system
+notices. A brief in the kit is in every scene by construction.
 
 - **Type pairing**: a display face + a support face. 'Bricolage Grotesque'
   (variable 200–800) and 'IBM Plex Mono' are embedded and always safe;
@@ -144,8 +153,9 @@ once per scene.
 
 ## Checklist before rendering
 
-1. Style brief stated and followed — would this video look different from
-   the last project's?
+1. Style kit set before scene 1, and scenes using its classes rather than
+   restyling from scratch — would this video look different from the last
+   project's, and do its own scenes look like each other?
 2. Every scene composed at the delivery size, type sized for that canvas?
 3. The project's own logo/screenshots actually used where they belong?
 4. Does the frame have depth — ground, content, atmosphere — or is it flat?

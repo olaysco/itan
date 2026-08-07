@@ -28,6 +28,8 @@ type Project struct {
 	// It renders into the ledger, so the plan survives compaction and every
 	// turn sees which scenes are still unrendered.
 	Scenes []Scene `json:"scenes,omitempty"`
+	// Style is injected into every compose so scenes share one design.
+	Style Style `json:"style,omitempty"`
 
 	mu  sync.Mutex
 	seq int // in-memory output counter; survives parallel tools without collisions
@@ -47,6 +49,14 @@ type Scene struct {
 	Duration float64 `json:"duration"`
 	Output   string  `json:"output,omitempty"` // render path once composed
 	Voice    string  `json:"voice,omitempty"`  // synthesized narration for Say
+}
+
+// Style is the project's visual identity, held once and applied to every
+// composition. Brief is the prose decision — palette, type, easing,
+// layout — and CSS is that decision made executable.
+type Style struct {
+	Brief string `json:"brief,omitempty"`
+	CSS   string `json:"css,omitempty"`
 }
 
 type Asset struct {
@@ -296,7 +306,7 @@ func (p *Project) Undo() (*EditOp, error) {
 func (p *Project) Ledger(ctx context.Context) string {
 	var b strings.Builder
 	b.WriteString("## Project state\n")
-	if len(p.Assets) == 0 && len(p.Scenes) == 0 && len(p.Ops) == 0 {
+	if len(p.Assets) == 0 && len(p.Scenes) == 0 && len(p.Ops) == 0 && p.Style.Brief == "" && p.Style.CSS == "" {
 		b.WriteString("No source video loaded yet. Compose scenes from scratch, or ask the user for footage.\n")
 		return b.String()
 	}
@@ -304,6 +314,15 @@ func (p *Project) Ledger(ctx context.Context) string {
 		b.WriteString("Sources:\n")
 		for _, a := range p.Assets {
 			fmt.Fprintf(&b, "  %s: %s (%s)\n", a.ID, filepath.Base(a.Path), a.Info.Compact())
+		}
+	}
+	if p.Style.Brief != "" || p.Style.CSS != "" {
+		// The brief itself, so every turn designs to the same decision; the
+		// CSS by size only, since it is already inside every composition.
+		fmt.Fprintf(&b, "Style: %s\n", strings.TrimSpace(p.Style.Brief))
+		if strings.TrimSpace(p.Style.CSS) != "" {
+			n := strings.Count(strings.TrimSpace(p.Style.CSS), "\n") + 1
+			fmt.Fprintf(&b, "  (%d lines of shared CSS are injected into every compose — use its classes)\n", n)
 		}
 	}
 	if len(p.Scenes) > 0 {

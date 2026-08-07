@@ -165,6 +165,9 @@ func NewRegistry() *Registry {
 	for _, t := range stockTools() {
 		r.add(t)
 	}
+	for _, t := range styleTools() {
+		r.add(t)
+	}
 	for _, t := range miscTools() {
 		r.add(t)
 	}
