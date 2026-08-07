@@ -288,6 +288,14 @@ func cmdDoctor(dir string) error {
 		}
 		check("model", ok, detail)
 	}
+	if cfg.Model.Vision == "" {
+		if config.CanSee(cfg.Model.Provider, cfg.Model.ID) {
+			check("vision", true, "the model can see frames — the agent can check its own work")
+		} else {
+			check("vision", false, cfg.Model.ID+" cannot accept images, so the agent renders without ever looking. "+
+				"Open the model picker and turn on Vision, or `itan config set model.vision <provider/model>`")
+		}
+	}
 	if cfg.Model.Vision != "" {
 		if _, vm, verr := provider.VisionFromConfig(cfg); verr != nil {
 			check("vision model", false, verr.Error())

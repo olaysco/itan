@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -31,6 +32,7 @@ import (
 	"github.com/olaysco/itan/internal/config"
 	"github.com/olaysco/itan/internal/media"
 	"github.com/olaysco/itan/internal/permission"
+	"github.com/olaysco/itan/internal/provider"
 	"github.com/olaysco/itan/internal/skills"
 	"github.com/olaysco/itan/internal/tools"
 	"github.com/olaysco/itan/internal/voice"
@@ -211,20 +213,38 @@ type skillView struct {
 	Active bool   `json:"active"`
 }
 
+// modelView is one offerable model, not one provider. The picker asks two
+// questions of every row — can it see, and is it reachable — so both travel
+// with it.
 type modelView struct {
-	Spec   string `json:"spec"`
+	Spec   string `json:"spec"` // provider/id, what /api/model accepts
+	Prov   string `json:"prov"` // provider alone
 	Name   string `json:"name"`
+	ID     string `json:"id"`
+	Ctx    string `json:"ctx,omitempty"`
 	Via    string `json:"via"`
 	Local  bool   `json:"local"`
-	Active bool   `json:"active"`
+	Vision bool   `json:"vision"`
+	Active bool   `json:"active"` // the reasoning model
+	Eyes   bool   `json:"eyes"`   // the vision model, when one is set
 	// Ready reports whether this provider has a key (or needs none), and
 	// KeyEnv names the variable to set when it does not. Picking a provider
 	// with no key used to fail only on the next message.
 	Ready  bool   `json:"ready"`
 	KeyEnv string `json:"key_env,omitempty"`
-	// ModelID is what is actually in use for the active provider, so the
-	// picker can show and edit it rather than only the preset default.
-	ModelID string `json:"model_id,omitempty"`
+}
+
+// visionView answers the question the UI actually needs: can this setup see,
+// and if so, with what.
+type visionView struct {
+	// Model is the separate vision route, empty when frames go to the
+	// reasoning model itself.
+	Model string `json:"model,omitempty"`
+	Name  string `json:"name,omitempty"`
+	Via   string `json:"via,omitempty"`
+	// CanSee is the honest answer for the session as a whole.
+	CanSee bool   `json:"can_see"`
+	Err    string `json:"err,omitempty"`
 }
 
 // sceneView is the storyboard as the UI should show it: what the viewer will
@@ -256,6 +276,7 @@ type stateView struct {
 	Skills      []skillView      `json:"skills"`
 	Scenes      []sceneView      `json:"scenes"`
 	Models      []modelView      `json:"models"`
+	Vision      visionView       `json:"vision"`
 	TokensIn    int              `json:"tokens_in"`
 	TokensOut   int              `json:"tokens_out"`
 	Cost        string           `json:"cost,omitempty"` // "≈$0.31" when the model's rates are known
@@ -351,21 +372,63 @@ func (s *Server) state() stateView {
 	for _, sk := range skills.Load(cfg, p.Dir).All() {
 		v.Skills = append(v.Skills, skillView{Name: sk.Name, Desc: sk.Description, Source: sk.Source, Active: active[sk.Name]})
 	}
+	visionSpec := cfg.Model.Vision
+	visionProv, visionID, _ := strings.Cut(visionSpec, "/")
 	for _, name := range config.PresetNames() {
 		preset := config.Presets[name]
-		active := cfg.Model.Provider == name
-		id := preset.DefaultModel
-		if active {
-			id = cfg.Model.ID
+		ready := preset.KeyEnv == "" || os.Getenv(preset.KeyEnv) != ""
+		// OpenRouter's catalogue is fetched live; listing a stale shortlist
+		// here would fight it.
+		models := preset.Models
+		if len(models) == 0 && name != "openrouter" {
+			models = []config.PresetModel{{ID: preset.DefaultModel, Name: preset.DefaultModel}}
 		}
+		for _, m := range models {
+			label := m.Name
+			if label == "" {
+				label = m.ID
+			}
+			v.Models = append(v.Models, modelView{
+				Spec: name + "/" + m.ID, Prov: name, Name: label, ID: m.ID, Ctx: m.Ctx,
+				Via:    preset.Note,
+				Local:  preset.KeyEnv == "",
+				Vision: m.Vision,
+				Active: cfg.Model.Provider == name && cfg.Model.ID == m.ID,
+				Eyes:   visionProv == name && (visionID == m.ID || visionID == ""),
+				Ready:  ready, KeyEnv: preset.KeyEnv,
+			})
+		}
+	}
+	// A model in use but not on any shortlist still has to appear, or the
+	// picker would show nothing selected.
+	if !slices.ContainsFunc(v.Models, func(m modelView) bool { return m.Active }) {
+		preset := config.Presets[cfg.Model.Provider]
 		v.Models = append(v.Models, modelView{
-			Spec: name, Name: id, Via: preset.Note,
-			Local:   preset.KeyEnv == "",
-			Active:  active,
-			Ready:   preset.KeyEnv == "" || os.Getenv(preset.KeyEnv) != "",
-			KeyEnv:  preset.KeyEnv,
-			ModelID: id,
+			Spec: cfg.Model.Provider + "/" + cfg.Model.ID, Prov: cfg.Model.Provider,
+			Name: cfg.Model.ID, ID: cfg.Model.ID, Via: preset.Note,
+			Local:  preset.KeyEnv == "",
+			Vision: config.CanSee(cfg.Model.Provider, cfg.Model.ID),
+			Active: true,
+			Ready:  preset.KeyEnv == "" || os.Getenv(preset.KeyEnv) != "",
+			KeyEnv: preset.KeyEnv,
 		})
+	}
+
+	v.Vision = visionView{Model: visionSpec}
+	if visionSpec == "" {
+		// No separate route: frames go to the reasoning model, so the answer
+		// is whatever that model can do.
+		v.Vision.CanSee = config.CanSee(cfg.Model.Provider, cfg.Model.ID)
+	} else {
+		v.Vision.CanSee = true
+		v.Vision.Name = visionID
+		if v.Vision.Name == "" {
+			v.Vision.Name = config.Presets[visionProv].DefaultModel
+		}
+		v.Vision.Via = visionProv
+		if _, _, err := provider.VisionFromConfig(cfg); err != nil {
+			v.Vision.CanSee, v.Vision.Err = false, err.Error()
+		}
 	}
 	return v
 }
@@ -1036,11 +1099,45 @@ func (s *Server) handleRevert(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, s.state())
 }
 
+// handleModel sets either role. "text" is the reasoning model; "vision" is
+// the separate route frames take when the reasoning model cannot see them —
+// the setting that used to exist only as a config key typed into a terminal.
 func (s *Server) handleModel(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Spec string `json:"spec"`
+		Role string `json:"role"` // "text" (default) or "vision"
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Spec == "" {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpErr(w, 400, "bad request")
+		return
+	}
+
+	if req.Role == "vision" {
+		// An empty spec turns the separate route off: frames go back to the
+		// reasoning model.
+		if req.Spec != "" {
+			if _, _, _, _, err := s.Session.Cfg.ResolveSpec(req.Spec); err != nil {
+				httpErr(w, 400, err.Error())
+				return
+			}
+		}
+		s.Session.Cfg.Model.Vision = req.Spec
+		if err := config.SaveGlobal(s.Session.Cfg); err != nil {
+			httpErr(w, 500, err.Error())
+			return
+		}
+		// The rebuild can fail for reasons that have nothing to do with the
+		// route just chosen — most often the reasoning model has no key yet.
+		// That is a pre-existing problem the state already reports; refusing
+		// the change would leave the user unable to set up vision at all
+		// until they fixed something unrelated.
+		_ = s.Session.RebuildAgent()
+		s.attachAsker()
+		writeJSON(w, s.state())
+		return
+	}
+
+	if req.Spec == "" {
 		httpErr(w, 400, "spec required")
 		return
 	}

@@ -358,30 +358,59 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 .mrow .nm{font-size:12px;color:var(--t1);font-family:'IBM Plex Mono',ui-monospace,monospace}
 .mrow .via{font-size:9.5px;color:var(--t3);margin-top:2px;font-family:'IBM Plex Mono',ui-monospace,monospace}
 .badgeL{font-size:9px;color:var(--ok);background:var(--fill2);border-radius:4px;padding:1px 6px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#modelPillExtra{font-size:9.5px}
+#modelPillExtra.plus{color:var(--accent)}
+#modelPillExtra.blind{color:var(--warn,#b7791f)}
+#modelPill.blind .dot{background:var(--warn,#b7791f)!important}
 #modelFoot{padding:9px 14px;border-top:1px solid var(--border1);font-size:11px;color:var(--t3);line-height:1.5}
-#modelDlg{width:352px}
-#mdlTabs{display:flex;gap:2px;padding:8px 12px 0;border-top:1px solid var(--border1)}
-#mdlTabs span{cursor:pointer;font-size:10px;letter-spacing:.06em;color:var(--t3);padding:5px 10px;border-radius:6px}
-#mdlTabs span:hover{background:var(--fill2);color:var(--t2)}
-#mdlTabs span.on{background:var(--fill);color:var(--t1)}
-.mrow.dim{opacity:.55}
-.mrow .need{font-size:9px;color:var(--warn,#b7791f);margin-top:2px;font-family:'IBM Plex Mono',ui-monospace,monospace}
-#mdlIdRow{display:flex;gap:6px;align-items:center;padding:9px 14px;border-top:1px solid var(--border1)}
+#modelDlg{width:432px;display:flex;flex-direction:column;max-height:min(560px,calc(100vh - 90px))}
+#mdlRoles{padding:12px 12px 8px;display:flex;flex-direction:column;gap:6px}
+.mrole{display:flex;align-items:center;gap:11px;border-radius:10px;padding:9px 11px;background:transparent}
+.mrole.on{background:var(--fill)}
+.mrole.pick{cursor:pointer}
+.mrole.pick:hover{background:var(--fill2)}
+.mrole .ic{width:22px;height:22px;border-radius:6px;background:var(--fill2);color:var(--t2);font-size:11px;display:flex;align-items:center;justify-content:center;flex:none}
+.mrole .tx{flex:1;min-width:0}
+.mrole .k{font-size:11px;color:var(--t3)}
+.mrole .v{font-size:12.5px;color:var(--t1);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrole .v.dim{color:var(--t3)}
+.mrole .via{font-size:9.5px;color:var(--t3);flex:none}
+.mrole .mark{font-size:11px;color:var(--accent);flex:none;width:10px}
+.mrole .reset{cursor:pointer;font-size:9.5px;color:var(--t3);flex:none}
+.mrole .reset:hover{color:var(--t1)}
+.sw{cursor:pointer;width:34px;height:20px;border-radius:999px;background:var(--fill2);position:relative;flex:none}
+.sw.on{background:var(--accent)}
+.sw i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .18s cubic-bezier(.25,.1,.25,1)}
+.sw.on i{left:16px}
+#visionHelp{padding:0 12px;font-size:10px;color:var(--t3);line-height:1.5}
+#mdlBar{display:flex;align-items:center;gap:8px;padding:8px 12px 10px;border-top:1px solid var(--border1)}
+#mdlTabs{display:flex;background:var(--fill);border-radius:8px;padding:2px;flex:none}
+#mdlTabs span{cursor:pointer;font-size:12px;padding:4px 12px;border-radius:6px;color:var(--t3)}
+#mdlTabs span.on{color:#fff;background:var(--accent)}
+#mdlSearchWrap{flex:1;min-width:0;display:flex;align-items:center;gap:7px;background:var(--fill);border-radius:8px;padding:6px 11px}
+#mdlSearchWrap .g{font-size:11px;color:var(--t3);flex:none}
+#mdlSearch{flex:1;min-width:0;border:none;background:transparent;outline:none;font-size:12px;color:var(--t1);font-family:inherit}
+#modelList{flex:1;min-height:0;overflow-y:auto;padding:0 8px 8px}
+.mrow{cursor:pointer;display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border-top:none}
+.mrow:hover{background:var(--fill)}
+.mrow.on{background:var(--accent-tint)}
+.mrow.blocked{opacity:.38;cursor:not-allowed}
+.mrow.blocked:hover{background:transparent}
+.mrow .dot{width:6px;height:6px;border-radius:50%;flex:none}
+.mrow .l{flex:1;min-width:0}
+.mrow .nm{font-size:12.5px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow .sub{font-size:9.5px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.mrow .tag{font-size:8.5px;color:var(--ok);background:var(--fill2);border-radius:4px;padding:1.5px 6px;flex:none;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.mrow .need{font-size:8.5px;color:var(--warn,#b7791f);background:var(--fill2);border-radius:4px;padding:1.5px 6px;flex:none;cursor:help;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.mrow .pr{font-size:9.5px;color:var(--t3);flex:none;text-align:right;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.mrow .ck{font-size:11px;color:var(--accent);flex:none;width:10px}
+#mdlIdRow{display:flex;gap:6px;align-items:center;padding:9px 12px;border-top:1px solid var(--border1);background:var(--bg);flex:none}
 #mdlId{flex:1;min-width:0;font-size:11px;font-family:'IBM Plex Mono',ui-monospace,monospace;color:var(--t1);background:var(--fill);border:1px solid var(--border1);border-radius:7px;padding:6px 9px;outline:none}
 #mdlId:focus{border-color:var(--accent)}
 #mdlApply{cursor:pointer;font-size:10px;color:var(--t2);background:var(--fill);border-radius:7px;padding:6px 10px;flex:none;font-family:'IBM Plex Mono',ui-monospace,monospace}
 #mdlApply:hover{background:var(--fill2);color:var(--t1)}
-#orSearch{width:calc(100% - 28px);margin:9px 14px;font-size:11.5px;color:var(--t1);background:var(--fill);border:1px solid var(--border1);border-radius:8px;padding:7px 10px;outline:none}
-#orSearch:focus{border-color:var(--accent)}
-#orList{max-height:44vh;overflow-y:auto}
-#orNote{padding:0 14px 9px;font-size:10px;color:var(--t3);line-height:1.5;font-family:'IBM Plex Mono',ui-monospace,monospace}
-.orRow{cursor:pointer;display:flex;align-items:center;gap:9px;padding:8px 14px;border-top:1px solid var(--border1)}
-.orRow:hover{background:var(--fill2)}
-.orRow .l{flex:1;min-width:0}
-.orRow .n{font-size:11.5px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.orRow .i{font-size:9px;color:var(--t3);font-family:'IBM Plex Mono',ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.orRow .p{font-size:9px;color:var(--t3);font-family:'IBM Plex Mono',ui-monospace,monospace;flex:none}
-.orRow .v{font-size:8.5px;color:var(--ok);background:var(--fill2);border-radius:4px;padding:1px 5px;flex:none;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#modelFoot{flex:none}
+#mdlNote{margin:6px 2px 2px;background:var(--fill);border-radius:10px;padding:11px 12px;font-size:11.5px;color:var(--t2);line-height:1.5}
 #skillsDlg{top:50%;left:50%;transform:translate(-50%,-50%);width:640px}
 #skillsDlg .top{padding:13px 18px;display:flex;align-items:baseline;gap:10px;border-bottom:1px solid var(--border1)}
 #skillsDlg .top h2{font-size:16px;font-weight:600;margin:0}
@@ -446,7 +475,7 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
     <div class="hpill" id="assetsBtn">▤ assets</div>
     <div id="gear">⚙</div>
     <div class="vsep"></div>
-    <div id="modelPill" class="mono"><span class="dot"></span><span id="modelName">…</span><span style="color:var(--t3)">▾</span></div>
+    <div id="modelPill" class="mono"><span class="dot"></span><span id="modelName">…</span><span id="modelPillExtra" class="mono"></span><span style="color:var(--t3)">▾</span></div>
     <div id="modePill" class="mono">ask ▾</div>
     <div id="repliesPill"><span class="wave hidden" id="hdrWave"><i></i><i></i><i></i></span><span id="repliesLabel">replies on</span></div>
     <div class="vsep"></div>
@@ -585,19 +614,31 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
   <div id="modelWrap" class="hidden">
     <div class="scrimClear" data-close></div>
     <div class="dlg" id="modelDlg">
-      <div class="dlgHd">SWAP THE BRAIN, MID-SESSION</div>
-      <div id="mdlTabs" class="mono"><span data-t="direct" class="on">direct</span><span data-t="or">via openrouter</span></div>
-      <div id="mdlDirect">
-        <div id="modelList"></div>
-        <div id="mdlIdRow">
-          <input id="mdlId" placeholder="model id" spellcheck="false">
-          <span id="mdlApply">apply</span>
+      <div id="mdlRoles">
+        <div class="mrole" id="roleText">
+          <span class="ic">✳</span>
+          <div class="tx"><div class="k">Reasoning</div><div class="v mono" id="roleTextVal"></div></div>
+          <span class="via mono" id="roleTextVia"></span>
+          <span class="mark mono" id="roleTextMark"></span>
         </div>
+        <div class="mrole" id="roleVision">
+          <span class="ic">◉</span>
+          <div class="tx"><div class="k">Vision</div><div class="v mono" id="roleVisionVal"></div></div>
+          <span class="via mono" id="roleVisionVia"></span>
+          <span class="mark mono" id="roleVisionMark"></span>
+          <span class="reset mono hidden" id="visionReset">reset</span>
+          <div class="sw" id="visionSw"><i></i></div>
+        </div>
+        <div id="visionHelp" class="mono"></div>
       </div>
-      <div id="mdlOR" class="hidden">
-        <input id="orSearch" placeholder="search OpenRouter models…" spellcheck="false">
-        <div id="orNote"></div>
-        <div id="orList"></div>
+      <div id="mdlBar">
+        <div id="mdlTabs" class="mono"><span data-t="direct" class="on">Direct</span><span data-t="or">OpenRouter</span></div>
+        <div id="mdlSearchWrap"><span class="g">⌕</span><input id="mdlSearch" placeholder="Search models…" spellcheck="false"></div>
+      </div>
+      <div id="modelList"></div>
+      <div id="mdlIdRow">
+        <input id="mdlId" placeholder="model id" spellcheck="false">
+        <span id="mdlApply">apply</span>
       </div>
       <div id="modelFoot"></div>
     </div>
@@ -737,6 +778,13 @@ function render(){
   const has=st.assets.length>0||st.ops.length>0;
   $('#modelName').textContent=st.model.split('/')[1]||st.model;
   $('#projChip').innerHTML='<span style="color:var(--t4)">project</span> '+esc(st.project||'?')+' <span style="color:var(--t4)">▾</span>';
+  const vs=st.vision||{};
+  $('#modelPill').classList.toggle('blind',!vs.can_see);
+  const pillExtra=$('#modelPillExtra');
+  if(pillExtra){
+    pillExtra.textContent=vs.model?'+vision':(vs.can_see?'':'· cannot see');
+    pillExtra.className='mono '+(vs.model?'plus':'blind');
+  }
   $('#projChip').title=st.project_dir||'';
   $('#ffdot').classList.toggle('bad',!st.ffmpeg);
   $('#fileChip').classList.toggle('hidden',!has);
@@ -1563,105 +1611,173 @@ wireOverlay('#gear','#setWrap',()=>{
   $('#setStt').textContent=S.state?.stt||'whisper';
   $('#setTts').textContent='▶ '+(S.state?.tts||'kokoro');
 });
-let mdlTab='direct',orCache=null,orLoading=false;
+/* ── model picker ────────────────────────────────────────────────────────
+   Two roles, one list. Reasoning is the model that thinks; Vision is the
+   route frames take when the reasoning model cannot see them — which used
+   to be a config key you could only reach from a terminal, and which is the
+   difference between an agent that looks at its own work and one that
+   writes motion graphics blind. */
+let mdlTab='direct', mdlRole='text', orCache=null, orLoading=false;
+const VISION_DEFAULT='anthropic/claude-haiku-4-5';
 
-async function applySpec(spec){
+async function applySpec(spec, role){
   try{
-    S.state=await api('/api/model',{spec});
-    closeOverlays();render();
-    toast('now '+S.state.model);
+    S.state=await api('/api/model',{spec, role: role||'text'});
+    render();
+    if(role==='vision')  toast(spec?('frames now go to '+spec):'frames go to the reasoning model again');
+    else                 toast('now '+S.state.model);
+    renderModels();
   }catch(e){toast('✕ '+e.message)}
 }
 
 function renderModels(){
-  const st=S.state,list=$('#modelList');list.innerHTML='';
-  st.models.forEach(m=>{
-    const d=document.createElement('div');d.className='mrow'+(m.ready?'':' dim');
-    d.innerHTML=`<span class="dot" style="background:${m.active?'var(--accent)':(m.ready?(m.local?'var(--ok)':'var(--t3)'):'var(--err,#c2410c)')}"></span>
-      <div style="flex:1;min-width:0"><div class="nm">${esc(m.name)}</div><div class="via">${esc(m.via)}</div>
-      ${m.ready?'':`<div class="need">needs ${esc(m.key_env)} — set it, then reopen</div>`}</div>
-      ${m.local?'<span class="badgeL">local</span>':''}${m.active?'<span class="mono" style="font-size:11px;color:var(--accent)">✓</span>':''}`;
-    d.onclick=()=>{
-      // Fill the id field too, so switching provider and then refining the
-      // exact model is one continuous move rather than two dialogs.
-      $('#mdlId').value=m.model_id||m.name;
-      applySpec(m.spec);
-    };
-    list.appendChild(d);
-  });
-  const active=st.models.find(m=>m.active);
-  $('#mdlId').value=active?(active.model_id||active.name):(st.model||'').split('/').slice(1).join('/');
-  $('#mdlId').placeholder=active?`model id on ${active.spec}`:'model id';
+  const st=S.state; if(!st) return;
+  const vis=st.vision||{};
+  const on=!!vis.model;
+
+  // ── role rows ──
+  const active=(st.models||[]).find(m=>m.active);
+  $('#roleTextVal').textContent=active?active.name:(st.model||'').split('/').slice(1).join('/');
+  $('#roleTextVia').textContent=active?active.prov:'';
+  $('#roleTextMark').textContent=mdlRole==='text'?'●':'';
+  $('#roleText').classList.toggle('on',mdlRole==='text');
+  $('#roleText').classList.add('pick');
+
+  const vv=$('#roleVisionVal');
+  vv.textContent=on?(vis.name||vis.model):'same as reasoning';
+  vv.classList.toggle('dim',!on);
+  $('#roleVisionVia').textContent=on?(vis.via||''):'';
+  $('#roleVisionMark').textContent=(mdlRole==='vision'&&on)?'●':'';
+  $('#roleVision').classList.toggle('on',mdlRole==='vision'&&on);
+  $('#roleVision').classList.toggle('pick',on);
+  $('#visionSw').classList.toggle('on',on);
+  $('#visionReset').classList.toggle('hidden',!on);
+
+  // The one sentence that answers "can this setup see?"
+  const help=$('#visionHelp');
+  if(vis.err)            help.textContent='✕ '+vis.err;
+  else if(on)            help.textContent='frames go to a second model; everything else stays on the reasoning model';
+  else if(vis.can_see)   help.textContent='the reasoning model can see frames — nothing to set';
+  else                   help.textContent='⚠ this model cannot see frames. Turn on Vision so the agent can check its own work.';
+  help.style.color=(!on&&!vis.can_see)||vis.err?'var(--warn,#b7791f)':'var(--t3)';
+
+  $('#mdlId').value=active?active.id:'';
+  $('#mdlId').placeholder=mdlRole==='vision'?'vision model id':'model id';
   const tok=((st.tokens_in+st.tokens_out)/1000).toFixed(1);
   $('#modelFoot').innerHTML=`Context survives the switch: <span class="mono" style="font-size:10px;color:var(--t2)">${tok}k tok</span> carried over.`;
-  // Open on the tab that matches where you actually are, so the dialog never
-  // shows a view that has nothing to do with the running model.
-  setModelTab(active&&active.spec==='openrouter'?'or':'direct');
+
+  setModelTab(mdlTab, true);
 }
 
-function setModelTab(t){
+function setModelTab(t, keep){
   mdlTab=t;
   $$('#mdlTabs span').forEach(el=>el.classList.toggle('on',el.dataset.t===t));
-  $('#mdlDirect').classList.toggle('hidden',t!=='direct');
-  $('#mdlOR').classList.toggle('hidden',t!=='or');
-  if(t==='or')loadOpenRouter();
+  if(!keep)$('#mdlSearch').value='';
+  if(t==='or')loadOpenRouter(); else drawList();
 }
 $$('#mdlTabs span').forEach(el=>el.onclick=()=>setModelTab(el.dataset.t));
+$('#mdlSearch').addEventListener('input',()=>mdlTab==='or'?drawList():drawList());
 
-// Applying a bare id keeps the current provider; "provider/id" switches both.
+$('#roleText').onclick=()=>{mdlRole='text';renderModels()};
+$('#roleVision').onclick=e=>{
+  if(e.target.closest('#visionSw')||e.target.closest('#visionReset'))return;
+  if(S.state?.vision?.model){mdlRole='vision';renderModels()}
+};
+$('#visionSw').onclick=()=>{
+  const on=!!S.state?.vision?.model;
+  if(on){mdlRole='text';applySpec('','vision')}
+  else{mdlRole='vision';applySpec(pickVisionDefault(),'vision')}
+};
+$('#visionReset').onclick=()=>{mdlRole='text';applySpec('','vision')};
+
+/* Default to a vision model whose key is already present, so turning the
+   switch on does not immediately fail. */
+function pickVisionDefault(){
+  const ms=S.state?.models||[];
+  const ready=ms.filter(m=>m.vision&&m.ready);
+  const local=ready.find(m=>m.local);
+  if(local)return local.spec;
+  if(ready.length)return ready[0].spec;
+  return VISION_DEFAULT;
+}
+
+function drawList(){
+  const st=S.state; if(!st) return;
+  const q=$('#mdlSearch').value.trim().toLowerCase();
+  const pickingVision=mdlRole==='vision'&&!!st.vision?.model;
+  const list=$('#modelList');list.innerHTML='';
+
+  let rows;
+  if(mdlTab==='or'){
+    if(!orCache){list.innerHTML='<div id="mdlNote">loading the catalogue…</div>';return}
+    rows=orCache.filter(m=>!q||m.id.toLowerCase().includes(q)||m.name.toLowerCase().includes(q))
+      .map(m=>({name:m.name,id:m.id,ctx:m.context?Math.round(m.context/1000)+'k':'',
+                spec:'openrouter/'+m.id,vision:m.vision,price:m.price,
+                ready:(st.models||[]).some(x=>x.prov==='openrouter'&&x.ready),
+                active:st.model==='openrouter/'+m.id, eyes:st.vision?.model==='openrouter/'+m.id}));
+  }else{
+    rows=(st.models||[]).filter(m=>m.prov!=='openrouter')
+      .filter(m=>!q||m.id.toLowerCase().includes(q)||m.name.toLowerCase().includes(q));
+  }
+
+  const CAP=140, shown=rows.slice(0,CAP);
+  if(!shown.length){list.innerHTML='<div id="mdlNote">nothing matches — try a shorter term, or type an id below</div>';return}
+
+  shown.forEach(m=>{
+    const blocked=pickingVision&&!m.vision;
+    const sel=pickingVision?m.eyes:m.active;
+    const d=document.createElement('div');
+    d.className='mrow'+(sel?' on':'')+(blocked?' blocked':'');
+    d.innerHTML=`<span class="dot" style="background:${sel?'var(--accent)':(m.local?'var(--ok)':'var(--t3)')}"></span>
+      <div class="l"><div class="nm">${esc(m.name)}</div>
+        <div class="sub">${esc(m.id)}${m.ctx?' · '+esc(m.ctx):''}</div></div>
+      ${m.vision?'<span class="tag">vision</span>':''}
+      ${m.local?'<span class="tag">local</span>':''}
+      ${m.ready===false?'<span class="need" title="set '+esc(m.key_env||'the API key')+'">no key</span>':''}
+      ${m.price?'<span class="pr">'+esc(m.price)+'</span>':''}
+      <span class="ck">${sel?'✓':''}</span>`;
+    if(!blocked)d.onclick=()=>applySpec(m.spec,pickingVision?'vision':'text');
+    list.appendChild(d);
+  });
+  if(rows.length>CAP){
+    const more=document.createElement('div');more.id='mdlNote';
+    more.textContent=`showing ${CAP} of ${rows.length} — search to narrow`;
+    list.appendChild(more);
+  }
+  if(pickingVision){
+    const n=rows.filter(m=>m.vision).length;
+    const note=document.createElement('div');note.id='mdlNote';
+    note.textContent=`${n} of ${rows.length} here can see — the rest are text-only`;
+    list.appendChild(note);
+  }
+}
+
+/* Applying a bare id keeps the current provider; "provider/id" switches both. */
 $('#mdlApply').onclick=()=>{
   const v=$('#mdlId').value.trim();
   if(!v){toast('type a model id first');return}
   const active=(S.state.models||[]).find(m=>m.active);
-  applySpec(v.includes('/')&&!v.startsWith(active?.spec+'/')?v:(active?active.spec+'/'+v.replace(active.spec+'/',''):v));
+  const spec=v.includes('/')?v:((active?active.prov:'anthropic')+'/'+v);
+  applySpec(spec, mdlRole==='vision'&&S.state.vision?.model?'vision':'text');
 };
 $('#mdlId').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#mdlApply').onclick()}});
 
 async function loadOpenRouter(){
-  const note=$('#orNote');
-  const or=(S.state.models||[]).find(m=>m.spec==='openrouter');
-  if(or&&!or.ready)note.textContent='OpenRouter needs '+or.key_env+' — set it before switching.';
-  else note.textContent='';
-  if(orCache){drawOpenRouter();return}
+  if(orCache){drawList();return}
   if(orLoading)return;
   orLoading=true;
-  $('#orList').innerHTML='<div class="orRow"><div class="l"><div class="i">loading the catalogue…</div></div></div>';
+  $('#modelList').innerHTML='<div id="mdlNote">loading the catalogue…</div>';
   try{
     const r=await fetch('/api/models/openrouter');
     const j=await r.json();
     if(!r.ok)throw new Error(j.error||'could not load');
     orCache=j.models||[];
-    drawOpenRouter();
+    drawList();
   }catch(e){
     // The catalogue is a convenience; typing an id must still work.
-    $('#orList').innerHTML='';
-    note.textContent=e.message+' — switch to the direct tab and type the id under openrouter.';
+    $('#modelList').innerHTML='<div id="mdlNote">'+esc(e.message)+' — type the id below instead.</div>';
   }finally{orLoading=false}
 }
-
-function drawOpenRouter(){
-  const q=$('#orSearch').value.trim().toLowerCase();
-  const matches=(orCache||[]).filter(m=>!q||m.id.toLowerCase().includes(q)||m.name.toLowerCase().includes(q));
-  const CAP=120,rows=matches.slice(0,CAP);
-  const list=$('#orList');list.innerHTML='';
-  if(!rows.length){list.innerHTML='<div class="orRow"><div class="l"><div class="i">nothing matches — try a shorter term</div></div></div>';return}
-  rows.forEach(m=>{
-    const d=document.createElement('div');d.className='orRow';
-    const ctx=m.context?Math.round(m.context/1000)+'k':'';
-    d.innerHTML=`<div class="l"><div class="n">${esc(m.name)}</div><div class="i">${esc(m.id)}${ctx?' · '+ctx:''}</div></div>
-      ${m.vision?'<span class="v">vision</span>':''}<span class="p">${esc(m.price)}</span>`;
-    d.onclick=()=>applySpec('openrouter/'+m.id);
-    list.appendChild(d);
-  });
-  // Never let a truncated list read as the whole catalogue.
-  if(matches.length>CAP){
-    const more=document.createElement('div');more.className='orRow';
-    more.innerHTML=`<div class="l"><div class="i">showing ${CAP} of ${matches.length} — search to narrow</div></div>`;
-    more.style.cursor='default';
-    list.appendChild(more);
-  }
-}
-$('#orSearch').addEventListener('input',drawOpenRouter);
 
 function renderSkills(){
   const g=$('#skillsGrid');g.innerHTML='';

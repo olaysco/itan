@@ -110,16 +110,79 @@ type ProviderPreset struct {
 	KeyEnv       string
 	DefaultModel string
 	Note         string
+	// Models are the ones worth offering in a picker. Any id can still be
+	// typed; this is the shortlist, not a limit.
+	Models []PresetModel
+}
+
+// PresetModel is one offerable model. Vision is the field that matters most:
+// a model that cannot see turns the harness into a system that writes
+// motion graphics without ever looking at them, and until now nothing in
+// the product recorded which models those are.
+type PresetModel struct {
+	ID     string
+	Name   string
+	Vision bool
+	Ctx    string // human-readable context window, e.g. "200k"
+}
+
+// CanSee reports whether a provider/model pair accepts image input. An
+// unknown model on a known provider inherits the provider's default answer,
+// which is the safest guess available before the first request is made.
+func CanSee(provider, id string) bool {
+	preset, ok := Presets[provider]
+	if !ok {
+		return false
+	}
+	for _, m := range preset.Models {
+		if m.ID == id {
+			return m.Vision
+		}
+	}
+	// Unlisted id: assume the provider's flagship behaviour.
+	for _, m := range preset.Models {
+		if m.ID == preset.DefaultModel {
+			return m.Vision
+		}
+	}
+	return false
 }
 
 var Presets = map[string]ProviderPreset{
-	"anthropic":  {Kind: "anthropic", BaseURL: "https://api.anthropic.com", KeyEnv: "ANTHROPIC_API_KEY", DefaultModel: "claude-opus-4-8", Note: "Anthropic Claude"},
-	"openai":     {Kind: "openai", BaseURL: "https://api.openai.com/v1", KeyEnv: "OPENAI_API_KEY", DefaultModel: "gpt-4.1", Note: "OpenAI"},
-	"kimi":       {Kind: "openai", BaseURL: "https://api.moonshot.ai/v1", KeyEnv: "MOONSHOT_API_KEY", DefaultModel: "kimi-k2.5", Note: "Moonshot Kimi (open weights, vision; kimi-k3 for frontier)"},
-	"deepseek":   {Kind: "openai", BaseURL: "https://api.deepseek.com/v1", KeyEnv: "DEEPSEEK_API_KEY", DefaultModel: "deepseek-v4-pro", Note: "DeepSeek V4 (deepseek-v4-flash is the price floor)"},
-	"zai":        {Kind: "openai", BaseURL: "https://api.z.ai/api/paas/v4", KeyEnv: "ZAI_API_KEY", DefaultModel: "glm-5.2", Note: "Z.ai GLM (open weights, MIT)"},
+	"anthropic": {Kind: "anthropic", BaseURL: "https://api.anthropic.com", KeyEnv: "ANTHROPIC_API_KEY", DefaultModel: "claude-opus-4-8", Note: "Anthropic Claude",
+		Models: []PresetModel{
+			{ID: "claude-opus-4-8", Name: "Claude Opus 4.8", Vision: true, Ctx: "200k"},
+			{ID: "claude-sonnet-4-5", Name: "Claude Sonnet 4.5", Vision: true, Ctx: "200k"},
+			{ID: "claude-haiku-4-5", Name: "Claude Haiku 4.5", Vision: true, Ctx: "200k"},
+		}},
+	"openai": {Kind: "openai", BaseURL: "https://api.openai.com/v1", KeyEnv: "OPENAI_API_KEY", DefaultModel: "gpt-4.1", Note: "OpenAI",
+		Models: []PresetModel{
+			{ID: "gpt-4.1", Name: "GPT-4.1", Vision: true, Ctx: "1M"},
+			{ID: "gpt-4.1-mini", Name: "GPT-4.1 mini", Vision: true, Ctx: "1M"},
+			{ID: "o4-mini", Name: "o4-mini", Vision: true, Ctx: "200k"},
+		}},
+	"kimi": {Kind: "openai", BaseURL: "https://api.moonshot.ai/v1", KeyEnv: "MOONSHOT_API_KEY", DefaultModel: "kimi-k2.5", Note: "Moonshot Kimi (open weights)",
+		Models: []PresetModel{
+			{ID: "kimi-k2.5", Name: "Kimi K2.5", Vision: true, Ctx: "256k"},
+			{ID: "kimi-k3", Name: "Kimi K3", Vision: true, Ctx: "256k"},
+		}},
+	"deepseek": {Kind: "openai", BaseURL: "https://api.deepseek.com/v1", KeyEnv: "DEEPSEEK_API_KEY", DefaultModel: "deepseek-v4-pro", Note: "DeepSeek V4 — text only",
+		Models: []PresetModel{
+			{ID: "deepseek-v4-pro", Name: "DeepSeek V4 Pro", Ctx: "128k"},
+			{ID: "deepseek-v4-flash", Name: "DeepSeek V4 Flash", Ctx: "128k"},
+		}},
+	"zai": {Kind: "openai", BaseURL: "https://api.z.ai/api/paas/v4", KeyEnv: "ZAI_API_KEY", DefaultModel: "glm-5.2", Note: "Z.ai GLM (open weights, MIT)",
+		Models: []PresetModel{
+			{ID: "glm-5.2", Name: "GLM-5.2", Ctx: "128k"},
+			{ID: "glm-5v", Name: "GLM-5V", Vision: true, Ctx: "64k"},
+		}},
 	"openrouter": {Kind: "openai", BaseURL: "https://openrouter.ai/api/v1", KeyEnv: "OPENROUTER_API_KEY", DefaultModel: "anthropic/claude-sonnet-4.5", Note: "OpenRouter (any listed model)"},
-	"ollama":     {Kind: "openai", BaseURL: "http://localhost:11434/v1", KeyEnv: "", DefaultModel: "qwen3-vl:8b", Note: "local Ollama (open-source models)"},
+	"ollama": {Kind: "openai", BaseURL: "http://localhost:11434/v1", KeyEnv: "", DefaultModel: "qwen3-vl:8b", Note: "local Ollama (on this machine)",
+		Models: []PresetModel{
+			{ID: "qwen3-vl:8b", Name: "Qwen3-VL 8B", Vision: true, Ctx: "32k"},
+			{ID: "qwen2.5-vl:7b", Name: "Qwen2.5-VL 7B", Vision: true, Ctx: "32k"},
+			{ID: "llama3.3:70b", Name: "Llama 3.3 70B", Ctx: "128k"},
+		}},
 }
 
 var TTSPresets = map[string]TTS{
