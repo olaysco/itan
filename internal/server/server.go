@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/olaysco/itan/internal/agent"
+	"github.com/olaysco/itan/internal/canvas"
 	"github.com/olaysco/itan/internal/cli"
 	"github.com/olaysco/itan/internal/config"
 	"github.com/olaysco/itan/internal/media"
@@ -125,6 +126,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/step/edit", s.handleStepEdit)
 	mux.HandleFunc("POST /api/step/revert", s.handleStepRevert)
 	mux.HandleFunc("GET /api/assets", s.handleAssets)
+	mux.HandleFunc("GET /api/style", s.handleStyleGet)
+	mux.HandleFunc("POST /api/style", s.handleStyleSet)
 	mux.HandleFunc("GET /api/projects", s.handleProjects)
 	mux.HandleFunc("POST /api/project", s.handleProjectSwitch)
 	mux.HandleFunc("POST /api/undo", s.handleUndo)
@@ -138,6 +141,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/voice/speak", s.handleSpeak)
 	mux.HandleFunc("GET /media", s.handleMedia)
 	mux.HandleFunc("GET /thumb", s.handleThumb)
+	// The interface's own typefaces, from the binary rather than a CDN.
+	mux.Handle("GET /fonts/", http.StripPrefix("/fonts/",
+		cacheForever(http.FileServer(http.FS(canvas.BuiltinFontFS())))))
 	return mux
 }
 
@@ -161,6 +167,15 @@ func (s *Server) Listen(ctx context.Context, addr string) error {
 		defer cancel()
 		return srv.Shutdown(shutCtx)
 	}
+}
+
+// cacheForever marks immutable assets: the font files change only when the
+// binary does.
+func cacheForever(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		h.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -247,6 +262,14 @@ type visionView struct {
 	Err    string `json:"err,omitempty"`
 }
 
+// styleView is the project's design, which the interface had no sign of at
+// all: a kit could be silently shaping every render with nothing on screen
+// to say so, or to undo it.
+type styleView struct {
+	Brief string `json:"brief,omitempty"`
+	Lines int    `json:"lines,omitempty"` // CSS line count; the CSS itself is fetched on demand
+}
+
 // sceneView is the storyboard as the UI should show it: what the viewer will
 // see and hear, not which ffmpeg call produced it.
 type sceneView struct {
@@ -275,6 +298,7 @@ type stateView struct {
 	Checkpoints []checkpointView `json:"checkpoints"`
 	Skills      []skillView      `json:"skills"`
 	Scenes      []sceneView      `json:"scenes"`
+	Style       styleView        `json:"style"`
 	Models      []modelView      `json:"models"`
 	Vision      visionView       `json:"vision"`
 	TokensIn    int              `json:"tokens_in"`
@@ -344,6 +368,12 @@ func (s *Server) state() stateView {
 	}
 	for _, op := range p.Ops {
 		v.Ops = append(v.Ops, opView{Seq: op.Seq, Tool: op.Tool, Summary: op.Summary, URL: mediaURL(op.Output), Args: op.Args})
+	}
+	if p.Style.Brief != "" || p.Style.CSS != "" {
+		v.Style = styleView{Brief: p.Style.Brief}
+		if strings.TrimSpace(p.Style.CSS) != "" {
+			v.Style.Lines = strings.Count(strings.TrimSpace(p.Style.CSS), "\n") + 1
+		}
 	}
 	for _, sc := range p.Scenes {
 		v.Scenes = append(v.Scenes, sceneView{
@@ -885,6 +915,42 @@ func assetKind(path, fallback string) string {
 		return "image"
 	}
 	return fallback
+}
+
+// handleStyleGet returns the full kit for editing; the state carries only a
+// summary so the CSS is not paid for on every poll.
+func (s *Server) handleStyleGet(w http.ResponseWriter, _ *http.Request) {
+	st := s.Session.Project.Style
+	writeJSON(w, map[string]any{"brief": st.Brief, "css": st.CSS})
+}
+
+func (s *Server) handleStyleSet(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Brief string `json:"brief"`
+		CSS   string `json:"css"`
+		Clear bool   `json:"clear"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpErr(w, 400, "bad request")
+		return
+	}
+	p := s.Session.Project
+	if req.Clear {
+		p.Style.Brief, p.Style.CSS = "", ""
+	} else {
+		// A kit that reaches the network fails silently in every scene at
+		// once, so it is refused here exactly as the tool refuses it.
+		if strings.Contains(req.CSS, "@import") || strings.Contains(strings.ToLower(req.CSS), "url(http") {
+			httpErr(w, 400, "the style kit cannot use @import or network URLs — renders are offline. Use url(file:///absolute/path) for a local file")
+			return
+		}
+		p.Style.Brief, p.Style.CSS = req.Brief, req.CSS
+	}
+	if err := p.Save(); err != nil {
+		httpErr(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, s.state())
 }
 
 func (s *Server) handleAssets(w http.ResponseWriter, _ *http.Request) {

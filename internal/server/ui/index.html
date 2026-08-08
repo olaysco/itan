@@ -4,7 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ìtàn</title>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@10..48,300..800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* The same faces the renderer embeds, served from the binary. The interface
+   must not depend on a CDN to look like itself. */
+@font-face{font-family:'Bricolage Grotesque';src:url('/fonts/BricolageGrotesque.ttf') format('truetype');font-weight:200 800;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url('/fonts/IBMPlexMono-Regular.ttf') format('truetype');font-weight:400;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url('/fonts/IBMPlexMono-Bold.ttf') format('truetype');font-weight:700;font-display:swap}
+</style>
 <style>
 :root,[data-theme="light"]{--bg:#F5F5F7;--surface:#FFFFFF;--surface2:#FFFFFF;--fill:#F2F2F5;--fill2:#E8E8ED;--bubble:#E9E9EB;--border1:#E4E4E9;--border2:#D2D2D7;--border3:#B4B4BC;--t1:#1D1D1F;--t2:#48484D;--t3:#86868B;--t4:#AEAEB2;--accent:#0071E3;--accent-hov:#2B8AF0;--accent-deep:#005BB8;--accent-tint:rgba(0,113,227,.08);--accent-border:rgba(0,113,227,.32);--accent-border2:rgba(0,113,227,.5);--grid:rgba(0,0,0,.022);--plan:#C25E00;--plan-hov:#E07000;--plan-dim:#8F5A10;--plan-tint:rgba(255,149,0,.1);--plan-tint2:rgba(255,149,0,.2);--plan-border:rgba(255,149,0,.45);--rec:#FF3B30;--rec-tint:rgba(255,59,48,.07);--rec-border:rgba(255,59,48,.35);--err:#D70015;--err-tint:rgba(215,0,21,.05);--err-border:rgba(215,0,21,.3);--ok:#248A3D;--ok-border:rgba(36,138,61,.35);--stage:#E9E9ED;--ph1:#DFDFE4;--ph2:#D6D6DC;--hud:rgba(255,255,255,.85);--glass:rgba(255,255,255,.72);--dock:rgba(255,255,255,.92);--scrim:rgba(0,0,0,.3);--hf-bg:rgba(245,245,247,.97);--dots:rgba(0,0,0,.04);--shadow:rgba(0,0,0,.16)}
 [data-theme="dark"]{--bg:#000000;--surface:#131316;--surface2:#1A1A1E;--fill:#232328;--fill2:#2C2C32;--bubble:#2E2E34;--border1:#26262C;--border2:#36363E;--border3:#4A4A54;--t1:#F5F5F7;--t2:#B9B9C0;--t3:#8E8E93;--t4:#636368;--accent:#0A84FF;--accent-hov:#409CFF;--accent-deep:#0060DF;--accent-tint:rgba(10,132,255,.12);--accent-border:rgba(10,132,255,.4);--accent-border2:rgba(10,132,255,.55);--grid:rgba(255,255,255,.016);--plan:#FF9F0A;--plan-hov:#FFB340;--plan-dim:#B37A20;--plan-tint:rgba(255,159,10,.1);--plan-tint2:rgba(255,159,10,.18);--plan-border:rgba(255,159,10,.4);--rec:#FF453A;--rec-tint:rgba(255,69,58,.08);--rec-border:rgba(255,69,58,.4);--err:#FF6961;--err-tint:rgba(255,105,97,.08);--err-border:rgba(255,105,97,.35);--ok:#32D74B;--ok-border:rgba(50,215,75,.35);--stage:#0A0A0C;--ph1:#141418;--ph2:#0E0E12;--hud:rgba(24,24,28,.85);--glass:rgba(16,16,18,.75);--dock:rgba(28,28,32,.92);--scrim:rgba(0,0,0,.55);--hf-bg:rgba(8,8,10,.95);--dots:rgba(255,255,255,.03);--shadow:rgba(0,0,0,.6)}
@@ -358,6 +364,9 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 .mrow .nm{font-size:12px;color:var(--t1);font-family:'IBM Plex Mono',ui-monospace,monospace}
 .mrow .via{font-size:9.5px;color:var(--t3);margin-top:2px;font-family:'IBM Plex Mono',ui-monospace,monospace}
 .badgeL{font-size:9px;color:var(--ok);background:var(--fill2);border-radius:4px;padding:1px 6px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#styleBrief,#styleCss{width:100%;box-sizing:border-box;background:var(--fill);border:1px solid var(--border1);border-radius:8px;padding:8px 10px;color:var(--t1);font-size:11.5px;outline:none;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#styleBrief:focus,#styleCss:focus{border-color:var(--accent)}
+#styleCss{height:150px;resize:vertical;line-height:1.5}
 #modelPillExtra{font-size:9.5px}
 #modelPillExtra.plus{color:var(--accent)}
 #modelPillExtra.blind{color:var(--warn,#b7791f)}
@@ -743,6 +752,26 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
         <div class="card"><div class="srow"><span class="nm">Edit permission</span>
           <div class="seg" id="modeSeg"><span data-m="ask">ask</span><span data-m="auto">auto-edit</span><span data-m="plan">plan</span></div>
         </div></div>
+      </div>
+      <div class="sec"><span class="lbl">PROJECT STYLE</span>
+        <div class="card" id="styleCard">
+          <div class="srow" style="align-items:flex-start">
+            <div style="flex:1;min-width:0">
+              <span class="nm">Style kit</span>
+              <div id="styleSum" class="mono" style="font-size:10.5px;color:var(--t3);margin-top:3px;line-height:1.5"></div>
+            </div>
+            <span id="styleEdit" class="seg" style="cursor:pointer;padding:4px 10px;font-size:11px">edit</span>
+          </div>
+          <div id="styleEditor" class="hidden" style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
+            <input id="styleBrief" placeholder="the design in a sentence — palette, type, easing, layout">
+            <textarea id="styleCss" spellcheck="false" placeholder="shared CSS injected into every compose"></textarea>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span id="styleSave" class="seg" style="cursor:pointer;padding:5px 12px;font-size:11px">save</span>
+              <span id="styleClear" class="seg" style="cursor:pointer;padding:5px 12px;font-size:11px">clear</span>
+              <span id="styleMsg" class="mono" style="font-size:10px;color:var(--t3)"></span>
+            </div>
+          </div>
+        </div>
       </div>
       <div style="font-size:10px;color:var(--t4);text-align:center;padding:2px 0 20px" class="mono">ìtàn</div>
     </div>
@@ -1610,7 +1639,41 @@ wireOverlay('#cpBtn,#cpBtn2','#cpWrap',renderCps);
 wireOverlay('#gear','#setWrap',()=>{
   $('#setStt').textContent=S.state?.stt||'whisper';
   $('#setTts').textContent='▶ '+(S.state?.tts||'kokoro');
+  renderStyleCard();
 });
+
+/* The project's design was invisible: a kit could be shaping every render
+   with nothing on screen to say so, or to undo it. */
+function renderStyleCard(){
+  const st=S.state?.style||{};
+  const sum=$('#styleSum');
+  if(st.brief||st.lines)
+    sum.textContent=(st.brief||'(no brief)')+(st.lines?` · ${st.lines} lines of CSS in every compose`:' · no CSS yet');
+  else
+    sum.textContent='not set — every scene designs from scratch';
+  $('#styleEditor').classList.add('hidden');
+  $('#styleMsg').textContent='';
+}
+$('#styleEdit').onclick=async()=>{
+  const ed=$('#styleEditor');
+  if(!ed.classList.contains('hidden')){ed.classList.add('hidden');return}
+  try{
+    const j=await(await fetch('/api/style')).json();
+    $('#styleBrief').value=j.brief||'';
+    $('#styleCss').value=j.css||'';
+  }catch(e){}
+  ed.classList.remove('hidden');
+  $('#styleBrief').focus();
+};
+async function saveStyle(body){
+  const r=await fetch('/api/style',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json();
+  if(!r.ok){$('#styleMsg').textContent='✕ '+(j.error||'failed');$('#styleMsg').style.color='var(--warn,#b7791f)';return}
+  S.state=j;render();renderStyleCard();
+  toast(body.clear?'style kit cleared':'style kit saved — it is in every compose from now on');
+}
+$('#styleSave').onclick=()=>saveStyle({brief:$('#styleBrief').value,css:$('#styleCss').value});
+$('#styleClear').onclick=()=>{if(confirm('Clear the project style kit? Scenes will design from scratch.'))saveStyle({clear:true})};
 /* ── model picker ────────────────────────────────────────────────────────
    Two roles, one list. Reasoning is the model that thinks; Vision is the
    route frames take when the reasoning model cannot see them — which used
