@@ -65,6 +65,11 @@ func NewSession(projectDir string, resume bool) (*Session, error) {
 
 // rebuildAgent recreates the agent after a model/config switch, preserving
 // conversation history so switching models mid-session keeps context.
+// RebuildAgent re-creates the agent from current config, keeping the
+// conversation. Exported because the vision route can change without the
+// reasoning model changing, and that still needs a rebuild.
+func (s *Session) RebuildAgent() error { return s.rebuildAgent() }
+
 func (s *Session) rebuildAgent() error {
 	p, err := provider.FromConfig(s.Cfg)
 	if err != nil {

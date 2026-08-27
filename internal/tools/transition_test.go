@@ -69,3 +69,38 @@ func TestConcatRejectsBadTransition(t *testing.T) {
 		t.Fatal("unknown transition must be rejected")
 	}
 }
+
+// TestConcatKeepsLargestResolution: joining a small clip onto a large one
+// must not throw away the large one's detail. The output canvas is the
+// biggest input, whatever order the clips arrive in — the smaller clip gets
+// letterboxed into it instead of dragging everything down to its size.
+func TestConcatKeepsLargestResolution(t *testing.T) {
+	c := composeCtx(t)
+	r := NewRegistry()
+
+	mk := func(name, color, size string) string {
+		path := c.Project.Dir + "/" + name
+		cmd := exec.Command("ffmpeg", "-y",
+			"-f", "lavfi", "-i", "color=c="+color+":duration=1:size="+size+":rate=10",
+			"-c:v", "libx264", "-pix_fmt", "yuv420p", path)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("clip: %v\n%s", err, out)
+		}
+		return path
+	}
+	small := mk("small.mp4", "red", "320x180")
+	large := mk("large.mp4", "blue", "1280x720")
+
+	// Small clip first is the case that used to decide the canvas.
+	res := r.Execute(c, "concat", []byte(`{"inputs":["`+small+`","`+large+`"]}`))
+	if res.Err != nil {
+		t.Fatalf("concat: %v", res.Err)
+	}
+	info, err := media.Probe(context.Background(), c.Project.Current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Width != 1280 || info.Height != 720 {
+		t.Fatalf("joined at %dx%d — the 1280x720 clip was downscaled to match the small one", info.Width, info.Height)
+	}
+}

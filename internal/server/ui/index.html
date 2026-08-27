@@ -4,7 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ìtàn</title>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@10..48,300..800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* The same faces the renderer embeds, served from the binary. The interface
+   must not depend on a CDN to look like itself. */
+@font-face{font-family:'Bricolage Grotesque';src:url('/fonts/BricolageGrotesque.ttf') format('truetype');font-weight:200 800;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url('/fonts/IBMPlexMono-Regular.ttf') format('truetype');font-weight:400;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url('/fonts/IBMPlexMono-Bold.ttf') format('truetype');font-weight:700;font-display:swap}
+</style>
 <style>
 :root,[data-theme="light"]{--bg:#F5F5F7;--surface:#FFFFFF;--surface2:#FFFFFF;--fill:#F2F2F5;--fill2:#E8E8ED;--bubble:#E9E9EB;--border1:#E4E4E9;--border2:#D2D2D7;--border3:#B4B4BC;--t1:#1D1D1F;--t2:#48484D;--t3:#86868B;--t4:#AEAEB2;--accent:#0071E3;--accent-hov:#2B8AF0;--accent-deep:#005BB8;--accent-tint:rgba(0,113,227,.08);--accent-border:rgba(0,113,227,.32);--accent-border2:rgba(0,113,227,.5);--grid:rgba(0,0,0,.022);--plan:#C25E00;--plan-hov:#E07000;--plan-dim:#8F5A10;--plan-tint:rgba(255,149,0,.1);--plan-tint2:rgba(255,149,0,.2);--plan-border:rgba(255,149,0,.45);--rec:#FF3B30;--rec-tint:rgba(255,59,48,.07);--rec-border:rgba(255,59,48,.35);--err:#D70015;--err-tint:rgba(215,0,21,.05);--err-border:rgba(215,0,21,.3);--ok:#248A3D;--ok-border:rgba(36,138,61,.35);--stage:#E9E9ED;--ph1:#DFDFE4;--ph2:#D6D6DC;--hud:rgba(255,255,255,.85);--glass:rgba(255,255,255,.72);--dock:rgba(255,255,255,.92);--scrim:rgba(0,0,0,.3);--hf-bg:rgba(245,245,247,.97);--dots:rgba(0,0,0,.04);--shadow:rgba(0,0,0,.16)}
 [data-theme="dark"]{--bg:#000000;--surface:#131316;--surface2:#1A1A1E;--fill:#232328;--fill2:#2C2C32;--bubble:#2E2E34;--border1:#26262C;--border2:#36363E;--border3:#4A4A54;--t1:#F5F5F7;--t2:#B9B9C0;--t3:#8E8E93;--t4:#636368;--accent:#0A84FF;--accent-hov:#409CFF;--accent-deep:#0060DF;--accent-tint:rgba(10,132,255,.12);--accent-border:rgba(10,132,255,.4);--accent-border2:rgba(10,132,255,.55);--grid:rgba(255,255,255,.016);--plan:#FF9F0A;--plan-hov:#FFB340;--plan-dim:#B37A20;--plan-tint:rgba(255,159,10,.1);--plan-tint2:rgba(255,159,10,.18);--plan-border:rgba(255,159,10,.4);--rec:#FF453A;--rec-tint:rgba(255,69,58,.08);--rec-border:rgba(255,69,58,.4);--err:#FF6961;--err-tint:rgba(255,105,97,.08);--err-border:rgba(255,105,97,.35);--ok:#32D74B;--ok-border:rgba(50,215,75,.35);--stage:#0A0A0C;--ph1:#141418;--ph2:#0E0E12;--hud:rgba(24,24,28,.85);--glass:rgba(16,16,18,.75);--dock:rgba(28,28,32,.92);--scrim:rgba(0,0,0,.55);--hf-bg:rgba(8,8,10,.95);--dots:rgba(255,255,255,.03);--shadow:rgba(0,0,0,.6)}
@@ -89,14 +95,19 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 /* stage */
 #stage{flex:1;min-height:0;background:var(--stage);border-radius:14px;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
 #stage video{max-width:100%;max-height:100%;border-radius:4px}
+#stage img{max-width:100%;max-height:100%;border-radius:4px;object-fit:contain}
+#stageAudio{display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--t2)}
+#stageAudio.hidden{display:none}
+#stageAudio .g{font-size:34px;color:var(--accent)}
+#stageAudio .n{font-size:11px}
 .hud{font-size:10.5px;color:var(--t2);background:var(--hud);border-radius:6px;padding:4px 9px}
 #hudFile{position:absolute;top:12px;left:12px;z-index:3}
 #hudRight{position:absolute;top:12px;right:12px;display:flex;gap:8px;align-items:center;z-index:3}
 #viewToggle{display:flex;font-size:10.5px;background:var(--hud);border-radius:7px;overflow:hidden}
 #viewToggle span{cursor:pointer;padding:4px 10px;color:var(--t3)}
 #viewToggle span.on{color:#FFF;background:var(--accent);font-weight:700}
-#dlBtn,#regionBtn{cursor:pointer}
-#dlBtn:hover,#regionBtn:hover{background:var(--border1)}
+#exportBtn,#regionBtn{cursor:pointer}
+#exportBtn:hover,#regionBtn:hover{background:var(--border1)}
 /* lives at stagecol level so it is visible on empty projects too (compose-only runs) */
 #workBanner{position:absolute;left:50%;transform:translateX(-50%);top:28px;max-width:72%;display:flex;align-items:center;gap:10px;background:var(--hud);border:1px solid var(--accent-border);border-radius:999px;padding:8px 16px;font-size:11px;color:var(--accent);z-index:6;box-shadow:0 8px 30px var(--shadow);white-space:nowrap}
 #workBanner .spin{display:inline-block;width:11px;height:11px;border:1.5px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite}
@@ -128,6 +139,22 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 #tlHead{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
 .lbl{font-size:9.5px;letter-spacing:.14em;color:var(--t3);font-family:'IBM Plex Mono',ui-monospace,monospace}
 #chapter{font-size:9.5px;color:var(--t4)}
+#scenes{display:flex;gap:9px;overflow-x:auto;padding:2px 0 6px}
+.scCard{flex:none;width:158px;cursor:pointer;border:1px solid var(--border1);border-radius:9px;overflow:hidden;background:var(--surface2)}
+.scCard.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.scCard.pending{opacity:.62;border-style:dashed}
+.scCard .th{aspect-ratio:16/9;background:var(--ph1) center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--t3);position:relative}
+/* A poster is whatever the footage happens to be, so overlays carry their
+   own contrast rather than hoping the frame behind them is dark. */
+.scCard .th::after{content:'';position:absolute;left:0;right:0;bottom:0;height:26px;background:linear-gradient(transparent,rgba(0,0,0,.55));pointer-events:none}
+.scCard .th .d,.scCard .th .v{position:absolute;bottom:4px;z-index:1;font-size:8.5px;line-height:1.5;white-space:nowrap;color:#fff;background:rgba(0,0,0,.62);border-radius:3px;padding:0 5px}
+.scCard .th .d{right:5px}
+.scCard .th .v{left:5px;color:#8ee6ab}
+.scCard .bd{padding:6px 8px}
+.scCard .n{font-size:9px;color:var(--t3);letter-spacing:.08em}
+.scCard .i{font-size:11px;color:var(--t1);line-height:1.3;margin-top:1px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.scCard .sy{font-size:9.5px;color:var(--t3);margin-top:3px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#tlToggle span.hidden{display:none}
 #tlToggle{display:flex;font-size:9px;background:var(--fill);border-radius:6px;overflow:hidden;margin-left:2px}
 #tlToggle span{cursor:pointer;padding:2.5px 9px;color:var(--t3);font-weight:700}
 #tlToggle span.on{color:#FFF;background:var(--accent)}
@@ -167,11 +194,57 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 #gestureChip .drop{cursor:pointer;color:var(--t3);padding:3px 5px}
 #gestureChip .drop:hover{color:var(--t1)}
 
+#playhead{position:absolute;top:24px;bottom:26px;width:1.5px;background:var(--t1);z-index:2;pointer-events:none}
+#playhead i{position:absolute;top:-5px;left:-3.5px;width:8.5px;height:6px;background:var(--t1);clip-path:polygon(0 0,100% 0,50% 100%)}
+#resumeCard{cursor:pointer;margin-top:22px;display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:10px;padding:10px 14px;box-shadow:0 1px 4px var(--shadow)}
+#resumeCard:hover{background:var(--fill2)}
+#resumeCard .rg{font-size:10px;color:var(--t3)}
+#resumeCard .rn{font-size:12.5px;font-weight:500;color:var(--t1)}
+#resumeCard .rm{font-size:10px;color:var(--t3);margin-top:2px}
+#resumeCard .go{font-size:11px;color:var(--accent);margin-left:8px}
+/* assets drawer */
+#astDlg{position:absolute;top:55px;right:0;bottom:0;width:392px;background:var(--bg);box-shadow:-20px 0 60px var(--shadow);z-index:41;display:flex;flex-direction:column}
+#astHead{padding:14px 18px 10px;display:flex;align-items:center;gap:10px}
+#astHead b{font-size:15px;font-weight:600}
+#astHead .pth{font-size:10px;color:var(--t3);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#astFilters{display:flex;gap:5px;padding:0 18px 10px}
+#astFilters span{cursor:pointer;font-size:10px;color:var(--t3);background:var(--fill);border-radius:999px;padding:3.5px 11px}
+#astFilters span.on{color:#FFF;background:var(--accent)}
+#astFilters span.iss{color:var(--err);background:var(--err-tint)}
+#astFilters span.iss.on{color:#FFF;background:var(--err)}
+#astGrid{flex:1;overflow-y:auto;padding:2px 14px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start}
+.astCard{cursor:pointer;border-radius:11px;padding:7px;background:var(--surface)}
+.astCard:hover{background:var(--fill)}
+.astThumb{aspect-ratio:16/10;border-radius:7px;background:var(--ph1);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;font-size:15px;color:var(--t3)}
+.astThumb .badge{position:absolute;top:5px;left:5px;z-index:1;font-size:8.5px;color:#FFF;background:var(--accent);border-radius:4px;padding:1px 6px}
+/* Overlays sit on real frames now, so they bring their own contrast. */
+.astThumb::after{content:'';position:absolute;left:0;right:0;bottom:0;height:24px;background:linear-gradient(transparent,rgba(0,0,0,.5));pointer-events:none}
+.astThumb .dur{position:absolute;bottom:5px;right:6px;z-index:1;font-size:8.5px;line-height:1.5;white-space:nowrap;color:#fff;background:rgba(0,0,0,.62);border-radius:3px;padding:0 5px}
+.astCard .nm{font-size:10.5px;color:var(--t1);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.astCard .mt{font-size:9px;color:var(--t3);margin-top:2px}
+.astCard .mt.bad{color:var(--err)}
+.astCard .fix{font-size:9.5px;color:var(--accent);margin-top:5px}
+#astFoot{padding:11px 18px;display:flex;align-items:center;gap:8px;border-top:1px solid var(--border1)}
+#astFoot .hint{flex:1;font-size:11.5px;color:var(--t3)}
+#astImport{cursor:pointer;font-size:12px;color:var(--accent);background:var(--fill);border-radius:7px;padding:5px 12px}
+#astImport:hover{background:var(--fill2)}
+/* export dialog */
+#expDlg{width:440px;border-radius:16px;top:50%;left:50%;transform:translate(-50%,-50%)}
+#expDlg .fileRow{display:flex;gap:12px;align-items:center;background:var(--surface);border-radius:12px;padding:12px;margin:0 20px}
+#expDlg .fileRow .th{width:44px;height:66px;border-radius:6px;background:var(--ph1);flex:none}
+#expDlg .lbl{font-size:9.5px;letter-spacing:.14em;color:var(--t3);margin:16px 20px 8px}
+#expDlg .preset{display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--surface);border-radius:12px;margin:0 20px}
+#expDlg .preset .radio{width:16px;height:16px;border-radius:50%;background:var(--accent);flex:none;display:flex;align-items:center;justify-content:center}
+#expDlg .preset .radio i{width:6px;height:6px;border-radius:50%;background:#FFF}
+#expName{flex:1;background:var(--fill);border-radius:7px;padding:7px 10px;font-size:11.5px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#dropVeil{position:absolute;inset:0;z-index:70;background:var(--accent-tint);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;pointer-events:none}
+#dropVeil .box{border:2px dashed var(--accent);border-radius:16px;padding:22px 34px;background:var(--surface2);font-size:15px;font-weight:600;color:var(--accent);box-shadow:0 20px 60px var(--shadow)}
 /* chat */
-#chatcol{width:clamp(400px,34vw,540px);flex:none;display:flex;flex-direction:column;border-left:1px solid var(--border1);background-color:var(--surface);background-image:radial-gradient(var(--dots) 1px,transparent 1px);background-size:20px 20px;min-height:0;animation:rise .55s .16s ease both}
-#msgs{flex:1;overflow-y:auto;padding:16px 16px 8px;display:flex;flex-direction:column;gap:12px}
-.mU{flex:none;align-self:flex-end;max-width:86%;background:var(--bubble);border-radius:12px 12px 3px 12px;padding:9px 13px;font-size:13.5px;line-height:1.45;white-space:pre-wrap}
-.mA{flex:none;align-self:flex-start;max-width:94%;font-size:13.5px;line-height:1.5;color:var(--t2);white-space:pre-wrap}
+#chatcol{width:clamp(340px,27vw,430px);flex:none;display:flex;flex-direction:column;border-left:1px solid var(--border1);background-color:var(--surface);background-image:radial-gradient(var(--dots) 1px,transparent 1px);background-size:20px 20px;min-height:0;animation:rise .55s .16s ease both}
+#msgs{flex:1;overflow-y:auto;padding:16px 16px 8px;display:flex;flex-direction:column;gap:16px}
+.mU{flex:none;align-self:flex-end;max-width:88%;background:var(--accent-tint);border-radius:14px;padding:8px 13px;font-size:13px;line-height:1.5;color:var(--t1);white-space:pre-wrap}
+.mA{flex:none;align-self:flex-start;max-width:96%;font-size:13px;line-height:1.55;color:var(--t2);white-space:pre-wrap}
+#chatHint{margin:auto;align-self:center;max-width:250px;text-align:center;font-size:12.5px;line-height:1.5;color:var(--t4);text-wrap:pretty}
 .speakChip{display:inline-flex;align-items:center;gap:7px;margin-top:8px;background:var(--accent-tint);border-radius:999px;padding:4px 11px;font-size:10px;color:var(--accent);font-family:'IBM Plex Mono',ui-monospace,monospace}
 .speakChip .mute{cursor:pointer;color:var(--t3)}
 .speakChip .mute:hover{color:var(--t1)}
@@ -206,10 +279,26 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 #chips{display:flex;gap:7px;flex-wrap:wrap}
 #chips span{cursor:pointer;font-size:12px;color:var(--t2);background:var(--fill);border-radius:999px;padding:5px 12px}
 #chips span:hover{background:var(--fill2);color:var(--t1)}
-#composeBar{display:flex;align-items:flex-end;gap:10px;background:var(--fill);border-radius:13px;padding:10px 10px 10px 15px}
+#composeBar{display:flex;flex-direction:column;background:var(--surface2);border-radius:16px;box-shadow:0 1px 4px var(--shadow);padding:6px 9px 9px 15px}
+#composeRow{display:flex;align-items:center;gap:6px;padding-top:4px;min-width:0;flex-wrap:nowrap}
+#expandBtn{cursor:pointer;width:28px;height:28px;border-radius:50%;background:var(--fill);color:var(--t2);font-size:12px;display:flex;align-items:center;justify-content:center;flex:none}
+#expandBtn:hover{background:var(--fill2);color:var(--t1)}
+#composeBar.expanded #input{flex:none!important;height:42vh!important;max-height:42vh}
+/* Maximized: the composer takes over the chat column so a long prompt can be
+   read and edited whole, without leaving the panel it belongs to. */
+#composer.maximized{position:absolute;inset:0;z-index:6;background:var(--surface);padding:12px 16px;border-top:none}
+#composer.maximized #composeBar{flex:1;min-height:0}
+#composer.maximized #input{flex:1!important;height:auto!important;max-height:none!important}
+#chatcol{position:relative}
+#plusBtn{cursor:pointer;width:28px;height:28px;border-radius:50%;background:var(--fill);color:var(--t2);font-size:15px;display:flex;align-items:center;justify-content:center;flex:none}
+#plusBtn:hover{background:var(--fill2);color:var(--t1)}
+#cmdChip{cursor:pointer;font-size:11px;color:var(--t3);background:var(--fill);border-radius:999px;padding:5px 11px;white-space:nowrap;flex:none}
+#cmdChip:hover{background:var(--fill2);color:var(--t1)}
+#liveChip{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--fill);flex:none}
+#liveChip i{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:pulse 1.2s ease-in-out infinite}
 #input{flex:1;font-size:13.5px;color:var(--t1);resize:none;border:none;background:transparent;outline:none;font-family:inherit;line-height:1.45;max-height:140px;overflow-y:auto;padding:6px 0}
 #input::placeholder{color:var(--t3)}
-#hfBtn{cursor:pointer;font-size:9.5px;color:var(--t3);background:var(--fill2);border-radius:999px;padding:3px 9px;font-family:'IBM Plex Mono',ui-monospace,monospace;flex:none}
+#hfBtn{cursor:pointer;font-size:9.5px;color:var(--t3);background:var(--fill2);border-radius:999px;padding:3px 9px;font-family:'IBM Plex Mono',ui-monospace,monospace;flex:none;white-space:nowrap}
 #hfBtn:hover{color:var(--accent)}
 #micBtn{cursor:pointer;width:34px;height:34px;border-radius:50%;background:var(--fill);color:var(--t2);display:flex;align-items:center;justify-content:center;flex:none}
 #micBtn:hover{color:var(--rec)}
@@ -267,14 +356,70 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 #hfPause b{color:var(--t1);font-weight:400}
 #hfFoot{position:absolute;bottom:26px;font-size:10px;color:var(--t4);font-family:'IBM Plex Mono',ui-monospace,monospace}
 #modelDlg{top:50px;right:230px;width:312px;border-radius:12px}
-#projDlg{top:50px;left:96px;width:420px;border-radius:12px}
+#projDlg{top:50px;left:96px;width:420px;border-radius:12px;max-height:calc(100vh - 80px);display:flex;flex-direction:column}
+#projList{overflow-y:auto;min-height:0}
 .mrow{cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--border1)}
 .mrow:hover{background:var(--fill2)}
 .mrow .dot{width:6px;height:6px;border-radius:50%;flex:none}
 .mrow .nm{font-size:12px;color:var(--t1);font-family:'IBM Plex Mono',ui-monospace,monospace}
 .mrow .via{font-size:9.5px;color:var(--t3);margin-top:2px;font-family:'IBM Plex Mono',ui-monospace,monospace}
 .badgeL{font-size:9px;color:var(--ok);background:var(--fill2);border-radius:4px;padding:1px 6px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#styleBrief,#styleCss{width:100%;box-sizing:border-box;background:var(--fill);border:1px solid var(--border1);border-radius:8px;padding:8px 10px;color:var(--t1);font-size:11.5px;outline:none;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#styleBrief:focus,#styleCss:focus{border-color:var(--accent)}
+#styleCss{height:150px;resize:vertical;line-height:1.5}
+#modelPillExtra{font-size:9.5px}
+#modelPillExtra.plus{color:var(--accent)}
+#modelPillExtra.blind{color:var(--warn,#b7791f)}
+#modelPill.blind .dot{background:var(--warn,#b7791f)!important}
 #modelFoot{padding:9px 14px;border-top:1px solid var(--border1);font-size:11px;color:var(--t3);line-height:1.5}
+#modelDlg{width:432px;display:flex;flex-direction:column;max-height:min(560px,calc(100vh - 90px))}
+#mdlRoles{padding:12px 12px 8px;display:flex;flex-direction:column;gap:6px}
+.mrole{display:flex;align-items:center;gap:11px;border-radius:10px;padding:9px 11px;background:transparent}
+.mrole.on{background:var(--fill)}
+.mrole.pick{cursor:pointer}
+.mrole.pick:hover{background:var(--fill2)}
+.mrole .ic{width:22px;height:22px;border-radius:6px;background:var(--fill2);color:var(--t2);font-size:11px;display:flex;align-items:center;justify-content:center;flex:none}
+.mrole .tx{flex:1;min-width:0}
+.mrole .k{font-size:11px;color:var(--t3)}
+.mrole .v{font-size:12.5px;color:var(--t1);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrole .v.dim{color:var(--t3)}
+.mrole .via{font-size:9.5px;color:var(--t3);flex:none}
+.mrole .mark{font-size:11px;color:var(--accent);flex:none;width:10px}
+.mrole .reset{cursor:pointer;font-size:9.5px;color:var(--t3);flex:none}
+.mrole .reset:hover{color:var(--t1)}
+.sw{cursor:pointer;width:34px;height:20px;border-radius:999px;background:var(--fill2);position:relative;flex:none}
+.sw.on{background:var(--accent)}
+.sw i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .18s cubic-bezier(.25,.1,.25,1)}
+.sw.on i{left:16px}
+#visionHelp{padding:0 12px;font-size:10px;color:var(--t3);line-height:1.5}
+#mdlBar{display:flex;align-items:center;gap:8px;padding:8px 12px 10px;border-top:1px solid var(--border1)}
+#mdlTabs{display:flex;background:var(--fill);border-radius:8px;padding:2px;flex:none}
+#mdlTabs span{cursor:pointer;font-size:12px;padding:4px 12px;border-radius:6px;color:var(--t3)}
+#mdlTabs span.on{color:#fff;background:var(--accent)}
+#mdlSearchWrap{flex:1;min-width:0;display:flex;align-items:center;gap:7px;background:var(--fill);border-radius:8px;padding:6px 11px}
+#mdlSearchWrap .g{font-size:11px;color:var(--t3);flex:none}
+#mdlSearch{flex:1;min-width:0;border:none;background:transparent;outline:none;font-size:12px;color:var(--t1);font-family:inherit}
+#modelList{flex:1;min-height:0;overflow-y:auto;padding:0 8px 8px}
+.mrow{cursor:pointer;display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border-top:none}
+.mrow:hover{background:var(--fill)}
+.mrow.on{background:var(--accent-tint)}
+.mrow.blocked{opacity:.38;cursor:not-allowed}
+.mrow.blocked:hover{background:transparent}
+.mrow .dot{width:6px;height:6px;border-radius:50%;flex:none}
+.mrow .l{flex:1;min-width:0}
+.mrow .nm{font-size:12.5px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow .sub{font-size:9.5px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.mrow .tag{font-size:8.5px;color:var(--ok);background:var(--fill2);border-radius:4px;padding:1.5px 6px;flex:none;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.mrow .need{font-size:8.5px;color:var(--warn,#b7791f);background:var(--fill2);border-radius:4px;padding:1.5px 6px;flex:none;cursor:help;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.mrow .pr{font-size:9.5px;color:var(--t3);flex:none;text-align:right;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.mrow .ck{font-size:11px;color:var(--accent);flex:none;width:10px}
+#mdlIdRow{display:flex;gap:6px;align-items:center;padding:9px 12px;border-top:1px solid var(--border1);background:var(--bg);flex:none}
+#mdlId{flex:1;min-width:0;font-size:11px;font-family:'IBM Plex Mono',ui-monospace,monospace;color:var(--t1);background:var(--fill);border:1px solid var(--border1);border-radius:7px;padding:6px 9px;outline:none}
+#mdlId:focus{border-color:var(--accent)}
+#mdlApply{cursor:pointer;font-size:10px;color:var(--t2);background:var(--fill);border-radius:7px;padding:6px 10px;flex:none;font-family:'IBM Plex Mono',ui-monospace,monospace}
+#mdlApply:hover{background:var(--fill2);color:var(--t1)}
+#modelFoot{flex:none}
+#mdlNote{margin:6px 2px 2px;background:var(--fill);border-radius:10px;padding:11px 12px;font-size:11.5px;color:var(--t2);line-height:1.5}
 #skillsDlg{top:50%;left:50%;transform:translate(-50%,-50%);width:640px}
 #skillsDlg .top{padding:13px 18px;display:flex;align-items:baseline;gap:10px;border-bottom:1px solid var(--border1)}
 #skillsDlg .top h2{font-size:16px;font-weight:600;margin:0}
@@ -326,6 +471,9 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 <body>
 <div id="app">
   <div id="topbar"></div>
+  <input type="file" id="fileInput" accept="video/*" multiple hidden>
+  <input type="file" id="assetInput" accept="video/*,image/*,audio/*" multiple hidden>
+  <div id="dropVeil" class="hidden"><div class="box">drop to add to this project</div></div>
   <header>
     <div class="logo"><div class="bars"><i></i><i></i><i></i></div><b>ìtàn</b></div>
     <div id="projChip" class="mono" title="projects — each folder is its own session">▤ …</div>
@@ -333,9 +481,10 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
     <div style="flex:1"></div>
     <div class="hpill" id="skillsBtn">❖ skills<span id="skillChip" class="mono hidden"></span></div>
     <div class="hbtn" id="cpBtn">⟲ checkpoints <span id="cpCount" class="mono" style="font-size:10px;color:var(--t3)">0</span></div>
+    <div class="hpill" id="assetsBtn">▤ assets</div>
     <div id="gear">⚙</div>
     <div class="vsep"></div>
-    <div id="modelPill" class="mono"><span class="dot"></span><span id="modelName">…</span><span style="color:var(--t3)">▾</span></div>
+    <div id="modelPill" class="mono"><span class="dot"></span><span id="modelName">…</span><span id="modelPillExtra" class="mono"></span><span style="color:var(--t3)">▾</span></div>
     <div id="modePill" class="mono">ask ▾</div>
     <div id="repliesPill"><span class="wave hidden" id="hdrWave"><i></i><i></i><i></i></span><span id="repliesLabel">replies on</span></div>
     <div class="vsep"></div>
@@ -356,16 +505,18 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
           <div class="btnP" id="browseBtn">browse files</div>
           <div class="btnS" id="demoBtn">try a demo clip</div>
         </div>
-        <input type="file" id="fileInput" accept="video/*" multiple hidden>
+        <div id="resumeCard" class="hidden"></div>
       </div>
 
       <div id="stage" class="hidden">
         <video id="video" playsinline></video>
+        <img id="stageImg" class="hidden" alt="">
+        <div id="stageAudio" class="hidden"><span class="g">♫</span><span class="n mono"></span></div>
         <div id="hudFile" class="hud mono"></div>
         <div id="hudRight">
           <div id="viewToggle" class="mono"><span data-v="original">original</span><span data-v="current" class="on">current</span></div>
           <div id="regionBtn" class="hud mono">⌖ region</div>
-          <a id="dlBtn" class="hud mono">⤓ download</a>
+          <div id="exportBtn" class="hud mono">⤓ export</div>
         </div>
         <div id="regionLayer">
           <div id="regionBox" class="hidden"><i></i><i></i><i></i><i></i><div id="regionLabel"></div></div>
@@ -391,14 +542,17 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
 
       <div id="timeline">
         <div id="tlHead">
-          <span class="lbl">SESSION STORY</span>
+          <span class="lbl" id="tlLabel">SESSION STORY</span>
           <span id="chapter" class="mono"></span>
-          <div id="tlToggle" class="mono hidden"><span data-v="story" class="on">story</span><span data-v="tracks">tracks</span></div>
+          <div id="tlToggle" class="mono hidden"><span data-v="scenes" class="hidden">scenes</span><span data-v="story" class="on">story</span><span data-v="tracks">tracks</span></div>
           <div style="flex:1"></div>
+          <span class="tlAct hidden" id="arrangeBtn">⇅ arrange</span>
           <span class="tlAct hidden" id="undoBtn">↶ undo</span>
+          <span class="tlAct hidden" id="revStepBtn">⟲ revert to selected</span>
           <span class="tlAct hidden" id="cpBtn2">⟲ checkpoints</span>
         </div>
         <div id="tlEmpty">every edit becomes a numbered, undoable render here · click any step to rewind the story</div>
+        <div id="scenes" class="hidden"></div>
         <div id="strip" class="hidden"></div>
         <div id="tracks" class="hidden"></div>
       </div>
@@ -415,9 +569,16 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
         <div id="chips"></div>
         <div id="composeBar">
           <textarea id="input" rows="1" placeholder='Tell the story: "cut the first 4 seconds and caption what she says"' autocomplete="off"></textarea>
-          <span id="hfBtn">hands-free</span>
-          <div id="micBtn" title="hold to talk"><div class="micIco"><i></i><i></i><i></i></div></div>
-          <div id="sendBtn"><span>↑</span></div>
+          <div id="composeRow">
+            <div id="plusBtn" title="assets — drop files anywhere, or pick one">＋</div>
+            <span id="cmdChip" class="mono" title="slash commands">/</span>
+            <span id="liveChip" class="hidden" title="live — what you send now steers the run"><i></i></span>
+            <div style="flex:1"></div>
+            <div id="expandBtn" title="taller composer (⌘⏎ cycles)">⤢</div>
+            <span id="hfBtn">hands-free</span>
+            <div id="micBtn" title="hold to talk"><div class="micIco"><i></i><i></i><i></i></div></div>
+            <div id="sendBtn"><span>↑</span></div>
+          </div>
         </div>
         <div id="listenBar" class="hidden">
           <span class="dot"></span><span class="lb">LISTENING</span>
@@ -462,8 +623,32 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
   <div id="modelWrap" class="hidden">
     <div class="scrimClear" data-close></div>
     <div class="dlg" id="modelDlg">
-      <div class="dlgHd">SWAP THE BRAIN, MID-SESSION</div>
+      <div id="mdlRoles">
+        <div class="mrole" id="roleText">
+          <span class="ic">✳</span>
+          <div class="tx"><div class="k">Reasoning</div><div class="v mono" id="roleTextVal"></div></div>
+          <span class="via mono" id="roleTextVia"></span>
+          <span class="mark mono" id="roleTextMark"></span>
+        </div>
+        <div class="mrole" id="roleVision">
+          <span class="ic">◉</span>
+          <div class="tx"><div class="k">Vision</div><div class="v mono" id="roleVisionVal"></div></div>
+          <span class="via mono" id="roleVisionVia"></span>
+          <span class="mark mono" id="roleVisionMark"></span>
+          <span class="reset mono hidden" id="visionReset">reset</span>
+          <div class="sw" id="visionSw"><i></i></div>
+        </div>
+        <div id="visionHelp" class="mono"></div>
+      </div>
+      <div id="mdlBar">
+        <div id="mdlTabs" class="mono"><span data-t="direct" class="on">Direct</span><span data-t="or">OpenRouter</span></div>
+        <div id="mdlSearchWrap"><span class="g">⌕</span><input id="mdlSearch" placeholder="Search models…" spellcheck="false"></div>
+      </div>
       <div id="modelList"></div>
+      <div id="mdlIdRow">
+        <input id="mdlId" placeholder="model id" spellcheck="false">
+        <span id="mdlApply">apply</span>
+      </div>
       <div id="modelFoot"></div>
     </div>
   </div>
@@ -498,7 +683,50 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
         <input id="projPath" placeholder="/abs/path, ~/folder, or a name (created under ~)" style="flex:1;background:var(--fill);border:1px solid var(--border1);border-radius:7px;padding:7px 10px;font-size:11.5px;color:var(--t1);font-family:'IBM Plex Mono',ui-monospace,monospace;outline:none">
         <div class="btnS" id="projOpen">open</div>
       </div>
+      <div id="projNew" style="cursor:pointer;padding:10px 14px;font-size:12.5px;color:var(--accent);border-top:1px solid var(--border1)">＋ New project</div>
       <div id="projFoot" style="font-size:10px;color:var(--t4);padding:0 14px 12px" class="mono">sessions are stored in folders</div>
+    </div>
+  </div>
+
+  <!-- arrange: drag clips into order, assemble without the model -->
+  <div id="arrWrap" class="hidden">
+    <div class="scrimClear" data-close></div>
+    <div class="dlg" id="arrDlg">
+      <div class="dlgHd">ARRANGE · drag into order, then assemble</div>
+      <div id="arrList"></div>
+      <div style="display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--border1);align-items:center">
+        <span class="mono" style="font-size:10px;color:var(--t3)">transition</span>
+        <div class="seg" id="arrTrans"><span data-t="cut" class="on">cut</span><span data-t="fade">fade</span><span data-t="fadeblack">fadeblack</span></div>
+        <div style="flex:1"></div>
+        <div class="btnP" id="arrGo">assemble</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- assets drawer -->
+  <div id="astWrap" class="hidden">
+    <div class="scrimClear" data-close></div>
+    <div id="astDlg">
+      <div id="astHead"><b>Assets</b><span class="pth mono" id="astPath"></span><span class="close" data-close>✕</span></div>
+      <div id="astFilters" class="mono"></div>
+      <div id="astGrid"></div>
+      <div id="astFoot"><div class="hint">drop files anywhere, or drag one onto a source card to replace it</div><div id="astImport">＋ import</div></div>
+    </div>
+  </div>
+
+  <!-- export dialog -->
+  <div id="expWrap" class="hidden">
+    <div class="scrim" data-close></div>
+    <div class="dlg" id="expDlg">
+      <div style="padding:16px 20px 12px;display:flex;align-items:center"><b style="font-size:16px;font-weight:600">Export</b><span class="close" data-close>✕</span></div>
+      <div class="fileRow"><div class="th"></div><div style="flex:1;min-width:0"><div class="mono" id="expFile" style="font-size:12px;color:var(--t1)"></div><div class="mono" id="expMeta" style="font-size:10px;color:var(--t3);margin-top:3px"></div></div></div>
+      <div class="lbl mono">PRESET</div>
+      <div class="preset"><span class="radio"><i></i></span><div style="flex:1"><span style="font-size:13px;color:var(--t1)">H.264</span><span class="mono" style="font-size:10px;color:var(--t3);margin-left:8px">stream-copy when possible · CRF 18 fallback</span></div></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:16px 20px 20px">
+        <input id="expName" class="mono" value="itan-export.mp4" spellcheck="false">
+        <div class="btnS" data-close>Cancel</div>
+        <div class="btnP" id="expGo">Export</div>
+      </div>
     </div>
   </div>
 
@@ -524,6 +752,26 @@ header{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 
         <div class="card"><div class="srow"><span class="nm">Edit permission</span>
           <div class="seg" id="modeSeg"><span data-m="ask">ask</span><span data-m="auto">auto-edit</span><span data-m="plan">plan</span></div>
         </div></div>
+      </div>
+      <div class="sec"><span class="lbl">PROJECT STYLE</span>
+        <div class="card" id="styleCard">
+          <div class="srow" style="align-items:flex-start">
+            <div style="flex:1;min-width:0">
+              <span class="nm">Style kit</span>
+              <div id="styleSum" class="mono" style="font-size:10.5px;color:var(--t3);margin-top:3px;line-height:1.5"></div>
+            </div>
+            <span id="styleEdit" class="seg" style="cursor:pointer;padding:4px 10px;font-size:11px">edit</span>
+          </div>
+          <div id="styleEditor" class="hidden" style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
+            <input id="styleBrief" placeholder="the design in a sentence — palette, type, easing, layout">
+            <textarea id="styleCss" spellcheck="false" placeholder="shared CSS injected into every compose"></textarea>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span id="styleSave" class="seg" style="cursor:pointer;padding:5px 12px;font-size:11px">save</span>
+              <span id="styleClear" class="seg" style="cursor:pointer;padding:5px 12px;font-size:11px">clear</span>
+              <span id="styleMsg" class="mono" style="font-size:10px;color:var(--t3)"></span>
+            </div>
+          </div>
+        </div>
       </div>
       <div style="font-size:10px;color:var(--t4);text-align:center;padding:2px 0 20px" class="mono">ìtàn</div>
     </div>
@@ -559,6 +807,13 @@ function render(){
   const has=st.assets.length>0||st.ops.length>0;
   $('#modelName').textContent=st.model.split('/')[1]||st.model;
   $('#projChip').innerHTML='<span style="color:var(--t4)">project</span> '+esc(st.project||'?')+' <span style="color:var(--t4)">▾</span>';
+  const vs=st.vision||{};
+  $('#modelPill').classList.toggle('blind',!vs.can_see);
+  const pillExtra=$('#modelPillExtra');
+  if(pillExtra){
+    pillExtra.textContent=vs.model?'+vision':(vs.can_see?'':'· cannot see');
+    pillExtra.className='mono '+(vs.model?'plus':'blind');
+  }
   $('#projChip').title=st.project_dir||'';
   $('#ffdot').classList.toggle('bad',!st.ffmpeg);
   $('#fileChip').classList.toggle('hidden',!has);
@@ -568,19 +823,33 @@ function render(){
   $('#skillChip').classList.toggle('hidden',!active.length);
   if(active.length)$('#skillChip').textContent=active[0]+(active.length>1?' +'+(active.length-1):'');
   $('#tokens').classList.toggle('hidden',!(st.tokens_in||st.tokens_out));
-  $('#tokens').textContent=(st.tokens_in/1000).toFixed(1)+'k in · '+(st.tokens_out/1000).toFixed(1)+'k out';
+  $('#tokens').textContent=((st.tokens_in+st.tokens_out)/1000).toFixed(1)+'k tok'+(st.cost?' · '+st.cost:'');
   renderMode(st.mode);
   renderReplies();
   $('#empty').classList.toggle('hidden',has);
   $('#stage').classList.toggle('hidden',!has);
-  $('#transport').classList.toggle('hidden',!has);
-  $('#tlToggle').classList.toggle('hidden',!has);
+  // setPreview owns transport visibility beyond this (a still has none).
+  $('#transport').classList.toggle('hidden',!has||mediaKind(S.previewURL||st.current)==='image');
+  const hasScenes=(st.scenes||[]).length>0;
+  $('#tlToggle').classList.toggle('hidden',!has&&!hasScenes);
+  $$('#tlToggle span[data-v="scenes"]').forEach(el=>el.classList.toggle('hidden',!hasScenes));
+  // A storyboard is what the piece IS; the step log is how it got here.
+  if(hasScenes&&!S.tlViewSet)S.tlView='scenes';
+  if(!hasScenes&&S.tlView==='scenes')S.tlView='story';
+  $$('#tlToggle span').forEach(el=>el.classList.toggle('on',el.dataset.v===S.tlView));
   $('#undoBtn').classList.toggle('hidden',!st.ops.length);
+  $('#revStepBtn').classList.toggle('hidden',selectedOpSeq()==null);
+  $('#arrangeBtn').classList.toggle('hidden',st.assets.length<2);
+  if(!has)renderResume();
   $('#cpBtn2').classList.toggle('hidden',!st.checkpoints.length);
   $('#chapter').textContent=has?('chapter 1 · '+st.ops.length+' edit'+(st.ops.length===1?'':'s')+' · all reversible'):'chapter 0 · waiting for footage';
   $('#tlEmpty').classList.toggle('hidden',has);
-  $('#strip').classList.toggle('hidden',!has||S.tlView!=='story');
+  $('#scenes').classList.toggle('hidden',S.tlView!=='scenes');
+  $('#strip').classList.toggle('hidden',(!has&&!hasScenes)||S.tlView!=='story');
   $('#tracks').classList.toggle('hidden',!has||S.tlView!=='tracks');
+  $('#tlEmpty').classList.toggle('hidden',has||hasScenes);
+  $('#tlLabel').textContent={scenes:'SCENES',story:'SESSION STORY',tracks:'TRACKS'}[S.tlView]||'SESSION STORY';
+  if(S.tlView==='scenes')renderScenes();
   renderChips(has);
   if(has){renderStrip();renderTracks();setPreview(S.previewURL,S.previewURL===null)}
 }
@@ -604,10 +873,53 @@ function stepCard(it,st,activeURL){
   const isCur=it.url&&it.url===st.current, isSel=it.url&&it.url===activeURL;
   d.className='step'+(isSel?' active':'');
   d.innerHTML=`<div class="row"><span class="num">${it.num}</span><span class="nm">${esc(it.name)}</span>${isCur?'<span class="tag">CURRENT</span>':''}</div><div class="sum">${esc(it.sum)}</div><div class="meta">${esc(it.meta)}</div>`;
-  if(it.id){const x=document.createElement('span');x.className='rmx';x.textContent='✕';x.title='remove from project (file on disk is kept)';x.onclick=ev=>{ev.stopPropagation();removeAsset(it.id,it.sum)};d.querySelector('.row').appendChild(x)}
-  if(it.undo){const x=document.createElement('span');x.className='rmx';x.textContent='✕';x.title='remove this step — moves back one (render file is kept)';x.onclick=ev=>{ev.stopPropagation();undoStep()};d.querySelector('.row').appendChild(x)}
+  const row=d.querySelector('.row');
+  const btn=(cls,txt,title,fn)=>{const x=document.createElement('span');x.className='rmx '+cls;x.textContent=txt;x.title=title;x.onclick=ev=>{ev.stopPropagation();fn()};row.appendChild(x);return x};
+  if(it.seq&&it.args)btn('edit','✎','edit this step and replay everything after it',()=>openStepEdit(it));
+  if(it.url)btn('rev','⌖','reveal file in folder',()=>reveal(it.url));
+  if(it.id){
+    btn('swap','⇄','replace with another file (id stays, edits stay)',()=>pickReplace(it.id));
+    btn('rm','✕','remove from project (file on disk is kept)',()=>removeAsset(it.id,it.sum));
+    /* drop a file directly onto the card to swap it */
+    d.addEventListener('dragover',ev=>{ev.preventDefault();ev.stopPropagation();d.classList.add('active')});
+    d.addEventListener('dragleave',()=>d.classList.remove('active'));
+    d.addEventListener('drop',async ev=>{ev.preventDefault();ev.stopPropagation();d.classList.remove('active');
+      if(ev.dataTransfer.files[0])await replaceAsset(it.id,ev.dataTransfer.files[0])});
+  }
+  if(it.undo)btn('undo','✕','remove this step — moves back one (render file is kept)',()=>undoStep());
   if(it.url)d.onclick=()=>setPreview(it.url,it.url===st.current);
   return d;
+}
+function reveal(url){
+  const path=decodeURIComponent((url.split('path=')[1]||''));
+  fetch('/api/reveal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path})})
+    .then(r=>{if(!r.ok)toast('✕ could not reveal')});
+}
+function pickReplace(id){
+  const inp=document.createElement('input');inp.type='file';inp.accept='video/*,image/*,audio/*';
+  inp.onchange=async()=>{if(inp.files[0])await replaceAsset(id,inp.files[0])};
+  inp.click();
+}
+async function replaceAsset(id,f){
+  const fd=new FormData();fd.append('id',id);fd.append('file',f);
+  addA('Replacing '+id+' with '+f.name+'…');
+  const r=await fetch('/api/asset/replace',{method:'POST',body:fd});const j=await r.json();
+  if(!r.ok){addA('✕ '+(j.error||'replace failed'));return}
+  S.state=j;S.previewURL=null;render();addA('Swapped. Steps that used '+id+' can be replayed with ✎.');
+}
+function openStepEdit(it){
+  const cur=JSON.stringify(it.args||{},null,2);
+  const next=prompt('Edit step '+it.num+' ('+it.name+') args as JSON — everything after it replays:',cur);
+  if(next===null)return;
+  let args;try{args=JSON.parse(next)}catch(e){toast('✕ invalid JSON');return}
+  editStep(it.seq,args);
+}
+async function editStep(seq,args){
+  addA('✎ replaying from step '+seq+'…');
+  const r=await fetch('/api/step/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({seq,args})});
+  const j=await r.json();
+  if(!r.ok){addA('✕ '+(j.error||'replay failed'));return}
+  S.state=j;S.previewURL=null;render();addA('✎ step edited and downstream steps replayed — a checkpoint holds the previous cut.');
 }
 function renderStrip(){
   const st=S.state,strip=$('#strip');strip.innerHTML='';
@@ -618,7 +930,7 @@ function renderStrip(){
   add.onclick=()=>$('#fileInput').click();
   strip.appendChild(add);
   st.assets.forEach((a,i)=>strip.appendChild(stepCard({num:'00'+i,name:'source',sum:a.name,meta:a.info,url:a.url,id:a.id},st,activeURL)));
-  const opItem=(op,i)=>({num:String(op.seq).padStart(3,'0'),name:op.tool,sum:op.summary,meta:'',url:op.url,undo:i===st.ops.length-1});
+  const opItem=(op,i)=>({num:String(op.seq).padStart(3,'0'),name:op.tool,sum:op.summary,meta:'',url:op.url,undo:i===st.ops.length-1,seq:op.seq,args:op.args});
   const cps=[...(st.checkpoints||[])].sort((a,b)=>a.num-b.num);
   if(!cps.length){ // no chat runs recorded (gesture-only projects): flat strip
     st.ops.forEach((op,i)=>strip.appendChild(stepCard(opItem(op,i),st,activeURL)));
@@ -646,6 +958,29 @@ function renderStrip(){
     if(open)ops.forEach((op,j)=>strip.appendChild(stepCard(opItem(op,s0+j),st,activeURL)));
   });
 }
+/* Scenes: the piece as the viewer will meet it — what is seen, what is
+   heard, in order. Working files stay in the story view where they belong. */
+function renderScenes(){
+  const st=S.state,box=$('#scenes');box.innerHTML='';
+  const activeURL=S.previewURL??st.current;
+  (st.scenes||[]).forEach(sc=>{
+    const d=document.createElement('div');
+    d.className='scCard'+(sc.rendered?'':' pending')+(sc.url&&sc.url===activeURL?' active':'');
+    const th=sc.thumb?` style="background-image:url('${sc.thumb}')"`:'';
+    d.innerHTML=`<div class="th"${th}>${sc.thumb?'':(sc.rendered?'▶':'not composed yet')}
+        ${sc.duration?`<span class="d mono">${sc.duration.toFixed(1)}s</span>`:''}
+        ${sc.voiced?'<span class="v mono">♫</span>':''}</div>
+      <div class="bd"><div class="n mono">SCENE ${sc.n}</div>
+        <div class="i">${esc(sc.visual||sc.intent||'')}</div>
+        ${sc.say?`<div class="sy">“${esc(sc.say)}”</div>`:''}</div>`;
+    d.onclick=()=>{
+      if(!sc.url){$('#input').value='compose scene '+sc.n;$('#input').focus();return}
+      setPreview(sc.url,false);
+    };
+    box.appendChild(d);
+  });
+}
+
 /* Tracks: click seeks · drag selects a range into the composer · edge
    handles trim via a direct gesture→tool call (no model in the loop). */
 let trackDur=0,trimDraft=null,laneDrag=null;
@@ -663,14 +998,33 @@ function renderTracks(){
         <div class="thandle" id="hR" style="right:-4px"></div>
         <div class="tsel hidden" id="tselOv"><span class="tlbl"></span></div>
       </div></div>
+    ${ccBlocks(st)}
     ${hasAudio?`<div class="trow"><span class="tlab">A1</span>
       <div class="lane" id="a1lane" style="height:18px">
         <div style="position:absolute;inset:0;border-radius:3px;background:rgba(85,201,127,.07) repeating-linear-gradient(90deg,rgba(85,201,127,.35) 0 1.5px,transparent 1.5px 5px);background-position:center;background-size:100% 62%;background-repeat:no-repeat"></div>
         <div class="tsel hidden"><span class="tlbl"></span></div>
       </div></div>`:''}
+    <div id="playhead"><i></i></div>
     <div class="note">click seeks · drag selects a range into chat · pull the edges to trim — every gesture lands as an undoable op</div>`;
   wireLane($('#v1lane'));if(hasAudio)wireLane($('#a1lane'));
-  wireTrimHandles();
+  wireTrimHandles();updatePlayhead();
+}
+/* CC row: caption spans reconstructed from recorded overlay_text ops */
+function ccBlocks(st){
+  if(!trackDur)return '';
+  const caps=(st.ops||[]).filter(o=>o.tool==='overlay_text'&&o.args&&o.args.start!==undefined);
+  if(!caps.length)return '';
+  const spans=caps.map(o=>{
+    const s0=+o.args.start||0,s1=o.args.end!==undefined?+o.args.end:trackDur;
+    const l=Math.max(0,Math.min(100,s0/trackDur*100)),w=Math.max(1,Math.min(100-l,(s1-s0)/trackDur*100));
+    return `<div title="${esc(String(o.args.text||''))}" style="position:absolute;left:${l}%;width:${w}%;top:0;bottom:0;background:var(--plan-tint2);border-radius:3px"></div>`;
+  }).join('');
+  return `<div class="trow"><span class="tlab">CC</span><div class="lane" style="height:18px;cursor:default">${spans}<span style="position:absolute;right:6px;top:1px;font-size:8.5px;color:var(--plan-dim)" class="mono">${caps.length} caption${caps.length===1?'':'s'}</span></div></div>`;
+}
+function updatePlayhead(){
+  const ph=$('#playhead');if(!ph||!trackDur)return;
+  const p=video.duration?(video.currentTime/video.duration):0;
+  ph.style.left='calc(34px + (100% - 46px)*'+p.toFixed(4)+')';
 }
 const laneSec=(lane,clientX)=>{const r=lane.getBoundingClientRect();return Math.min(trackDur,Math.max(0,(clientX-r.left)/r.width*trackDur))};
 function wireLane(lane){
@@ -721,12 +1075,13 @@ function showGestureChip(){
   let chip=$('#gestureChip');
   if(!chip){
     chip=document.createElement('div');chip.id='gestureChip';
-    chip.innerHTML=`<span class="lbl"></span><span class="apply">✂ apply</span><span class="drop">esc</span>`;
+    chip.innerHTML=`<span class="lbl"></span><span class="apply">✂ keep</span><span class="apply cut">⌦ cut out</span><span class="drop">esc</span>`;
     chip.querySelector('.apply').onclick=applyTrimGesture;
+    chip.querySelector('.cut').onclick=applyCutGesture;
     chip.querySelector('.drop').onclick=clearTrimGesture;
     $('#tracks').appendChild(chip);
   }
-  chip.querySelector('.lbl').textContent='trim to '+fmtT(trimDraft.start)+' – '+fmtT(trimDraft.end);
+  chip.querySelector('.lbl').textContent=fmtT(trimDraft.start)+' – '+fmtT(trimDraft.end);
 }
 async function applyTrimGesture(){
   if(!trimDraft)return;
@@ -737,21 +1092,56 @@ async function applyTrimGesture(){
     addA('✂ gesture: '+r.summary+' — landed as op '+(r.state.ops.length)+', undoable like any other.');
   }catch(e){toast('✂ '+e.message)}
 }
+async function applyCutGesture(){
+  if(!trimDraft)return;
+  const d={...trimDraft};clearTrimGesture();
+  try{
+    const r=await api('/api/tool',{name:'cut_range',args:{start:+d.start.toFixed(2),end:+d.end.toFixed(2)}});
+    S.state=r.state;S.previewURL=null;render();
+    addA('⌦ gesture: '+r.summary+' — landed as op '+(r.state.ops.length)+', undoable like any other.');
+  }catch(e){toast('⌦ '+e.message)}
+}
 function clearTrimGesture(){trimDraft=null;$('#gestureChip')?.remove();const l=$('#hL'),r=$('#hR');if(l)l.style.left='-4px';if(r)r.style.right='-4px'}
-$('#tlToggle').onclick=e=>{const v=e.target.dataset.v;if(!v)return;S.tlView=v;$$('#tlToggle span').forEach(el=>el.classList.toggle('on',el.dataset.v===v));render()};
+$('#tlToggle').onclick=e=>{const v=e.target.dataset.v;if(!v)return;S.tlView=v;S.tlViewSet=true;$$('#tlToggle span').forEach(el=>el.classList.toggle('on',el.dataset.v===v));render()};
 
 /* ---------- preview / transport ---------- */
 const video=$('#video');
+/* An asset is not always a video: images and audio need their own element,
+   and a <video> pointed at a PNG is just a dead player. */
+const RE_IMG=/\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i, RE_AUD=/\.(mp3|wav|m4a|aac|flac|ogg|opus)$/i;
+function mediaKind(url){
+  const p=decodeURIComponent((url||'').split('path=')[1]||'');
+  if(RE_IMG.test(p))return 'image';
+  if(RE_AUD.test(p))return 'audio';
+  return 'video';
+}
 function setPreview(url,followCurrent){
   const st=S.state;S.previewURL=followCurrent?null:url;
   const src=(followCurrent?st.current:url)||st.current||'';
   S.view=followCurrent&&url===st.original&&st.original!==st.current?'original':(S.previewURL?'step':'current');
   if(!src)return;
-  if(video.dataset.src!==src){video.dataset.src=src;video.src=src+'&t='+Date.now()}
-  $('#dlBtn').href=src;$('#dlBtn').setAttribute('download','itan.mp4');
-  $('#hudFile').textContent=(S.previewURL?'preview · ':'')+decodeURIComponent(src.split('path=')[1]||'').split('/').pop()+(st.current_info&&!S.previewURL?' · '+st.current_info.split(' ').slice(0,1):'');
-  $$('#viewToggle span').forEach(el=>el.classList.toggle('on',(el.dataset.v==='current')===(S.previewURL===null)));
+  const kind=mediaKind(src), name=decodeURIComponent(src.split('path=')[1]||'').split('/').pop();
+  if(kind==='image'){
+    // Stop playback before swapping: a still has no timeline to scrub.
+    video.pause();video.removeAttribute('src');video.dataset.src='';video.load();
+    const img=$('#stageImg');
+    if(img.dataset.src!==src){img.dataset.src=src;img.src=src+'&t='+Date.now()}
+  }else{
+    $('#stageImg').classList.add('hidden');$('#stageImg').dataset.src='';
+    if(video.dataset.src!==src){video.dataset.src=src;video.src=src+'&t='+Date.now()}
+  }
+  video.classList.toggle('hidden',kind!=='video');
+  $('#stageImg').classList.toggle('hidden',kind!=='image');
+  $('#stageAudio').classList.toggle('hidden',kind!=='audio');
+  if(kind==='audio')$('#stageAudio .n').textContent=name;
+  // A still has nothing to transport; audio still scrubs.
+  $('#transport').classList.toggle('hidden',kind==='image');
+  
+  $('#hudFile').textContent=(S.previewURL?'preview · ':'')+name+(st.current_info&&!S.previewURL?' · '+st.current_info.split(' ').slice(0,1):'');
+  // Previewing an asset is neither "original" nor "current" — light neither.
+  $$('#viewToggle span').forEach(el=>el.classList.toggle('on',el.dataset.v===S.view));
   $('#tDims').textContent=st.current_info?st.current_info.split(' ').filter((_,i)=>i<2).join(' · '):'';
+  $('#revStepBtn').classList.toggle('hidden',selectedOpSeq()==null);
   renderStrip();
 }
 $('#viewToggle').onclick=e=>{
@@ -764,6 +1154,7 @@ $('#playBtn').onclick=()=>{video.paused?video.play():video.pause()};
 video.addEventListener('play',()=>$('#playBtn').textContent='⏸');
 video.addEventListener('pause',()=>$('#playBtn').textContent='▶');
 video.addEventListener('timeupdate',()=>{
+  updatePlayhead();
   const p=video.duration?video.currentTime/video.duration:0;
   $('#tFill').style.width=(p*100)+'%';$('#tKnob').style.left=(p*100)+'%';
   $('#tTime').textContent=fmtT(video.currentTime||0)+' / '+fmtT(video.duration||0);
@@ -773,23 +1164,46 @@ $('#tBar').onclick=e=>{const r=e.currentTarget.getBoundingClientRect();video.cur
 /* ---------- upload / demo ---------- */
 $('#browseBtn').onclick=()=>$('#fileInput').click();
 $('#fileInput').onchange=async e=>{for(const f of e.target.files)await upload(f);e.target.value=''};
+$('#assetInput').onchange=async e=>{for(const f of e.target.files)await upload(f);e.target.value='';if(!$('#astWrap').classList.contains('hidden'))renderAssets()};
 /* drop anywhere on the stage column — works with or without footage loaded */
-$('#stagecol').addEventListener('dragover',e=>{e.preventDefault();$('#empty').classList.add('drag')});
-$('#stagecol').addEventListener('dragleave',()=>$('#empty').classList.remove('drag'));
-$('#stagecol').addEventListener('drop',async e=>{e.preventDefault();$('#empty').classList.remove('drag');for(const f of e.dataTransfer.files)await upload(f)});
+/* Drop anywhere in the window — chat, stage, timeline. A file dropped is
+   always an intentional add, so every panel accepts it. */
+let dragDepth=0;
+const hasFiles=e=>[...(e.dataTransfer?.types||[])].includes('Files');
+window.addEventListener('dragenter',e=>{if(!hasFiles(e))return;e.preventDefault();dragDepth++;$('#dropVeil').classList.remove('hidden')});
+window.addEventListener('dragover',e=>{if(hasFiles(e))e.preventDefault()});
+window.addEventListener('dragleave',e=>{if(!hasFiles(e))return;dragDepth=Math.max(0,dragDepth-1);if(!dragDepth)$('#dropVeil').classList.add('hidden')});
+window.addEventListener('drop',async e=>{
+  if(!hasFiles(e))return;
+  e.preventDefault();dragDepth=0;$('#dropVeil').classList.add('hidden');
+  for(const f of e.dataTransfer.files)await upload(f);
+  if(!$('#astWrap').classList.contains('hidden'))renderAssets();
+});
 async function upload(f){
   const fd=new FormData();fd.append('file',f);
+  const before=S.state?.current||'';
   addA('Uploading '+f.name+'…');
   const r=await fetch('/api/upload',{method:'POST',body:fd});const j=await r.json();
   if(!r.ok){addA('✕ '+(j.error||'upload failed'));return}
-  S.state=j;S.previewURL=null;render();addA('Got it. What should this footage become?');
+  S.state=j;S.previewURL=null;render();
+  /* a logo or music bed is an asset, not the story — say the right thing */
+  const added=(j.assets||[]).slice(-1)[0];
+  if(j.current&&j.current!==before)addA('Got it. What should this footage become?');
+  else addA('Added '+f.name+(added?.id?' as '+added.id:'')+' — reference it by name and I can use it in a scene.');
 }
 $('#demoBtn').onclick=async()=>{try{addA('Rendering a demo clip…');S.state=await api('/api/demo');S.previewURL=null;render();addA('Demo clip loaded. Try "make this a tiktok".')}catch(e){addA('✕ '+e.message)}};
 
 /* ---------- chat rendering ---------- */
 const msgs=$('#msgs');
-function addU(t){const d=document.createElement('div');d.className='mU';d.textContent=t;msgs.appendChild(d);scrollBot();return d}
-function addA(t){const d=document.createElement('div');d.className='mA';d.textContent=t;msgs.appendChild(d);scrollBot();return d}
+function showChatHint(){
+  if($('#chatHint'))return;
+  const d=document.createElement('div');d.id='chatHint';
+  d.textContent='Tell ìtàn the story this footage should become. Type it, or hold the mic.';
+  msgs.appendChild(d);
+}
+function clearChatHint(){$('#chatHint')?.remove()}
+function addU(t){clearChatHint();const d=document.createElement('div');d.className='mU';d.textContent=t;msgs.appendChild(d);scrollBot();return d}
+function addA(t){clearChatHint();const d=document.createElement('div');d.className='mA';d.textContent=t;msgs.appendChild(d);scrollBot();return d}
 function scrollBot(){msgs.scrollTop=1e9}
 function glyph(state){return {run:['⚙','var(--accent)','spin 1.6s linear infinite'],done:['✓','var(--ok)','none'],err:['✕','var(--err)','none'],retry:['↻','var(--plan)','none']}[state]}
 
@@ -860,7 +1274,7 @@ async function send(text){
   /* no footage gate: compose-only requests (title cards, launch videos,
      explainers) are legitimate on an empty project — the agent says so
      itself when a request genuinely needs source footage */
-  $('#input').value='';$('#input').style.height='auto';S.busy=true;setSendStop(true);
+  $('#input').value='';$('#input').style.height='auto';resetComposer();S.busy=true;setSendStop(true);
   addU(text);trace=null;liveA=null;
   startWork();
   S.abort=new AbortController();
@@ -917,15 +1331,38 @@ function handleEvent(ev,rows){
 async function refreshDuringRun(){try{const st=await (await fetch('/api/state')).json();S.state=st;S.previewURL=null;render()}catch(e){}}
 function setSendStop(stop){const b=$('#sendBtn');b.classList.toggle('stop',stop);b.innerHTML=stop?'<span></span>':'<span>↑</span>'}
 $('#sendBtn').onclick=()=>{if(S.busy){S.abort?.abort()}else send()};
-$('#input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
+$('#input').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();toggleComposer();return}
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}
+});
 /* long prompts flow down, not sideways: grow up to 140px then scroll */
-$('#input').addEventListener('input',()=>{const i=$('#input');i.style.height='auto';i.style.height=Math.min(i.scrollHeight,140)+'px'});
+$('#input').addEventListener('input',()=>{
+  if(COMPOSE_SIZES[composeSize]!=='inline')return; /* sized by the layout, not the content */
+  const i=$('#input');i.style.height='auto';i.style.height=Math.min(i.scrollHeight,140)+'px';
+});
+/* Three sizes, one control: inline → taller → the whole chat column.
+   Editing a long prompt should never mean squinting at a 140px window. */
+const COMPOSE_SIZES=['inline','tall','max'];
+let composeSize=0;
+function applyComposeSize(){
+  const mode=COMPOSE_SIZES[composeSize],bar=$('#composeBar'),wrap=$('#composer'),i=$('#input'),btn=$('#expandBtn');
+  bar.classList.toggle('expanded',mode==='tall');
+  wrap.classList.toggle('maximized',mode==='max');
+  btn.textContent=mode==='max'?'⤡':'⤢';
+  btn.title={inline:'taller composer (⌘⏎ cycles)',tall:'maximize the composer (⌘⏎ cycles)',max:'back to inline (⌘⏎ cycles, esc exits)'}[mode];
+  if(mode==='inline'){i.style.height='auto';i.style.height=Math.min(i.scrollHeight,140)+'px'}
+  else{i.style.removeProperty('height')}
+  i.focus();
+}
+function toggleComposer(){composeSize=(composeSize+1)%COMPOSE_SIZES.length;applyComposeSize()}
+function resetComposer(){if(composeSize){composeSize=0;applyComposeSize()}}
+$('#expandBtn').onclick=toggleComposer;
 
 /* working banner + elapsed */
 let workT0=0;
-function startWork(){workT0=Date.now();$('#workBanner').classList.remove('hidden');runTimer=setInterval(()=>{$('#workText').textContent='working · '+((Date.now()-workT0)/1000).toFixed(1)+'s elapsed';
+function startWork(){workT0=Date.now();$('#workBanner').classList.remove('hidden');$('#liveChip').classList.remove('hidden');$('#cmdChip').classList.add('hidden');$('#hfBtn').classList.add('hidden');runTimer=setInterval(()=>{$('#workText').textContent='working · '+((Date.now()-workT0)/1000).toFixed(1)+'s elapsed';
   $$('#strip .step.rendering .meta').forEach(m=>m.textContent=((Date.now()-workT0)/1000).toFixed(1)+'s elapsed')},200)}
-function stopWork(){clearInterval(runTimer);$('#workBanner').classList.add('hidden')}
+function stopWork(){clearInterval(runTimer);$('#workBanner').classList.add('hidden');$('#liveChip').classList.add('hidden');$('#cmdChip').classList.remove('hidden');$('#hfBtn').classList.remove('hidden')}
 
 /* ---------- permission dialog ---------- */
 function openPerm(ev){
@@ -1010,6 +1447,7 @@ async function startListening(hf){
 function stopListening(){if(rec&&rec.state!=='inactive')rec.stop();audioCtx?.close().catch(()=>{});audioCtx=null}
 function discardListening(){if(rec){rec.onstop=()=>{rec.stream?.getTracks?.().forEach(t=>t.stop());rec=null};rec.stop()}clearInterval(recTimer);clearInterval(vadTimer);uiListening(false);exitHF();audioCtx?.close().catch(()=>{});audioCtx=null}
 function uiListening(on){
+  if(on)resetComposer(); // a maximized composer would cover the listening UI
   $('#composeBar').classList.toggle('hidden',on);
   $('#hints').classList.toggle('hidden',on);
   $('#listenBar').classList.toggle('hidden',!on||handsFree);
@@ -1110,7 +1548,7 @@ function wireOverlay(btnSel,wrapSel,onOpen){
   const open=()=>{closeOverlays();$(wrapSel).classList.remove('hidden');onOpen&&onOpen()};
   $$(btnSel).forEach(b=>b.onclick=open);
 }
-function closeOverlays(){['#modelWrap','#skillsWrap','#cpWrap','#setWrap','#projWrap'].forEach(s=>$(s).classList.add('hidden'))}
+function closeOverlays(){['#modelWrap','#skillsWrap','#cpWrap','#setWrap','#projWrap','#arrWrap','#astWrap','#expWrap'].forEach(s=>$(s).classList.add('hidden'))}
 document.addEventListener('click',e=>{if(e.target.dataset?.close!==undefined)closeOverlays()});
 wireOverlay('#modelPill','#modelWrap',renderModels);
 wireOverlay('#projChip','#projWrap',renderProjects);
@@ -1141,6 +1579,46 @@ async function switchProject(dir){
   closeOverlays();render();toast('project · '+(j.project||dir));
   loadHistory();
 }
+/* arrange: sequence control without the model — drag rows, assemble = concat gesture */
+wireOverlay('#arrangeBtn','#arrWrap',renderArrange);
+let arrOrder=[];
+function renderArrange(){
+  arrOrder=S.state.assets.map(a=>({id:a.id,label:a.id+' · '+a.name}));
+  if(arrOrder.length<2){$('#arrList').innerHTML='<div class="mrow"><div class="via">add at least two clips (sources or composed scenes) to arrange</div></div>';return}
+  renderArrangeRows(arrOrder);
+}
+function renderArrangeRows(order){
+  const list=$('#arrList');list.innerHTML='';
+  order.forEach((it,i)=>{
+    const d=document.createElement('div');d.className='mrow';d.draggable=true;d.dataset.i=i;
+    d.innerHTML=`<span class="num mono" style="color:var(--t3);font-size:11px">${String(i+1).padStart(2,'0')}</span><div style="flex:1"><div class="nm">${esc(it.label)}</div></div><span style="color:var(--t4);cursor:grab">⠿</span>`;
+    d.addEventListener('dragstart',ev=>{ev.dataTransfer.setData('text/plain',String(i))});
+    d.addEventListener('dragover',ev=>ev.preventDefault());
+    d.addEventListener('drop',ev=>{
+      ev.preventDefault();
+      const from=+ev.dataTransfer.getData('text/plain'),to=+d.dataset.i;
+      if(from===to)return;
+      const[m]=arrOrder.splice(from,1);arrOrder.splice(to,0,m);
+      renderArrangeRows(arrOrder);
+    });
+    list.appendChild(d);
+  });
+}
+$('#arrTrans').onclick=e=>{if(e.target.dataset.t)$$('#arrTrans span').forEach(el=>el.classList.toggle('on',el===e.target))};
+$('#arrGo').onclick=async()=>{
+  if(arrOrder.length<2)return;
+  const trans=$('#arrTrans .on')?.dataset.t||'cut';
+  const args={inputs:arrOrder.map(x=>x.id)};
+  if(trans!=='cut'){args.transition=trans;args.transition_duration=0.5}
+  closeOverlays();
+  addA('⇅ assembling '+arrOrder.length+' clips ('+trans+')…');
+  try{
+    const r=await api('/api/tool',{name:'concat',args});
+    S.state=r.state;S.previewURL=null;render();
+    addA('⇅ '+r.summary+' — landed as op '+(r.state.ops.length)+', undoable.');
+  }catch(e){addA('✕ '+e.message)}
+};
+
 $('#projOpen').onclick=()=>{const v=$('#projPath').value.trim();if(v)switchProject(v)};
 $('#projPath').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#projOpen').onclick()}});
 async function undoStep(){
@@ -1161,20 +1639,209 @@ wireOverlay('#cpBtn,#cpBtn2','#cpWrap',renderCps);
 wireOverlay('#gear','#setWrap',()=>{
   $('#setStt').textContent=S.state?.stt||'whisper';
   $('#setTts').textContent='▶ '+(S.state?.tts||'kokoro');
+  renderStyleCard();
 });
+
+/* The project's design was invisible: a kit could be shaping every render
+   with nothing on screen to say so, or to undo it. */
+function renderStyleCard(){
+  const st=S.state?.style||{};
+  const sum=$('#styleSum');
+  if(st.brief||st.lines)
+    sum.textContent=(st.brief||'(no brief)')+(st.lines?` · ${st.lines} lines of CSS in every compose`:' · no CSS yet');
+  else
+    sum.textContent='not set — every scene designs from scratch';
+  $('#styleEditor').classList.add('hidden');
+  $('#styleMsg').textContent='';
+}
+$('#styleEdit').onclick=async()=>{
+  const ed=$('#styleEditor');
+  if(!ed.classList.contains('hidden')){ed.classList.add('hidden');return}
+  try{
+    const j=await(await fetch('/api/style')).json();
+    $('#styleBrief').value=j.brief||'';
+    $('#styleCss').value=j.css||'';
+  }catch(e){}
+  ed.classList.remove('hidden');
+  $('#styleBrief').focus();
+};
+async function saveStyle(body){
+  const r=await fetch('/api/style',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json();
+  if(!r.ok){$('#styleMsg').textContent='✕ '+(j.error||'failed');$('#styleMsg').style.color='var(--warn,#b7791f)';return}
+  S.state=j;render();renderStyleCard();
+  toast(body.clear?'style kit cleared':'style kit saved — it is in every compose from now on');
+}
+$('#styleSave').onclick=()=>saveStyle({brief:$('#styleBrief').value,css:$('#styleCss').value});
+$('#styleClear').onclick=()=>{if(confirm('Clear the project style kit? Scenes will design from scratch.'))saveStyle({clear:true})};
+/* ── model picker ────────────────────────────────────────────────────────
+   Two roles, one list. Reasoning is the model that thinks; Vision is the
+   route frames take when the reasoning model cannot see them — which used
+   to be a config key you could only reach from a terminal, and which is the
+   difference between an agent that looks at its own work and one that
+   writes motion graphics blind. */
+let mdlTab='direct', mdlRole='text', orCache=null, orLoading=false;
+const VISION_DEFAULT='anthropic/claude-haiku-4-5';
+
+async function applySpec(spec, role){
+  try{
+    S.state=await api('/api/model',{spec, role: role||'text'});
+    render();
+    if(role==='vision')  toast(spec?('frames now go to '+spec):'frames go to the reasoning model again');
+    else                 toast('now '+S.state.model);
+    renderModels();
+  }catch(e){toast('✕ '+e.message)}
+}
+
 function renderModels(){
-  const st=S.state,list=$('#modelList');list.innerHTML='';
-  st.models.forEach(m=>{
-    const d=document.createElement('div');d.className='mrow';
-    d.innerHTML=`<span class="dot" style="background:${m.active?'var(--accent)':(m.local?'var(--ok)':'var(--t3)')}"></span>
-      <div style="flex:1"><div class="nm">${esc(m.active?st.model.split('/')[1]:m.name)}</div><div class="via">${esc(m.via)}</div></div>
-      ${m.local?'<span class="badgeL">local</span>':''}${m.active?'<span class="mono" style="font-size:11px;color:var(--accent)">✓</span>':''}`;
-    d.onclick=async()=>{try{S.state=await api('/api/model',{spec:m.spec});closeOverlays();render();toast('now '+S.state.model)}catch(e){toast('✕ '+e.message)}};
-    list.appendChild(d);
-  });
+  const st=S.state; if(!st) return;
+  const vis=st.vision||{};
+  const on=!!vis.model;
+
+  // ── role rows ──
+  const active=(st.models||[]).find(m=>m.active);
+  $('#roleTextVal').textContent=active?active.name:(st.model||'').split('/').slice(1).join('/');
+  $('#roleTextVia').textContent=active?active.prov:'';
+  $('#roleTextMark').textContent=mdlRole==='text'?'●':'';
+  $('#roleText').classList.toggle('on',mdlRole==='text');
+  $('#roleText').classList.add('pick');
+
+  const vv=$('#roleVisionVal');
+  vv.textContent=on?(vis.name||vis.model):'same as reasoning';
+  vv.classList.toggle('dim',!on);
+  $('#roleVisionVia').textContent=on?(vis.via||''):'';
+  $('#roleVisionMark').textContent=(mdlRole==='vision'&&on)?'●':'';
+  $('#roleVision').classList.toggle('on',mdlRole==='vision'&&on);
+  $('#roleVision').classList.toggle('pick',on);
+  $('#visionSw').classList.toggle('on',on);
+  $('#visionReset').classList.toggle('hidden',!on);
+
+  // The one sentence that answers "can this setup see?"
+  const help=$('#visionHelp');
+  if(vis.err)            help.textContent='✕ '+vis.err;
+  else if(on)            help.textContent='frames go to a second model; everything else stays on the reasoning model';
+  else if(vis.can_see)   help.textContent='the reasoning model can see frames — nothing to set';
+  else                   help.textContent='⚠ this model cannot see frames. Turn on Vision so the agent can check its own work.';
+  help.style.color=(!on&&!vis.can_see)||vis.err?'var(--warn,#b7791f)':'var(--t3)';
+
+  $('#mdlId').value=active?active.id:'';
+  $('#mdlId').placeholder=mdlRole==='vision'?'vision model id':'model id';
   const tok=((st.tokens_in+st.tokens_out)/1000).toFixed(1);
   $('#modelFoot').innerHTML=`Context survives the switch: <span class="mono" style="font-size:10px;color:var(--t2)">${tok}k tok</span> carried over.`;
+
+  setModelTab(mdlTab, true);
 }
+
+function setModelTab(t, keep){
+  mdlTab=t;
+  $$('#mdlTabs span').forEach(el=>el.classList.toggle('on',el.dataset.t===t));
+  if(!keep)$('#mdlSearch').value='';
+  if(t==='or')loadOpenRouter(); else drawList();
+}
+$$('#mdlTabs span').forEach(el=>el.onclick=()=>setModelTab(el.dataset.t));
+$('#mdlSearch').addEventListener('input',()=>mdlTab==='or'?drawList():drawList());
+
+$('#roleText').onclick=()=>{mdlRole='text';renderModels()};
+$('#roleVision').onclick=e=>{
+  if(e.target.closest('#visionSw')||e.target.closest('#visionReset'))return;
+  if(S.state?.vision?.model){mdlRole='vision';renderModels()}
+};
+$('#visionSw').onclick=()=>{
+  const on=!!S.state?.vision?.model;
+  if(on){mdlRole='text';applySpec('','vision')}
+  else{mdlRole='vision';applySpec(pickVisionDefault(),'vision')}
+};
+$('#visionReset').onclick=()=>{mdlRole='text';applySpec('','vision')};
+
+/* Default to a vision model whose key is already present, so turning the
+   switch on does not immediately fail. */
+function pickVisionDefault(){
+  const ms=S.state?.models||[];
+  const ready=ms.filter(m=>m.vision&&m.ready);
+  const local=ready.find(m=>m.local);
+  if(local)return local.spec;
+  if(ready.length)return ready[0].spec;
+  return VISION_DEFAULT;
+}
+
+function drawList(){
+  const st=S.state; if(!st) return;
+  const q=$('#mdlSearch').value.trim().toLowerCase();
+  const pickingVision=mdlRole==='vision'&&!!st.vision?.model;
+  const list=$('#modelList');list.innerHTML='';
+
+  let rows;
+  if(mdlTab==='or'){
+    if(!orCache){list.innerHTML='<div id="mdlNote">loading the catalogue…</div>';return}
+    rows=orCache.filter(m=>!q||m.id.toLowerCase().includes(q)||m.name.toLowerCase().includes(q))
+      .map(m=>({name:m.name,id:m.id,ctx:m.context?Math.round(m.context/1000)+'k':'',
+                spec:'openrouter/'+m.id,vision:m.vision,price:m.price,
+                ready:(st.models||[]).some(x=>x.prov==='openrouter'&&x.ready),
+                active:st.model==='openrouter/'+m.id, eyes:st.vision?.model==='openrouter/'+m.id}));
+  }else{
+    rows=(st.models||[]).filter(m=>m.prov!=='openrouter')
+      .filter(m=>!q||m.id.toLowerCase().includes(q)||m.name.toLowerCase().includes(q));
+  }
+
+  const CAP=140, shown=rows.slice(0,CAP);
+  if(!shown.length){list.innerHTML='<div id="mdlNote">nothing matches — try a shorter term, or type an id below</div>';return}
+
+  shown.forEach(m=>{
+    const blocked=pickingVision&&!m.vision;
+    const sel=pickingVision?m.eyes:m.active;
+    const d=document.createElement('div');
+    d.className='mrow'+(sel?' on':'')+(blocked?' blocked':'');
+    d.innerHTML=`<span class="dot" style="background:${sel?'var(--accent)':(m.local?'var(--ok)':'var(--t3)')}"></span>
+      <div class="l"><div class="nm">${esc(m.name)}</div>
+        <div class="sub">${esc(m.id)}${m.ctx?' · '+esc(m.ctx):''}</div></div>
+      ${m.vision?'<span class="tag">vision</span>':''}
+      ${m.local?'<span class="tag">local</span>':''}
+      ${m.ready===false?'<span class="need" title="set '+esc(m.key_env||'the API key')+'">no key</span>':''}
+      ${m.price?'<span class="pr">'+esc(m.price)+'</span>':''}
+      <span class="ck">${sel?'✓':''}</span>`;
+    if(!blocked)d.onclick=()=>applySpec(m.spec,pickingVision?'vision':'text');
+    list.appendChild(d);
+  });
+  if(rows.length>CAP){
+    const more=document.createElement('div');more.id='mdlNote';
+    more.textContent=`showing ${CAP} of ${rows.length} — search to narrow`;
+    list.appendChild(more);
+  }
+  if(pickingVision){
+    const n=rows.filter(m=>m.vision).length;
+    const note=document.createElement('div');note.id='mdlNote';
+    note.textContent=`${n} of ${rows.length} here can see — the rest are text-only`;
+    list.appendChild(note);
+  }
+}
+
+/* Applying a bare id keeps the current provider; "provider/id" switches both. */
+$('#mdlApply').onclick=()=>{
+  const v=$('#mdlId').value.trim();
+  if(!v){toast('type a model id first');return}
+  const active=(S.state.models||[]).find(m=>m.active);
+  const spec=v.includes('/')?v:((active?active.prov:'anthropic')+'/'+v);
+  applySpec(spec, mdlRole==='vision'&&S.state.vision?.model?'vision':'text');
+};
+$('#mdlId').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#mdlApply').onclick()}});
+
+async function loadOpenRouter(){
+  if(orCache){drawList();return}
+  if(orLoading)return;
+  orLoading=true;
+  $('#modelList').innerHTML='<div id="mdlNote">loading the catalogue…</div>';
+  try{
+    const r=await fetch('/api/models/openrouter');
+    const j=await r.json();
+    if(!r.ok)throw new Error(j.error||'could not load');
+    orCache=j.models||[];
+    drawList();
+  }catch(e){
+    // The catalogue is a convenience; typing an id must still work.
+    $('#modelList').innerHTML='<div id="mdlNote">'+esc(e.message)+' — type the id below instead.</div>';
+  }finally{orLoading=false}
+}
+
 function renderSkills(){
   const g=$('#skillsGrid');g.innerHTML='';
   (S.state?.skills||[]).forEach(sk=>{
@@ -1213,12 +1880,115 @@ document.addEventListener('keydown',e=>{
     if(handsFree||rec){discardListening();return}
     if(S.region!==null||$('#regionLayer').style.display==='block'){clearRegion();return}
     if(trimDraft){clearTrimGesture();return}
+    // A maximized composer covers the panel, so esc should shrink it before
+    // it reaches for anything else.
+    if(COMPOSE_SIZES[composeSize]==='max'){resetComposer();return}
     if(S.busy){S.abort?.abort();return}
     closeOverlays();
   }
   if(e.key==='Tab'&&e.shiftKey){e.preventDefault();$('#modePill').onclick()}
   if(e.key==='/'&&!/^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName||'')){e.preventDefault();$('#input').focus()}
 });
+
+/* ---------- assets drawer ---------- */
+let astFilter='material',astCache=[];
+wireOverlay('#assetsBtn,#plusBtn','#astWrap',renderAssets);
+async function renderAssets(){
+  $('#astPath').textContent=S.state?.project_dir||'';
+  try{const r=await(await fetch('/api/assets')).json();astCache=r.assets||[]}catch(e){astCache=[]}
+  drawAssets();
+}
+function drawAssets(){
+  // The drawer is the project's material. Every edit also leaves an
+  // intermediate render behind; those are history, and the timeline already
+  // tells that story — so they sit behind their own chip instead of burying
+  // the footage under a pile of working files.
+  const counts={material:0,render:0,image:0,audio:0,issues:0};
+  astCache.forEach(a=>{
+    if(a.material)counts.material++;
+    counts[a.kind]=(counts[a.kind]||0)+1;
+    if(a.missing)counts.issues++;
+  });
+  const f=$('#astFilters');f.innerHTML='';
+  [['material','media'],['render','working files'],['image','images'],['audio','audio'],['issues','issues']].forEach(([k,label])=>{
+    if(k!=='material'&&!counts[k])return;
+    const el=document.createElement('span');
+    el.textContent=label+' '+(counts[k]||0);
+    el.className=(k==='issues'?'iss ':'')+(astFilter===k?'on':'');
+    el.onclick=()=>{astFilter=k;drawAssets()};
+    f.appendChild(el);
+  });
+  const g=$('#astGrid');g.innerHTML='';
+  const pick=a=>{
+    if(astFilter==='issues')return a.missing;
+    if(astFilter==='material')return a.material;
+    return a.kind===astFilter;
+  };
+  astCache.filter(pick).forEach(a=>{
+    const d=document.createElement('div');d.className='astCard';
+    const glyphc=a.missing?'⚠':(a.kind==='audio'?'♫':(a.kind==='image'?'▣':'▶'));
+    const badge=a.current?'current':(a.kind==='render'?'working':(a.kind==='source'?'source':''));
+    // A real frame, not a play triangle: you cannot pick a clip you can't see.
+    const thumbStyle=a.missing?' style="background:var(--err-tint)"'
+      :(a.thumb?` style="background:#000 center/cover no-repeat url('${a.thumb}')"`:'');
+    d.innerHTML=`<div class="astThumb"${thumbStyle}>${a.thumb&&!a.missing?'':glyphc}${badge?`<span class="badge"${badge==='source'?' style="background:var(--t3)"':''}>${badge}</span>`:''}${a.dur?`<span class="dur mono">${esc(a.dur)}</span>`:''}</div>
+      <div class="nm mono">${esc(a.name)}</div><div class="mt mono${a.missing?' bad':''}">${esc(a.meta)}</div>${a.missing&&a.id?'<div class="fix mono">locate / replace →</div>':''}`;
+    d.onclick=()=>{
+      if(a.missing&&a.id){pickReplace(a.id);return}
+      if(a.url){closeOverlays();setPreview(a.url,a.url===S.state.current)}
+    };
+    g.appendChild(d);
+  });
+}
+$('#astImport').onclick=()=>$('#assetInput').click();
+
+/* ---------- export dialog ---------- */
+wireOverlay('#exportBtn','#expWrap',()=>{
+  const st=S.state;
+  $('#expFile').textContent=decodeURIComponent((st.current||'').split('path=')[1]||'').split('/').pop()||'—';
+  $('#expMeta').textContent=st.current_info||'';
+});
+$('#expGo').onclick=async()=>{
+  const name=$('#expName').value.trim()||'itan-export.mp4';
+  closeOverlays();
+  addA('⤓ exporting '+name+'…');
+  try{
+    const r=await api('/api/tool',{name:'export',args:{path:name}});
+    S.state=r.state;render();
+    addA('⤓ '+r.summary);
+  }catch(e){addA('✕ '+e.message)}
+};
+
+/* ---------- resume last session (empty state) ---------- */
+async function renderResume(){
+  const card=$('#resumeCard');
+  try{
+    const r=await(await fetch('/api/projects')).json();
+    const other=(r.projects||[]).find(p=>!p.active);
+    if(!other){card.classList.add('hidden');return}
+    card.innerHTML=`<span class="rg mono">⟲</span><div><div class="rn">resume last session</div><div class="rm mono">${esc(other.name)}${other.meta?' · '+esc(other.meta):''}</div></div><span class="go">resume →</span>`;
+    card.onclick=()=>switchProject(other.dir);
+    card.classList.remove('hidden');
+  }catch(e){card.classList.add('hidden')}
+}
+
+/* ---------- revert to selected step ---------- */
+function selectedOpSeq(){
+  if(!S.previewURL)return null;
+  const op=(S.state.ops||[]).find(o=>o.url===S.previewURL);
+  return op?op.seq:null;
+}
+$('#revStepBtn').onclick=async()=>{
+  const seq=selectedOpSeq();if(seq==null)return;
+  if(!confirm('Rewind the story to step '+seq+'? Later steps drop off (their files stay on disk). A checkpoint holds the current cut.'))return;
+  const r=await fetch('/api/step/revert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({seq})});
+  const j=await r.json();
+  if(!r.ok){toast('✕ '+(j.error||'revert failed'));return}
+  S.state=j;S.previewURL=null;render();addA('⟲ story rewound to step '+seq+' — a checkpoint holds what came after.');
+};
+
+$('#cmdChip').onclick=()=>{const i=$('#input');i.value='/'+i.value.replace(/^\//,'');i.focus()};
+$('#projNew').onclick=()=>{$('#projPath').focus()};
 
 /* boot */
 async function loadHistory(){
@@ -1231,7 +2001,7 @@ async function loadHistory(){
       restored=true;
     }
   }catch(e){}
-  if(!restored&&!msgs.children.length)addA('Tell ìtàn the story this footage should become. Type it, or hold the mic and just say it. Everything runs on this machine; nothing uploads.');
+  if(!restored&&!msgs.children.length)showChatHint();
 }
 refresh();
 loadHistory();

@@ -14,9 +14,12 @@ import (
 // CapturePage screenshots a live URL — the raw material for product-launch
 // compositions (hero shots, UI panes) that compose can then embed and move.
 // Unlike Render, this deliberately goes online: the user handed us the URL.
-func CapturePage(ctx context.Context, url string, width int, fullPage bool, outPath string) (w, h int, err error) {
+func CapturePage(ctx context.Context, url string, width int, fullPage bool, scale int, outPath string) (w, h int, err error) {
 	if width <= 0 {
 		width = 1440
+	}
+	if scale < 1 || scale > 3 {
+		scale = 2
 	}
 	height := width * 9 / 16
 
@@ -39,7 +42,7 @@ func CapturePage(ctx context.Context, url string, width int, fullPage bool, outP
 
 	var shot []byte
 	actions := []chromedp.Action{
-		chromedp.EmulateViewport(int64(width), int64(height), chromedp.EmulateScale(2)),
+		chromedp.EmulateViewport(int64(width), int64(height), chromedp.EmulateScale(float64(scale))),
 		chromedp.Navigate(url),
 		chromedp.Sleep(1800 * time.Millisecond), // let lazy content and fonts settle
 	}
@@ -54,5 +57,5 @@ func CapturePage(ctx context.Context, url string, width int, fullPage bool, outP
 	if err := os.WriteFile(outPath, shot, 0o644); err != nil {
 		return 0, 0, err
 	}
-	return width * 2, height * 2, nil // EmulateScale(2) doubles captured pixels
+	return width * scale, height * scale, nil // EmulateScale multiplies captured pixels
 }

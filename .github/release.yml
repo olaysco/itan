@@ -1,0 +1,44 @@
+# Release pipeline. Tagging vX.Y.Z cross-compiles, publishes a GitHub Release
+# with checksums, and updates the Homebrew formula in olaysco/homebrew-tap.
+#
+# Activate with:  git mv .github/release.yml.pending .github/workflows/release.yml
+# (a token with `workflow` scope is needed to push a workflow file)
+#
+# One secret is required: HOMEBREW_TAP_TOKEN — a fine-grained PAT with
+# contents:write on olaysco/homebrew-tap only. The built-in GITHUB_TOKEN
+# cannot write to another repository.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # goreleaser builds the changelog from history
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # The suite renders real video, so the release cannot be cut without it.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Test
+        run: go test ./...
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

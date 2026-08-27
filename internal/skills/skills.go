@@ -83,6 +83,24 @@ func Load(cfg *config.Config, projectDir string) *Set {
 				continue
 			}
 			if sk, ok := parse(string(raw), p); ok {
+				// Asset packs: a skill directory may carry an assets/ folder
+				// (images, css, svg, music). {ASSETS} in the body resolves to
+				// its absolute path, so playbooks can say
+				// <img src="file://{ASSETS}/logo.svg"> and compose/add_music
+				// can use pack files directly.
+				assets := filepath.Join(dir, e.Name(), "assets")
+				if st, aerr := os.Stat(assets); aerr == nil && st.IsDir() {
+					sk.Body = strings.ReplaceAll(sk.Body, "{ASSETS}", assets)
+					if names, lerr := os.ReadDir(assets); lerr == nil && len(names) > 0 {
+						var files []string
+						for _, n := range names {
+							if !n.IsDir() {
+								files = append(files, n.Name())
+							}
+						}
+						sk.Body += "\n\n## Pack assets (" + assets + ")\n" + strings.Join(files, " · ")
+					}
+				}
 				s.add(sk)
 			}
 		}

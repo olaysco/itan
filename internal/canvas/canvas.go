@@ -11,15 +11,23 @@
 // video ecosystem. Each frame is screenshotted and ffmpeg encodes the
 // sequence. Same input, same frames, same output.
 //
-// Supported in compositions: inline CSS/JS, CSS animations & transitions,
-// Web Animations API, data-start/data-duration timing, data URIs and local
-// file references. Not supported: external network resources (renders are
-// offline by design) and rAF-driven animation libraries (their clocks don't
-// seek); the compose tool's description steers the model accordingly.
+// Compositions can also skip the seeking problem entirely: frameapi.js is
+// injected into every render and lets a scene declare what it looks like AT
+// a frame (interpolate/spring/Seq via itan.frame). That is a pure function of
+// frame number, so it is exact at any frame, in any seek order, on every run
+// — measured against analytic ground truth in frameapi_test.go.
+//
+// Supported in compositions: inline CSS/JS, the frame API, CSS animations &
+// transitions, Web Animations API, data-start/data-duration timing, data URIs
+// and local file references. Not supported: external network resources
+// (renders are offline by design) and rAF-driven animation libraries (their
+// clocks don't seek — express that motion with the frame API instead); the
+// compose tool's description steers the model accordingly.
 package canvas
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,6 +44,12 @@ import (
 // disk: 3600 frames is two minutes at 30fps.
 const maxFrames = 3600
 
+// perFrameBudget is deliberately generous: measured cost at 1080x1920 is
+// around a second a frame, and a composition with full-canvas effects on a
+// loaded machine can be several times that. This is a stuck-render backstop,
+// not a performance target.
+const perFrameBudget = 15 * time.Second
+
 type Opts struct {
 	HTML     string // complete, self-contained document
 	Width    int    // canvas size (default 1920x1080)
@@ -47,6 +61,9 @@ type Opts struct {
 	// Scale× device pixels and ffmpeg downscales with Lanczos, which is
 	// what keeps text crisp through 4:2:0 encoding. 1–3.
 	Scale int
+	// StyleCSS is the project's shared style kit, injected into every scene
+	// so a video looks like one piece rather than a run of unrelated designs.
+	StyleCSS string
 }
 
 // seekRuntime is injected once per render. __itanSeek(ms) makes the page
@@ -57,7 +74,11 @@ const seekRuntime = `
 if (window.gsap) { try { gsap.ticker.lagSmoothing(0); gsap.globalTimeline.pause(); } catch (e) {} }
 window.__itanSeek = (ms) => {
   document.getAnimations().forEach(a => { try { a.pause(); a.currentTime = ms; } catch (e) {} });
-  if (window.gsap) { try { gsap.globalTimeline.time(ms / 1000, false); } catch (e) {} }
+  if (window.gsap) { try { gsap.globalTimeline.time(ms / 1000); } catch (e) {} }
+  if (window.__itanApplyFrame) {
+    const fps = window.__itanFPS || 30;
+    window.__itanApplyFrame(Math.round(ms / 1000 * fps), fps, window.__itanTotalFrames || 0);
+  }
   document.querySelectorAll('[data-start],[data-duration]').forEach(el => {
     const s = parseFloat(el.dataset.start || 0) * 1000;
     const d = el.dataset.duration ? parseFloat(el.dataset.duration) * 1000 : Infinity;
@@ -103,7 +124,7 @@ func Render(ctx context.Context, opts Opts) error {
 	defer os.RemoveAll(work)
 
 	htmlPath := filepath.Join(work, "composition.html")
-	if err := os.WriteFile(htmlPath, []byte(injectGSAP(injectFonts(opts.HTML))), 0o600); err != nil {
+	if err := os.WriteFile(htmlPath, []byte(injectFrameAPI(injectGSAP(injectStyleKit(injectFonts(opts.HTML), opts.StyleCSS)))), 0o600); err != nil {
 		return err
 	}
 
@@ -128,7 +149,13 @@ func Render(ctx context.Context, opts Opts) error {
 	defer cancelAlloc()
 	cctx, cancelCtx := chromedp.NewContext(allocCtx)
 	defer cancelCtx()
-	cctx, cancelTimeout := context.WithTimeout(cctx, 5*time.Minute)
+	// The deadline has to scale with the work. A flat cap silently made long
+	// or high-resolution compositions impossible: a 45-second 1080x1920 piece
+	// is over a thousand frames, and it died mid-render with nothing to show
+	// and "context deadline exceeded" as the only explanation. Budget per
+	// frame, with a floor that covers browser start and font loading.
+	budget := time.Duration(frames)*perFrameBudget + 2*time.Minute
+	cctx, cancelTimeout := context.WithTimeout(cctx, budget)
 	defer cancelTimeout()
 
 	awaitFonts := func(p *cdruntime.EvaluateParams) *cdruntime.EvaluateParams {
@@ -139,6 +166,7 @@ func Render(ctx context.Context, opts Opts) error {
 		chromedp.Navigate("file://"+htmlPath),
 		chromedp.WaitReady("body"),
 		chromedp.Evaluate(`document.fonts.ready.then(() => true)`, nil, awaitFonts),
+		chromedp.Evaluate(fmt.Sprintf("window.__itanFPS=%d;window.__itanTotalFrames=%d;true", opts.FPS, frames), nil),
 		chromedp.Evaluate(seekRuntime, nil),
 	); err != nil {
 		return fmt.Errorf("compose: page load: %w", err)
@@ -151,6 +179,12 @@ func Render(ctx context.Context, opts Opts) error {
 			chromedp.Evaluate(fmt.Sprintf("__itanSeek(%.3f)", ms), nil),
 			chromedp.CaptureScreenshot(&shot),
 		); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return fmt.Errorf("compose: gave up at frame %d of %d after %s — this composition renders too slowly to finish. "+
+					"Lower fps, shorten the clip, split it into scenes, pass scale:1, or remove a full-canvas effect "+
+					"(an SVG filter background is re-rasterized every frame and is usually the cause)",
+					i+1, frames, budget.Round(time.Second))
+			}
 			return fmt.Errorf("compose: frame %d/%d: %w", i+1, frames, err)
 		}
 		frame := filepath.Join(work, fmt.Sprintf("f_%05d.png", i))

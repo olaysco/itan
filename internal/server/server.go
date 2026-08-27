@@ -17,18 +17,24 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/olaysco/itan/internal/agent"
+	"github.com/olaysco/itan/internal/canvas"
 	"github.com/olaysco/itan/internal/cli"
 	"github.com/olaysco/itan/internal/config"
 	"github.com/olaysco/itan/internal/media"
 	"github.com/olaysco/itan/internal/permission"
+	"github.com/olaysco/itan/internal/provider"
 	"github.com/olaysco/itan/internal/skills"
 	"github.com/olaysco/itan/internal/tools"
 	"github.com/olaysco/itan/internal/voice"
@@ -116,17 +122,29 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/permission", s.handlePermission)
 	mux.HandleFunc("POST /api/upload", s.handleUpload)
 	mux.HandleFunc("POST /api/asset/remove", s.handleAssetRemove)
+	mux.HandleFunc("POST /api/asset/replace", s.handleAssetReplace)
+	mux.HandleFunc("POST /api/reveal", s.handleReveal)
+	mux.HandleFunc("POST /api/step/edit", s.handleStepEdit)
+	mux.HandleFunc("POST /api/step/revert", s.handleStepRevert)
+	mux.HandleFunc("GET /api/assets", s.handleAssets)
+	mux.HandleFunc("GET /api/style", s.handleStyleGet)
+	mux.HandleFunc("POST /api/style", s.handleStyleSet)
 	mux.HandleFunc("GET /api/projects", s.handleProjects)
 	mux.HandleFunc("POST /api/project", s.handleProjectSwitch)
 	mux.HandleFunc("POST /api/undo", s.handleUndo)
 	mux.HandleFunc("POST /api/revert", s.handleRevert)
 	mux.HandleFunc("POST /api/model", s.handleModel)
+	mux.HandleFunc("GET /api/models/openrouter", s.handleOpenRouterModels)
 	mux.HandleFunc("POST /api/mode", s.handleMode)
 	mux.HandleFunc("POST /api/demo", s.handleDemo)
 	mux.HandleFunc("POST /api/tool", s.handleTool)
 	mux.HandleFunc("POST /api/voice/transcribe", s.handleTranscribe)
 	mux.HandleFunc("POST /api/voice/speak", s.handleSpeak)
 	mux.HandleFunc("GET /media", s.handleMedia)
+	mux.HandleFunc("GET /thumb", s.handleThumb)
+	// The interface's own typefaces, from the binary rather than a CDN.
+	mux.Handle("GET /fonts/", http.StripPrefix("/fonts/",
+		cacheForever(http.FileServer(http.FS(canvas.BuiltinFontFS())))))
 	return mux
 }
 
@@ -138,6 +156,9 @@ func (s *Server) Listen(ctx context.Context, addr string) error {
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.ListenAndServe() }()
 	fmt.Printf("Itan UI on http://%s (ctrl+c to quit)\n", addr)
+	if warning := exposureWarning(addr); warning != "" {
+		fmt.Print(warning)
+	}
 	select {
 	case err := <-errCh:
 		return err
@@ -152,12 +173,54 @@ func (s *Server) Listen(ctx context.Context, addr string) error {
 	}
 }
 
+// cacheForever marks immutable assets: the font files change only when the
+// binary does.
+func cacheForever(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		h.ServeHTTP(w, r)
+	})
+}
+
+// exposureWarning is printed when the UI is bound anywhere but loopback.
+// There is no authentication: whoever reaches the port can switch the
+// project to any directory on this machine and read the files inside it,
+// and every request spends this machine's API keys. That is fine for a
+// local tool and dangerous the moment it is reachable, so say so loudly
+// rather than letting someone find out later.
+func exposureWarning(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	switch host {
+	case "", "localhost", "127.0.0.1", "::1":
+		return ""
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return ""
+	}
+	return "\n  ⚠  This address is reachable from outside this machine, and itan has no\n" +
+		"     authentication. Anyone who can reach it can open any folder on this\n" +
+		"     computer and spend your API keys. Bind 127.0.0.1 unless you have put\n" +
+		"     your own authenticated proxy in front of it.\n\n"
+}
+
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
 	}
 	page, _ := uiFS.ReadFile("ui/index.html")
+	// $ITAN_UI serves the page from disk instead of the embedded copy, so a
+	// CSS or markup change is a browser refresh rather than a rebuild. The
+	// shipped binary is unaffected — the variable is a development switch.
+	if dev := os.Getenv("ITAN_UI"); dev != "" {
+		if live, err := os.ReadFile(dev); err == nil {
+			page = live
+			w.Header().Set("Cache-Control", "no-store")
+		}
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(page)
 }
@@ -172,10 +235,11 @@ type fileRef struct {
 }
 
 type opView struct {
-	Seq     int    `json:"seq"`
-	Tool    string `json:"tool"`
-	Summary string `json:"summary"`
-	URL     string `json:"url,omitempty"`
+	Seq     int            `json:"seq"`
+	Tool    string         `json:"tool"`
+	Summary string         `json:"summary"`
+	URL     string         `json:"url,omitempty"`
+	Args    map[string]any `json:"args,omitempty"`
 }
 
 type checkpointView struct {
@@ -192,12 +256,60 @@ type skillView struct {
 	Active bool   `json:"active"`
 }
 
+// modelView is one offerable model, not one provider. The picker asks two
+// questions of every row — can it see, and is it reachable — so both travel
+// with it.
 type modelView struct {
-	Spec   string `json:"spec"`
+	Spec   string `json:"spec"` // provider/id, what /api/model accepts
+	Prov   string `json:"prov"` // provider alone
 	Name   string `json:"name"`
+	ID     string `json:"id"`
+	Ctx    string `json:"ctx,omitempty"`
 	Via    string `json:"via"`
 	Local  bool   `json:"local"`
-	Active bool   `json:"active"`
+	Vision bool   `json:"vision"`
+	Active bool   `json:"active"` // the reasoning model
+	Eyes   bool   `json:"eyes"`   // the vision model, when one is set
+	// Ready reports whether this provider has a key (or needs none), and
+	// KeyEnv names the variable to set when it does not. Picking a provider
+	// with no key used to fail only on the next message.
+	Ready  bool   `json:"ready"`
+	KeyEnv string `json:"key_env,omitempty"`
+}
+
+// visionView answers the question the UI actually needs: can this setup see,
+// and if so, with what.
+type visionView struct {
+	// Model is the separate vision route, empty when frames go to the
+	// reasoning model itself.
+	Model string `json:"model,omitempty"`
+	Name  string `json:"name,omitempty"`
+	Via   string `json:"via,omitempty"`
+	// CanSee is the honest answer for the session as a whole.
+	CanSee bool   `json:"can_see"`
+	Err    string `json:"err,omitempty"`
+}
+
+// styleView is the project's design, which the interface had no sign of at
+// all: a kit could be silently shaping every render with nothing on screen
+// to say so, or to undo it.
+type styleView struct {
+	Brief string `json:"brief,omitempty"`
+	Lines int    `json:"lines,omitempty"` // CSS line count; the CSS itself is fetched on demand
+}
+
+// sceneView is the storyboard as the UI should show it: what the viewer will
+// see and hear, not which ffmpeg call produced it.
+type sceneView struct {
+	N        int     `json:"n"`
+	Intent   string  `json:"intent"`
+	Say      string  `json:"say,omitempty"`
+	Visual   string  `json:"visual,omitempty"`
+	Duration float64 `json:"duration"`
+	URL      string  `json:"url,omitempty"`
+	Thumb    string  `json:"thumb,omitempty"`
+	Rendered bool    `json:"rendered"`
+	Voiced   bool    `json:"voiced"`
 }
 
 type stateView struct {
@@ -213,11 +325,40 @@ type stateView struct {
 	Original    string           `json:"original,omitempty"`
 	Checkpoints []checkpointView `json:"checkpoints"`
 	Skills      []skillView      `json:"skills"`
+	Scenes      []sceneView      `json:"scenes"`
+	Style       styleView        `json:"style"`
 	Models      []modelView      `json:"models"`
+	Vision      visionView       `json:"vision"`
 	TokensIn    int              `json:"tokens_in"`
 	TokensOut   int              `json:"tokens_out"`
+	Cost        string           `json:"cost,omitempty"` // "≈$0.31" when the model's rates are known
 	TTS         string           `json:"tts"`
 	STT         string           `json:"stt"`
+}
+
+// modelRates maps model-id substrings to $/1M token (in, out) for the header
+// cost estimate. Approximate by design — the readout says ≈.
+var modelRates = []struct {
+	match   string
+	in, out float64
+}{
+	{"opus", 15, 75}, {"sonnet", 3, 15}, {"haiku", 1, 5},
+	{"kimi-k3", 3, 15}, {"kimi-k2.5", 0.6, 3}, {"kimi", 0.6, 3},
+	{"glm", 1.4, 4.4}, {"deepseek-v4-flash", 0.14, 0.28}, {"deepseek", 0.435, 0.87},
+}
+
+func estimateCost(modelID string, in, out int) string {
+	id := strings.ToLower(modelID)
+	for _, r := range modelRates {
+		if strings.Contains(id, r.match) {
+			usd := float64(in)/1e6*r.in + float64(out)/1e6*r.out
+			if usd < 0.005 {
+				return ""
+			}
+			return fmt.Sprintf("≈$%.2f", usd)
+		}
+	}
+	return ""
 }
 
 func mediaURL(path string) string {
@@ -238,7 +379,7 @@ func (s *Server) state() stateView {
 		Ffmpeg:     media.Available(),
 		Current:    mediaURL(p.Current),
 		Assets:     []fileRef{}, Ops: []opView{}, Checkpoints: []checkpointView{},
-		Skills: []skillView{}, Models: []modelView{},
+		Skills: []skillView{}, Models: []modelView{}, Scenes: []sceneView{},
 		TTS: cfg.Audio.TTS.Provider + " · " + cfg.Audio.TTS.Voice,
 		STT: cfg.Audio.STT.Provider,
 	}
@@ -254,13 +395,27 @@ func (s *Server) state() stateView {
 		v.Assets = append(v.Assets, fileRef{ID: a.ID, Name: filepath.Base(a.Path), URL: mediaURL(a.Path), Info: a.Info.Compact()})
 	}
 	for _, op := range p.Ops {
-		v.Ops = append(v.Ops, opView{Seq: op.Seq, Tool: op.Tool, Summary: op.Summary, URL: mediaURL(op.Output)})
+		v.Ops = append(v.Ops, opView{Seq: op.Seq, Tool: op.Tool, Summary: op.Summary, URL: mediaURL(op.Output), Args: op.Args})
+	}
+	if p.Style.Brief != "" || p.Style.CSS != "" {
+		v.Style = styleView{Brief: p.Style.Brief}
+		if strings.TrimSpace(p.Style.CSS) != "" {
+			v.Style.Lines = strings.Count(strings.TrimSpace(p.Style.CSS), "\n") + 1
+		}
+	}
+	for _, sc := range p.Scenes {
+		v.Scenes = append(v.Scenes, sceneView{
+			N: sc.N, Intent: sc.Intent, Say: sc.Say, Visual: sc.Visual, Duration: sc.Duration,
+			URL: mediaURL(sc.Output), Thumb: thumbURL(sc.Output),
+			Rendered: sc.Output != "", Voiced: sc.Voice != "",
+		})
 	}
 
 	active := map[string]bool{}
 	if s.Session.Agent != nil {
 		v.Mode = string(s.Session.Agent.Gate.Mode())
 		v.TokensIn, v.TokensOut = s.Session.Agent.InputTokens, s.Session.Agent.OutputTokens
+		v.Cost = estimateCost(cfg.Model.ID, v.TokensIn, v.TokensOut)
 		cps := s.Session.Agent.Checkpoints()
 		for i := len(cps) - 1; i >= 0; i-- { // newest first
 			cp := cps[i]
@@ -275,13 +430,63 @@ func (s *Server) state() stateView {
 	for _, sk := range skills.Load(cfg, p.Dir).All() {
 		v.Skills = append(v.Skills, skillView{Name: sk.Name, Desc: sk.Description, Source: sk.Source, Active: active[sk.Name]})
 	}
+	visionSpec := cfg.Model.Vision
+	visionProv, visionID, _ := strings.Cut(visionSpec, "/")
 	for _, name := range config.PresetNames() {
 		preset := config.Presets[name]
+		ready := preset.KeyEnv == "" || os.Getenv(preset.KeyEnv) != ""
+		// OpenRouter's catalogue is fetched live; listing a stale shortlist
+		// here would fight it.
+		models := preset.Models
+		if len(models) == 0 && name != "openrouter" {
+			models = []config.PresetModel{{ID: preset.DefaultModel, Name: preset.DefaultModel}}
+		}
+		for _, m := range models {
+			label := m.Name
+			if label == "" {
+				label = m.ID
+			}
+			v.Models = append(v.Models, modelView{
+				Spec: name + "/" + m.ID, Prov: name, Name: label, ID: m.ID, Ctx: m.Ctx,
+				Via:    preset.Note,
+				Local:  preset.KeyEnv == "",
+				Vision: m.Vision,
+				Active: cfg.Model.Provider == name && cfg.Model.ID == m.ID,
+				Eyes:   visionProv == name && (visionID == m.ID || visionID == ""),
+				Ready:  ready, KeyEnv: preset.KeyEnv,
+			})
+		}
+	}
+	// A model in use but not on any shortlist still has to appear, or the
+	// picker would show nothing selected.
+	if !slices.ContainsFunc(v.Models, func(m modelView) bool { return m.Active }) {
+		preset := config.Presets[cfg.Model.Provider]
 		v.Models = append(v.Models, modelView{
-			Spec: name, Name: preset.DefaultModel, Via: preset.Note,
+			Spec: cfg.Model.Provider + "/" + cfg.Model.ID, Prov: cfg.Model.Provider,
+			Name: cfg.Model.ID, ID: cfg.Model.ID, Via: preset.Note,
 			Local:  preset.KeyEnv == "",
-			Active: cfg.Model.Provider == name,
+			Vision: config.CanSee(cfg.Model.Provider, cfg.Model.ID),
+			Active: true,
+			Ready:  preset.KeyEnv == "" || os.Getenv(preset.KeyEnv) != "",
+			KeyEnv: preset.KeyEnv,
 		})
+	}
+
+	v.Vision = visionView{Model: visionSpec}
+	if visionSpec == "" {
+		// No separate route: frames go to the reasoning model, so the answer
+		// is whatever that model can do.
+		v.Vision.CanSee = config.CanSee(cfg.Model.Provider, cfg.Model.ID)
+	} else {
+		v.Vision.CanSee = true
+		v.Vision.Name = visionID
+		if v.Vision.Name == "" {
+			v.Vision.Name = config.Presets[visionProv].DefaultModel
+		}
+		v.Vision.Via = visionProv
+		if _, _, err := provider.VisionFromConfig(cfg); err != nil {
+			v.Vision.CanSee, v.Vision.Err = false, err.Error()
+		}
 	}
 	return v
 }
@@ -519,6 +724,341 @@ func (s *Server) handleAssetRemove(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, s.state())
 }
 
+// handleAssetReplace swaps the file behind an asset id with an uploaded one —
+// the "use MY screenshot instead" move. The id stays stable; rendered steps
+// are untouched.
+func (s *Server) handleAssetReplace(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(512 << 20); err != nil {
+		httpErr(w, 400, "bad upload: "+err.Error())
+		return
+	}
+	id := r.FormValue("id")
+	file, header, err := r.FormFile("file")
+	if err != nil || id == "" {
+		httpErr(w, 400, "id and file required")
+		return
+	}
+	defer file.Close()
+
+	dir := filepath.Join(s.Session.Project.Dir, ".itan", "uploads")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		httpErr(w, 500, err.Error())
+		return
+	}
+	dest := filepath.Join(dir, fmt.Sprintf("replaced-%d-%s", time.Now().Unix(), filepath.Base(header.Filename)))
+	out, err := os.Create(dest)
+	if err != nil {
+		httpErr(w, 500, err.Error())
+		return
+	}
+	if _, err := io.Copy(out, file); err != nil {
+		out.Close()
+		httpErr(w, 500, err.Error())
+		return
+	}
+	out.Close()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, err := s.Session.Project.ReplaceAsset(r.Context(), id, dest); err != nil {
+		httpErr(w, 400, err.Error())
+		return
+	}
+	writeJSON(w, s.state())
+}
+
+// handleReveal opens the OS file manager at a project file — the user's
+// files are real files; hand them over.
+func (s *Server) handleReveal(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Path string `json:"path"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Path == "" {
+		httpErr(w, 400, "path required")
+		return
+	}
+	if !s.allowed(req.Path) {
+		httpErr(w, 403, "not a project file")
+		return
+	}
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", "-R", req.Path)
+	case "windows":
+		cmd = exec.Command("explorer", "/select,", req.Path)
+	default:
+		cmd = exec.Command("xdg-open", filepath.Dir(req.Path))
+	}
+	if err := cmd.Start(); err != nil {
+		httpErr(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, map[string]string{"status": "ok"})
+}
+
+// --- recipe replay ---------------------------------------------------------
+
+// handleStepEdit re-runs a past step with edited args and replays every later
+// step from its recorded recipe — non-destructive editing born from the
+// ledger. A checkpoint is pushed first so /revert undoes the whole replay.
+func (s *Server) handleStepEdit(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Seq  int            `json:"seq"`
+		Args map[string]any `json:"args"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Seq <= 0 {
+		httpErr(w, 400, "seq required")
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.replayFrom(r.Context(), req.Seq, req.Args); err != nil {
+		httpErr(w, 400, err.Error())
+		return
+	}
+	if s.Session.Agent != nil {
+		_ = s.Session.Agent.SaveSession()
+	}
+	writeJSON(w, s.state())
+}
+
+// replayFrom is the recipe engine: every op recorded its tool + args + input,
+// so the ledger is a replayable program, not just history. Steps whose input
+// was CURRENT re-resolve naturally as the replay advances; explicit paths are
+// rewired along the old→new output chain. Old renders stay on disk.
+func (s *Server) replayFrom(ctx context.Context, seq int, newArgs map[string]any) error {
+	p := s.Session.Project
+	idx := -1
+	for i, op := range p.Ops {
+		if op.Seq == seq {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return fmt.Errorf("no step %d", seq)
+	}
+	if s.Session.Agent != nil {
+		s.Session.Agent.CheckpointNow(fmt.Sprintf("edit step %d (%s)", seq, p.Ops[idx].Tool))
+	}
+
+	recipe := append([]media.EditOp{}, p.Ops[idx:]...)
+	p.Ops = p.Ops[:idx]
+	p.Current = ""
+	for i := len(p.Ops) - 1; i >= 0; i-- {
+		if p.Ops[i].Output != "" {
+			p.Current = p.Ops[i].Output
+			break
+		}
+	}
+	if p.Current == "" && len(p.Assets) > 0 {
+		p.Current = p.Assets[0].Path
+	}
+	if err := p.Save(); err != nil {
+		return err
+	}
+
+	reg := tools.NewRegistry()
+	gate := permission.NewGate(permission.Mode(s.Session.Cfg.Mode), s.Session.Cfg.Permissions, nil)
+	if s.Session.Agent != nil {
+		gate = s.Session.Agent.Gate
+	}
+	tctx := &tools.Ctx{
+		Context: ctx, Project: p, Config: s.Session.Cfg,
+		TTS: voice.TTSFromConfig(s.Session.Cfg), STT: voice.STTFromConfig(s.Session.Cfg),
+	}
+
+	rewire := map[string]string{} // old output path → new output path
+	for i, op := range recipe {
+		args := map[string]any{}
+		for k, v := range op.Args {
+			args[k] = v
+		}
+		if i == 0 {
+			for k, v := range newArgs {
+				args[k] = v
+			}
+		}
+		if in, ok := args["input"].(string); ok && in != "" {
+			if nw, hit := rewire[in]; hit {
+				args["input"] = nw
+			}
+		} else if op.Input != "" {
+			if nw, hit := rewire[op.Input]; hit {
+				args["input"] = nw
+			}
+		}
+
+		tool, ok := reg.Get(op.Tool)
+		if !ok {
+			return fmt.Errorf("step %d: unknown tool %s", op.Seq, op.Tool)
+		}
+		if dec := gate.Check(permission.Request{Tool: op.Tool, Args: args, Mutating: tool.Mutating}); dec.Action != permission.Allow {
+			return fmt.Errorf("step %d (%s) denied: %s", op.Seq, op.Tool, dec.Feedback)
+		}
+		raw, _ := json.Marshal(args)
+		res := reg.Execute(tctx, op.Tool, raw)
+		if res.Err != nil {
+			return fmt.Errorf("replay of %s (step %d): %v", op.Tool, op.Seq, res.Err)
+		}
+		if op.Output != "" && res.Output != "" {
+			rewire[op.Output] = res.Output
+		}
+	}
+	return nil
+}
+
+// --- assets inventory ------------------------------------------------------
+
+type assetView struct {
+	ID   string `json:"id,omitempty"` // sources only
+	Seq  int    `json:"seq,omitempty"`
+	Kind string `json:"kind"` // "source" | "image" | "audio" | "render"
+	Name string `json:"name"`
+	URL  string `json:"url"`
+	// Thumb is a poster frame; empty for files that cannot have one.
+	Thumb string `json:"thumb,omitempty"`
+	Meta  string `json:"meta"`
+	Dur   string `json:"dur,omitempty"`
+	// Material separates the project's raw stock — sources, imported
+	// stills, audio, composed clips — from the intermediate renders each
+	// edit leaves behind. The drawer is a library, not a log; the timeline
+	// is where the log belongs.
+	Material bool `json:"material,omitempty"`
+	Missing  bool `json:"missing,omitempty"`
+	Current  bool `json:"current,omitempty"`
+}
+
+// handleAssets returns everything the project references, with honest issue
+// flags: a moved/deleted file says so instead of failing later mid-edit.
+// assetKind classifies a file for the drawer. Audio and images each need
+// their own preview element, so guessing from a couple of extensions is not
+// enough — a rendered frame is an image, not an audio track.
+func assetKind(path, fallback string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus":
+		return "audio"
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".avif":
+		return "image"
+	}
+	return fallback
+}
+
+// handleStyleGet returns the full kit for editing; the state carries only a
+// summary so the CSS is not paid for on every poll.
+func (s *Server) handleStyleGet(w http.ResponseWriter, _ *http.Request) {
+	st := s.Session.Project.Style
+	writeJSON(w, map[string]any{"brief": st.Brief, "css": st.CSS})
+}
+
+func (s *Server) handleStyleSet(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Brief string `json:"brief"`
+		CSS   string `json:"css"`
+		Clear bool   `json:"clear"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpErr(w, 400, "bad request")
+		return
+	}
+	p := s.Session.Project
+	if req.Clear {
+		p.Style.Brief, p.Style.CSS = "", ""
+	} else {
+		// A kit that reaches the network fails silently in every scene at
+		// once, so it is refused here exactly as the tool refuses it.
+		if strings.Contains(req.CSS, "@import") || strings.Contains(strings.ToLower(req.CSS), "url(http") {
+			httpErr(w, 400, "the style kit cannot use @import or network URLs — renders are offline. Use url(file:///absolute/path) for a local file")
+			return
+		}
+		p.Style.Brief, p.Style.CSS = req.Brief, req.CSS
+	}
+	if err := p.Save(); err != nil {
+		httpErr(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, s.state())
+}
+
+func (s *Server) handleAssets(w http.ResponseWriter, _ *http.Request) {
+	p := s.Session.Project
+	out := []assetView{}
+	add := func(v assetView, path string) {
+		if _, err := os.Stat(path); err != nil {
+			v.Missing = true
+			v.Meta = "file moved or deleted"
+		}
+		v.Current = path == p.Current
+		out = append(out, v)
+	}
+	for _, a := range p.Assets {
+		v := assetView{
+			ID: a.ID, Kind: assetKind(a.Path, "source"), Name: filepath.Base(a.Path),
+			URL: mediaURL(a.Path), Thumb: thumbURL(a.Path), Meta: a.Info.Compact(),
+			Material: true,
+		}
+		// A still has no duration; showing "0.0s" reads as a broken clip.
+		if a.Info.Duration > 0 {
+			v.Dur = fmt.Sprintf("%.1fs", a.Info.Duration)
+		}
+		add(v, a.Path)
+	}
+	for _, op := range p.Ops {
+		if op.Output == "" {
+			continue
+		}
+		add(assetView{
+			Seq: op.Seq, Kind: "render", Name: filepath.Base(op.Output),
+			URL: mediaURL(op.Output), Thumb: thumbURL(op.Output),
+			Meta: fmt.Sprintf("step %03d · %s", op.Seq, op.Tool),
+		}, op.Output)
+	}
+	writeJSON(w, map[string]any{"assets": out})
+}
+
+// handleStepRevert rewinds the ledger to a selected step: later steps drop
+// off (their render files stay on disk) and CURRENT becomes that step's
+// output. Checkpointed, so /revert can undo the rewind itself.
+func (s *Server) handleStepRevert(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Seq int `json:"seq"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Seq <= 0 {
+		httpErr(w, 400, "seq required")
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.Session.Project
+	idx := -1
+	for i, op := range p.Ops {
+		if op.Seq == req.Seq {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		httpErr(w, 400, fmt.Sprintf("no step %d", req.Seq))
+		return
+	}
+	if s.Session.Agent != nil {
+		s.Session.Agent.CheckpointNow(fmt.Sprintf("revert to step %d", req.Seq))
+	}
+	p.Ops = p.Ops[:idx+1]
+	if p.Ops[idx].Output != "" {
+		p.Current = p.Ops[idx].Output
+	}
+	if err := p.Save(); err != nil {
+		httpErr(w, 500, err.Error())
+		return
+	}
+	if s.Session.Agent != nil {
+		_ = s.Session.Agent.SaveSession()
+	}
+	writeJSON(w, s.state())
+}
+
 // --- projects --------------------------------------------------------------
 
 // A project is a directory; its .itan/ subfolder carries the ledger,
@@ -529,6 +1069,26 @@ type projectRef struct {
 	Dir    string `json:"dir"`
 	Name   string `json:"name"`
 	Active bool   `json:"active"`
+	Meta   string `json:"meta,omitempty"` // "4 edits · today 14:12"
+}
+
+func projectMeta(dir string) string {
+	path := filepath.Join(dir, ".itan", "project.json")
+	st, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	var p struct {
+		Ops []any `json:"ops"`
+	}
+	if data, err := os.ReadFile(path); err == nil {
+		_ = json.Unmarshal(data, &p)
+	}
+	when := st.ModTime().Format("Jan 2 15:04")
+	if time.Since(st.ModTime()) < 24*time.Hour {
+		when = "today " + st.ModTime().Format("15:04")
+	}
+	return fmt.Sprintf("%d edits · %s", len(p.Ops), when)
 }
 
 func (s *Server) handleProjects(w http.ResponseWriter, _ *http.Request) {
@@ -539,10 +1099,10 @@ func (s *Server) handleProjects(w http.ResponseWriter, _ *http.Request) {
 		if d == cur {
 			seen = true
 		}
-		refs = append(refs, projectRef{Dir: d, Name: filepath.Base(d), Active: d == cur})
+		refs = append(refs, projectRef{Dir: d, Name: filepath.Base(d), Active: d == cur, Meta: projectMeta(d)})
 	}
 	if !seen {
-		refs = append([]projectRef{{Dir: cur, Name: filepath.Base(cur), Active: true}}, refs...)
+		refs = append([]projectRef{{Dir: cur, Name: filepath.Base(cur), Active: true, Meta: projectMeta(cur)}}, refs...)
 	}
 	writeJSON(w, map[string]any{"projects": refs})
 }
@@ -633,11 +1193,45 @@ func (s *Server) handleRevert(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, s.state())
 }
 
+// handleModel sets either role. "text" is the reasoning model; "vision" is
+// the separate route frames take when the reasoning model cannot see them —
+// the setting that used to exist only as a config key typed into a terminal.
 func (s *Server) handleModel(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Spec string `json:"spec"`
+		Role string `json:"role"` // "text" (default) or "vision"
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Spec == "" {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpErr(w, 400, "bad request")
+		return
+	}
+
+	if req.Role == "vision" {
+		// An empty spec turns the separate route off: frames go back to the
+		// reasoning model.
+		if req.Spec != "" {
+			if _, _, _, _, err := s.Session.Cfg.ResolveSpec(req.Spec); err != nil {
+				httpErr(w, 400, err.Error())
+				return
+			}
+		}
+		s.Session.Cfg.Model.Vision = req.Spec
+		if err := config.SaveGlobal(s.Session.Cfg); err != nil {
+			httpErr(w, 500, err.Error())
+			return
+		}
+		// The rebuild can fail for reasons that have nothing to do with the
+		// route just chosen — most often the reasoning model has no key yet.
+		// That is a pre-existing problem the state already reports; refusing
+		// the change would leave the user unable to set up vision at all
+		// until they fixed something unrelated.
+		_ = s.Session.RebuildAgent()
+		s.attachAsker()
+		writeJSON(w, s.state())
+		return
+	}
+
+	if req.Spec == "" {
 		httpErr(w, 400, "spec required")
 		return
 	}
@@ -676,7 +1270,7 @@ func (s *Server) handleMode(w http.ResponseWriter, r *http.Request) {
 // without the model in the loop. Each maps 1:1 onto a registry tool and lands
 // as a normal ledger op — undoable, checkpointed, permission-gated. The
 // whitelist keeps chat as the control surface for everything else.
-var gestureTools = map[string]bool{"trim": true}
+var gestureTools = map[string]bool{"trim": true, "cut_range": true, "concat": true, "export": true}
 
 // handleTool executes one whitelisted tool call directly (no LLM): instant,
 // token-free, and honest — plan mode and deny rules still block it.
@@ -817,6 +1411,13 @@ func (s *Server) allowed(path string) bool {
 	}
 	for _, op := range p.Ops {
 		if op.Output == path {
+			return true
+		}
+	}
+	// A scene render marked from a path that is neither an asset nor an op
+	// output is still part of this project.
+	for _, sc := range p.Scenes {
+		if sc.Output == path {
 			return true
 		}
 	}

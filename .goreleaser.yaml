@@ -1,0 +1,111 @@
+# Release config for GoReleaser: cross-compiles, publishes a GitHub Release,
+# and updates the Homebrew formula in olaysco/homebrew-tap so
+# `brew install olaysco/tap/itan` gets the new version.
+#
+# Verify before tagging:
+#   goreleaser check                 # config is valid for your goreleaser version
+#   goreleaser release --snapshot --clean   # full dry run, publishes nothing
+#
+# Then:
+#   git tag -a v0.3.0 -m "v0.3.0" && git push origin v0.3.0
+version: 2
+
+project_name: itan
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: itan
+    main: ./cmd/itan
+    binary: itan
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    # -s -w drops the symbol table and DWARF: the binary goes from ~15M to
+    # ~11M, which matters for something people download.
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - id: itan
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+brews:
+  - name: itan
+    ids: [itan]
+    repository:
+      owner: olaysco
+      name: homebrew-tap
+      # A token with contents:write on the tap repo. GITHUB_TOKEN from the
+      # release workflow only covers this repo, so the tap needs its own.
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/olaysco/itan
+    description: Agentic AI video editor — plain-language editing over ffmpeg and a real browser
+    license: MIT
+    commit_author:
+      name: Olayiwola Odunsi
+      email: olayiwolaodunsi@gmail.com
+
+    # The dependency that actually matters. Every render goes through ffmpeg,
+    # and making brew install it is most of the reason to ship a tap at all.
+    dependencies:
+      - name: ffmpeg
+
+    install: |
+      bin.install "itan"
+
+    # A browser cannot be a formula dependency (Chrome is a cask, and most
+    # people already have one), so say it plainly instead of letting compose
+    # fail later with nothing to explain it.
+    caveats: |
+      itan needs a Chromium-family browser for `compose` — Chrome, Chromium,
+      Edge, or Brave. Most machines already have one; if not:
+
+        brew install --cask google-chrome
+
+      Then check everything at once:
+
+        itan doctor
+
+      It reports ffmpeg, your model and API key, the browser, whether the
+      model can see frames, and the optional voice and stock-media services.
+
+    test: |
+      assert_match "itan", shell_output("#{bin}/itan version")
+      # doctor exits non-zero when something is missing, which is correct
+      # behaviour and not a failed install — only check that it runs.
+      system "#{bin}/itan", "help"
+
+release:
+  draft: false
+  prerelease: auto
+  footer: |
+    ## Install
+
+    ```
+    brew install olaysco/tap/itan
+    ```
+
+    Or download a binary below. itan also needs `ffmpeg` and a Chromium-family
+    browser; run `itan doctor` after installing and it will tell you what is
+    missing.

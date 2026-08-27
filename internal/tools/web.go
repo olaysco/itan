@@ -40,6 +40,7 @@ func webTools() []Tool {
 				"url":       prop("string", "Absolute http(s) URL."),
 				"width":     prop("integer", "Viewport width in px (default 1440)."),
 				"full_page": prop("boolean", "Capture the full scroll height (default false: hero viewport)."),
+				"scale":     prop("integer", "Device scale 1–3 (default 2). Use 3 when the capture will be shown large or zoomed."),
 			}),
 			Run: runCapturePage,
 		},
@@ -100,7 +101,7 @@ func runCapturePage(c *Ctx, args Args) Result {
 	if v, ok := args["full_page"].(bool); ok {
 		full = v
 	}
-	w, h, err := canvas.CapturePage(c.Context, url, args.Int("width", 1440), full, out)
+	w, h, err := canvas.CapturePage(c.Context, url, args.Int("width", 1440), full, args.Int("scale", 2), out)
 	if err != nil {
 		return Result{Err: err}
 	}

@@ -82,6 +82,10 @@ type Agent struct {
 	visionModel  string
 	visionErr    error
 	visionWarned bool
+	// blindModel latches once the active model has refused image input, so
+	// the rest of the session skips attaching frames instead of rediscovering
+	// it one expensive request at a time.
+	blindModel bool
 }
 
 // Checkpoint captures project + conversation state at the start of a user
@@ -115,6 +119,13 @@ func New(cfg *config.Config, p provider.Provider, proj *media.Project, sk *skill
 		system:       buildSystemPrompt(proj.Dir, sk),
 		activeSkills: map[string]bool{},
 	}
+}
+
+// CheckpointNow records a revert point for work initiated outside the chat
+// loop (step edits, replays) so direct manipulation is as reversible as
+// conversation.
+func (a *Agent) CheckpointNow(label string) {
+	a.pushCheckpoint(label)
 }
 
 // ActiveSkills lists skills whose playbooks have been injected this session.
@@ -237,15 +248,22 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 
 	for turn := 0; turn < a.Cfg.Context.MaxTurns; turn++ {
 		callProv, model, msgs := prov, a.Cfg.Model.ID, a.History
-		if a.vision != nil {
-			if hasImages(a.History[len(a.History)-1]) {
-				// Fresh frames: route to the vision model, dropping stale
-				// frames from earlier turns to keep the request lean.
-				callProv, model, msgs = visionProv, a.visionModel, stripImages(a.History, true)
-			} else {
-				// Text turn: the main brain may be text-only — strip images.
-				msgs = stripImages(a.History, false)
-			}
+		sendingImages := false
+		switch {
+		case a.vision != nil && hasImages(a.History[len(a.History)-1]):
+			// Fresh frames: route to the vision model, dropping stale
+			// frames from earlier turns to keep the request lean.
+			callProv, model, msgs = visionProv, a.visionModel, stripImages(a.History, true)
+			sendingImages = true
+		case a.vision != nil:
+			// Text turn: the main brain may be text-only — strip images.
+			msgs = stripImages(a.History, false)
+		case a.blindModel:
+			// This model already told us it cannot take images. Sending them
+			// again would just buy the same 404 and another lost run.
+			msgs = stripImages(a.History, false)
+		default:
+			sendingImages = hasImages(a.History[len(a.History)-1])
 		}
 		streamed := false
 		thinkChars, thinkEmitted := 0, 0
@@ -272,6 +290,16 @@ func (a *Agent) RunWithReason(ctx context.Context, userMsg string, onEvent func(
 			}
 		})
 		if err != nil {
+			// A model that cannot see is not a reason to throw away a run
+			// that has already rendered everything. Drop the pictures, say
+			// so plainly, and let the turn continue on text.
+			if sendingImages && provider.ImageUnsupported(err) {
+				a.blindModel = true
+				emit(Event{Kind: "text", Text: "note: " + model + " cannot accept images, so the frames were not shown. " +
+					"Continuing without them — route frames to a model that can see with `itan config set model.vision <provider>`."})
+				a.History = blindFrames(a.History)
+				continue
+			}
 			return "", StopError, err
 		}
 		a.InputTokens += resp.InputTokens
@@ -350,6 +378,33 @@ func hasImages(m provider.Message) bool {
 		}
 	}
 	return false
+}
+
+// blindFrames strips frames from history and replaces them with a statement
+// the model cannot misread. It has to say the frames were NOT seen: a note
+// that merely says they are gone invites the model to review from memory and
+// report on pictures it never had.
+func blindFrames(msgs []provider.Message) []provider.Message {
+	out := make([]provider.Message, len(msgs))
+	for i, m := range msgs {
+		if !hasImages(m) {
+			out[i] = m
+			continue
+		}
+		blocks := make([]provider.Block, len(m.Blocks))
+		for j, b := range m.Blocks {
+			if len(b.Images) > 0 {
+				n := len(b.Images)
+				b.Images = nil
+				b.Content += fmt.Sprintf("\n[%d frame(s) could NOT be shown: this model does not accept images. "+
+					"You have not seen them. Do not describe or judge them — say so and continue from what the "+
+					"tools reported in text.]", n)
+			}
+			blocks[j] = b
+		}
+		out[i] = provider.Message{Role: m.Role, Blocks: blocks}
+	}
+	return out
 }
 
 // stripImages returns msgs with frame attachments removed — from every
@@ -526,7 +581,11 @@ func (a *Agent) executeOne(tctx *tools.Ctx, use provider.Block, doom *doomDetect
 	}
 	emit(ev)
 	block := provider.ToolResultBlock(use.ID, compact, res.Err != nil)
-	block.Images = loadFrames(res.Frames)
+	// No point base64-encoding megabytes of PNG for a model that has already
+	// told us it cannot look at them.
+	if !a.blindModel {
+		block.Images = loadFrames(res.Frames)
+	}
 	return block
 }
 

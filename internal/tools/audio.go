@@ -2,6 +2,7 @@ package tools
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/olaysco/itan/internal/media"
@@ -53,6 +54,84 @@ func audioTools() []Tool {
 			}),
 			Run: runMixAudio, Mutating: true,
 		},
+		{
+			Name: "add_music",
+			Description: "Lay a music bed under the whole video: loops or trims the track to fit, fades in/out, " +
+				"and when the video has speech, auto-DUCKS the music under it (sidechain). This is what makes a " +
+				"video feel finished — prefer it over mix_audio for soundtracks.",
+			Schema: schema([]string{"audio"}, map[string]map[string]any{
+				"audio":  prop("string", "Path to the music file (wav/mp3/m4a)."),
+				"volume": prop("number", "Music level 0–1 (default 0.20)."),
+				"duck":   {"type": "boolean", "description": "Duck the music under existing speech (default true when the video has audio)."},
+				"fade":   prop("number", "Fade in/out seconds (default 1.0)."),
+				"input":  prop("string", "Asset id or path; defaults to CURRENT."),
+			}),
+			Run: runAddMusic, Mutating: true,
+		},
+	}
+}
+
+// runAddMusic builds the full music-bed graph: loop → trim to duration →
+// level → fades → optional sidechain duck against the existing track → mix.
+func runAddMusic(c *Ctx, args Args) Result {
+	in, err := resolveInput(c, args)
+	if err != nil {
+		return Result{Err: err}
+	}
+	music := args.Str("audio")
+	if music == "" {
+		return fail("add_music needs `audio` (a music file path)")
+	}
+	if _, err := os.Stat(music); err != nil {
+		return fail("music file not found: %s", music)
+	}
+	info, err := media.Probe(c.Context, in)
+	if err != nil {
+		return Result{Err: err}
+	}
+	vol := args.Float("volume", 0.20)
+	if vol <= 0 || vol > 1 {
+		vol = 0.20
+	}
+	fade := args.Float("fade", 1.0)
+	duck := info.HasAudio
+	if v, ok := args["duck"].(bool); ok {
+		duck = v && info.HasAudio
+	}
+	dur := info.Duration
+	fadeOutStart := dur - fade
+	if fadeOutStart < 0 {
+		fadeOutStart = 0
+	}
+
+	// Music chain: infinite loop → cut to video length → level → fades.
+	bed := fmt.Sprintf(
+		"[1:a]aloop=loop=-1:size=2e9,atrim=0:%.3f,asetpts=N/SR/TB,volume=%.3f,afade=t=in:d=%.2f,afade=t=out:st=%.3f:d=%.2f[bed]",
+		dur, vol, fade, fadeOutStart, fade)
+
+	out := c.Project.NextOutput("music", ".mp4")
+	var fc string
+	if duck {
+		// Speech is the sidechain key: music dips when the voice speaks.
+		fc = bed + ";[bed][0:a]sidechaincompress=threshold=0.03:ratio=8:attack=80:release=400[ducked];" +
+			"[0:a][ducked]amix=inputs=2:duration=first:normalize=0[aout]"
+	} else if info.HasAudio {
+		fc = bed + ";[0:a][bed]amix=inputs=2:duration=first:normalize=0[aout]"
+	} else {
+		fc = bed + ";[bed]anull[aout]"
+	}
+	if err := media.Run(c.Context, "-i", in, "-i", music,
+		"-filter_complex", fc, "-map", "0:v", "-map", "[aout]",
+		"-c:v", "copy", "-c:a", "aac", "-shortest", out); err != nil {
+		return Result{Err: err}
+	}
+	how := "mixed"
+	if duck {
+		how = "ducked under the speech"
+	}
+	return Result{
+		Summary: fmt.Sprintf("music bed %s at %.0f%%, %.1fs fades (%s)", how, vol*100, fade, filepath.Base(music)),
+		Output:  out,
 	}
 }
 

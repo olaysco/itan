@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/olaysco/itan/internal/canvas"
 	"github.com/olaysco/itan/internal/media"
@@ -16,19 +17,30 @@ func composeTools() []Tool {
 			Name: "compose",
 			Description: "Create a motion-graphics clip (intro/title card, animated caption, explainer scene, " +
 				"end screen) by writing a complete self-contained HTML document — it renders to video in a real " +
-				"browser. Use CSS animations/transitions, the Web Animations API, or GSAP 3 (+SplitText) which is " +
-				"pre-bundled: just reference `gsap` and it is injected — build one gsap.timeline() per scene; " +
-				"renders are deterministic. Give elements data-start=\"2\" data-duration=\"3\" (seconds) to control " +
-				"when they appear. Inline all CSS/JS; no other external URLs (renders are offline). The fonts " +
-				"'Bricolage Grotesque' (display, weights 200-800) and 'IBM Plex Mono' are pre-installed — use them, " +
-				"never system-ui. The result becomes a new project ASSET (it does not replace CURRENT) — chain with " +
-				"concat for intros/outros or overlay_video to put it on footage.",
+				"browser. Animate with the built-in frame API (exact at every frame, nothing to import): " +
+				"`itan.frame(({frame, fps}) => { el.style.opacity = interpolate(frame, [0,15], [0,1]); })`, plus " +
+				"`spring({frame, fps, config})` and `Seq(from, durationInFrames)`. CSS animations/transitions, the " +
+				"Web Animations API, and GSAP 3 (+SplitText, pre-bundled — reference `gsap` and it is injected) all " +
+				"work too; build one gsap.timeline() per scene. Renders are deterministic. Give elements " +
+				"data-start=\"2\" data-duration=\"3\" (seconds) to control when they appear. Inline all CSS/JS — " +
+				"renders are offline, so no network URLs, but LOCAL FILES ARE FINE and encouraged: embed the " +
+				"project's logo, screenshots, or capture_page output with " +
+				"<img src=\"file:///absolute/path.png\">. Compose at the delivery size (default 1920x1080) and " +
+				"size type for that canvas — concat joins on the largest clip and letterboxes smaller ones. The " +
+				"engine is a full browser, so depth is available and expected: CSS 3D (perspective/rotateY/" +
+				"preserve-3d), layered box-shadows, backdrop-filter glass, blurred radial glows, and Canvas 2D or " +
+				"WebGL when you draw from itan.frame rather than requestAnimationFrame. The " +
+				"fonts 'Bricolage Grotesque' (display, weights 200-800) and 'IBM Plex Mono' are pre-installed — " +
+				"use them, never system-ui. The result becomes a new project ASSET (it does not replace CURRENT) — " +
+				"chain with concat for intros/outros or overlay_video to put it on footage. If the project has a " +
+				"style_kit, its CSS is already in the document — use its classes instead of restyling from scratch.",
 			Schema: schema([]string{"html", "duration"}, map[string]map[string]any{
 				"html":     prop("string", "Complete HTML document, self-contained."),
 				"duration": prop("number", "Clip length in seconds (max 120)."),
 				"width":    prop("integer", "Canvas width px (default 1920)."),
 				"height":   prop("integer", "Canvas height px (default 1080)."),
 				"fps":      prop("integer", "Frame rate (default 30)."),
+				"scale":    prop("integer", "Supersampling 1-3 (default 2). 2 keeps small type and thin strokes crisp through 4:2:0; 1 renders ~3.7x faster and is visually identical for large type. Drop to 1 for long or vertical pieces where render time is the constraint."),
 			}),
 			Run: runCompose,
 		},
@@ -60,19 +72,31 @@ func runCompose(c *Ctx, args Args) Result {
 	if dur <= 0 || dur > 120 {
 		return fail("duration must be in (0, 120] seconds, got %v", dur)
 	}
+	// A composition that reaches for the network renders wrong, silently:
+	// the page loads, the library never arrives, and nothing moves. Drop the
+	// dead references and say so instead of shipping a still video.
+	html, external := canvas.StripExternal(html)
+
 	out := c.Project.NextOutput("compose", ".mp4")
 	// Keep the source next to the render so the composition is inspectable
 	// and re-editable later (read_text can fetch it back).
 	htmlPath := strings.TrimSuffix(out, ".mp4") + ".html"
 
-	err := canvas.Render(c.Context, canvas.Opts{
+	opts := canvas.Opts{
 		HTML:     html,
 		Width:    args.Int("width", 1920),
 		Height:   args.Int("height", 1080),
 		FPS:      args.Int("fps", 30),
+		Scale:    args.Int("scale", 0), // 0 → the engine's default of 2
 		Duration: dur,
 		OutPath:  out,
-	})
+		// Every scene inherits the project's design; the scene's own styles
+		// still win, because the kit is injected ahead of them.
+		StyleCSS: c.Project.Style.CSS,
+	}
+	started := time.Now()
+	err := canvas.Render(c.Context, opts)
+	elapsed := time.Since(started)
 	if err != nil {
 		return Result{Err: err}
 	}
@@ -84,13 +108,29 @@ func runCompose(c *Ctx, args Args) Result {
 	if err != nil {
 		return Result{Err: fmt.Errorf("rendered but could not register asset: %w", err)}
 	}
-	return Result{
-		Summary: fmt.Sprintf("composed %.1fs graphic as asset %s", dur, asset.ID),
-		Data: map[string]any{
-			"asset": asset.ID, "file": out, "html": htmlPath,
-			"now": asset.Info.Compact(),
-		},
+	summary := fmt.Sprintf("composed %.1fs graphic as asset %s", dur, asset.ID)
+	// Report what the render actually cost, and at what settings. A model
+	// that cannot see the price of a composition cannot make the next one
+	// cheaper — and a scale that silently never arrived stays invisible.
+	frames := int(dur*float64(opts.FPS) + 0.5)
+	scale := opts.Scale
+	if scale <= 0 {
+		scale = 2
 	}
+	data := map[string]any{
+		"asset": asset.ID, "file": out, "html": htmlPath,
+		"now":     asset.Info.Compact(),
+		"scale":   scale,
+		"seconds": elapsed.Seconds(),
+		"render": fmt.Sprintf("%d frames at %dx%d, scale %d, in %s (%.2fs/frame)",
+			frames, opts.Width, opts.Height, scale, elapsed.Round(time.Second),
+			elapsed.Seconds()/float64(frames)),
+	}
+	if note := canvas.ExternalNote(external); note != "" {
+		summary += " — " + note
+		data["external_dropped"] = external
+	}
+	return Result{Summary: summary, Data: data}
 }
 
 func runOverlayVideo(c *Ctx, args Args) Result {

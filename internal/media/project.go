@@ -24,9 +24,39 @@ type Project struct {
 	Assets  []Asset  `json:"assets"`
 	Ops     []EditOp `json:"ops"`
 	Current string   `json:"current"` // path of the working video
+	// Scenes is the storyboard: the declared plan for a multi-scene piece.
+	// It renders into the ledger, so the plan survives compaction and every
+	// turn sees which scenes are still unrendered.
+	Scenes []Scene `json:"scenes,omitempty"`
+	// Style is injected into every compose so scenes share one design.
+	Style Style `json:"style,omitempty"`
 
 	mu  sync.Mutex
 	seq int // in-memory output counter; survives parallel tools without collisions
+}
+
+// Scene is one storyboard entry. Status is derived: planned until an Output
+// is attached.
+// Scene is one beat of the storyboard, and the storyboard is the script:
+// Say is what is heard, Visual is what is seen, Intent is why the scene
+// exists. Keeping all three means a later request can address content
+// ("redo scene 3") instead of an operation number.
+type Scene struct {
+	N        int     `json:"n"`
+	Intent   string  `json:"intent"`           // why this scene exists
+	Say      string  `json:"say,omitempty"`    // narration spoken over it
+	Visual   string  `json:"visual,omitempty"` // what is on screen
+	Duration float64 `json:"duration"`
+	Output   string  `json:"output,omitempty"` // render path once composed
+	Voice    string  `json:"voice,omitempty"`  // synthesized narration for Say
+}
+
+// Style is the project's visual identity, held once and applied to every
+// composition. Brief is the prose decision — palette, type, easing,
+// layout — and CSS is that decision made executable.
+type Style struct {
+	Brief string `json:"brief,omitempty"`
+	CSS   string `json:"css,omitempty"`
 }
 
 type Asset struct {
@@ -87,9 +117,23 @@ func (p *Project) AddAsset(ctx context.Context, path string) (*Asset, error) {
 	if _, err := os.Stat(abs); err != nil {
 		return nil, fmt.Errorf("no such file: %s", path)
 	}
+	// The same file added twice is one asset. Dropping a clip in again, or a
+	// tool re-registering its own output, must not mint a second id for it —
+	// the ledger and the conversation would then disagree about what a1 is.
+	for i := range p.Assets {
+		if p.Assets[i].Path == abs {
+			return &p.Assets[i], nil
+		}
+	}
 	info, err := Probe(ctx, abs)
 	if err != nil {
-		return nil, err
+		// Vector stills (SVG) are unreadable to ffprobe but render fine in
+		// compose — a user's own logo must not be turned away.
+		still, ok := StillInfo(abs)
+		if !ok {
+			return nil, err
+		}
+		info = still
 	}
 	// IDs are max+1, not len+1: after a removal, len+1 would mint a duplicate
 	// of an id the ledger and conversation still reference.
@@ -101,10 +145,41 @@ func (p *Project) AddAsset(ctx context.Context, path string) (*Asset, error) {
 	}
 	a := Asset{ID: fmt.Sprintf("a%d", next+1), Path: abs, Info: info}
 	p.Assets = append(p.Assets, a)
-	if p.Current == "" {
+	// Only actual footage can become the working video — importing a logo or
+	// a music bed must not hijack CURRENT. Stills report a width but no
+	// duration, which is what separates them from video.
+	if p.Current == "" && info.Width > 0 && info.Duration > 0 {
 		p.Current = abs
 	}
 	return &a, p.Save()
+}
+
+// ReplaceAsset swaps the file behind an asset id — the user dropping in a
+// better screenshot or corrected clip. The id is stable (the ledger and
+// conversation may reference it); existing rendered ops are untouched, and
+// Current follows only if it pointed at the old file.
+func (p *Project) ReplaceAsset(ctx context.Context, id, newPath string) (*Asset, error) {
+	abs, err := filepath.Abs(newPath)
+	if err != nil {
+		return nil, err
+	}
+	info, err := Probe(ctx, abs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range p.Assets {
+		if p.Assets[i].ID != id {
+			continue
+		}
+		old := p.Assets[i].Path
+		p.Assets[i].Path = abs
+		p.Assets[i].Info = info
+		if p.Current == old {
+			p.Current = abs
+		}
+		return &p.Assets[i], p.Save()
+	}
+	return nil, fmt.Errorf("no asset %q", id)
 }
 
 // RemoveAsset unregisters a source file from the project; files on disk are
@@ -144,16 +219,53 @@ func (p *Project) RemoveAsset(id string) (*Asset, error) {
 // NextOutput reserves a numbered output path for a tool run. The counter is
 // monotonic and mutex-guarded so concurrency-safe tools running in parallel
 // never collide on a filename.
+//
+// The floor is what is actually on disk, not the op count. Tools that produce
+// material rather than an edit — compose, tts, find_media — register an asset
+// and commit no op, so a process that reopened the project and trusted
+// len(Ops) would start numbering back at the beginning and overwrite finished
+// renders. That is silent data loss, and it happened: a re-rendered scene
+// landed on top of a different scene's video.
 func (p *Project) NextOutput(tool, ext string) string {
 	_ = os.MkdirAll(p.OutDir(), 0o755)
 	p.mu.Lock()
+	defer p.mu.Unlock()
 	if p.seq < len(p.Ops) {
 		p.seq = len(p.Ops)
 	}
-	p.seq++
-	n := p.seq
-	p.mu.Unlock()
-	return filepath.Join(p.OutDir(), fmt.Sprintf("%03d-%s%s", n, tool, ext))
+	if n := p.highestOnDisk(); p.seq < n {
+		p.seq = n
+	}
+	for {
+		p.seq++
+		path := filepath.Join(p.OutDir(), fmt.Sprintf("%03d-%s%s", p.seq, tool, ext))
+		// Belt and braces: another process may have written a name we have
+		// not seen. Never hand back a path that already exists.
+		if _, err := os.Stat(path); err != nil {
+			return path
+		}
+	}
+}
+
+// highestOnDisk returns the largest NNN- prefix already used in the out dir,
+// so numbering resumes past everything a previous session produced.
+func (p *Project) highestOnDisk() int {
+	entries, err := os.ReadDir(p.OutDir())
+	if err != nil {
+		return 0
+	}
+	high := 0
+	for _, e := range entries {
+		name := e.Name()
+		if len(name) < 4 || name[3] != '-' {
+			continue
+		}
+		n, err := strconv.Atoi(name[:3])
+		if err == nil && n > high {
+			high = n
+		}
+	}
+	return high
 }
 
 // Commit records a completed edit and advances the working video when the
@@ -194,13 +306,44 @@ func (p *Project) Undo() (*EditOp, error) {
 func (p *Project) Ledger(ctx context.Context) string {
 	var b strings.Builder
 	b.WriteString("## Project state\n")
-	if len(p.Assets) == 0 {
-		b.WriteString("No source video loaded yet. Ask the user for one, or use tools once a file is added.\n")
+	if len(p.Assets) == 0 && len(p.Scenes) == 0 && len(p.Ops) == 0 && p.Style.Brief == "" && p.Style.CSS == "" {
+		b.WriteString("No source video loaded yet. Compose scenes from scratch, or ask the user for footage.\n")
 		return b.String()
 	}
-	b.WriteString("Sources:\n")
-	for _, a := range p.Assets {
-		fmt.Fprintf(&b, "  %s: %s (%s)\n", a.ID, filepath.Base(a.Path), a.Info.Compact())
+	if len(p.Assets) > 0 {
+		b.WriteString("Sources:\n")
+		for _, a := range p.Assets {
+			fmt.Fprintf(&b, "  %s: %s (%s)\n", a.ID, filepath.Base(a.Path), a.Info.Compact())
+		}
+	}
+	if p.Style.Brief != "" || p.Style.CSS != "" {
+		// The brief itself, so every turn designs to the same decision; the
+		// CSS by size only, since it is already inside every composition.
+		fmt.Fprintf(&b, "Style: %s\n", strings.TrimSpace(p.Style.Brief))
+		if strings.TrimSpace(p.Style.CSS) != "" {
+			n := strings.Count(strings.TrimSpace(p.Style.CSS), "\n") + 1
+			fmt.Fprintf(&b, "  (%d lines of shared CSS are injected into every compose — use its classes)\n", n)
+		}
+	}
+	if len(p.Scenes) > 0 {
+		b.WriteString("Storyboard (address a scene as `scene N` in any tool's input):\n")
+		for _, s := range p.Scenes {
+			status := "PLANNED"
+			if s.Output != "" {
+				status = "rendered → " + filepath.Base(s.Output)
+			}
+			fmt.Fprintf(&b, "  scene %d (%.1fs, %s): %s\n", s.N, s.Duration, status, s.Intent)
+			if s.Visual != "" {
+				fmt.Fprintf(&b, "      see: %s\n", s.Visual)
+			}
+			if s.Say != "" {
+				voiced := ""
+				if s.Voice != "" {
+					voiced = " [voiced]"
+				}
+				fmt.Fprintf(&b, "      say%s: %s\n", voiced, s.Say)
+			}
+		}
 	}
 	if len(p.Ops) > 0 {
 		b.WriteString("Edits applied (oldest first):\n")

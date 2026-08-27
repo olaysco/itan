@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/olaysco/itan/internal/config"
@@ -155,6 +156,18 @@ func NewRegistry() *Registry {
 	for _, t := range viewTools() {
 		r.add(t)
 	}
+	for _, t := range planTools() {
+		r.add(t)
+	}
+	for _, t := range arcTools() {
+		r.add(t)
+	}
+	for _, t := range stockTools() {
+		r.add(t)
+	}
+	for _, t := range styleTools() {
+		r.add(t)
+	}
 	for _, t := range miscTools() {
 		r.add(t)
 	}
@@ -247,6 +260,20 @@ func resolveInput(c *Ctx, args Args) (string, error) {
 			return a.Path, nil
 		}
 	}
+	// "scene 3" / "s3" — people ask for changes by scene, not by step
+	// number, and the storyboard already knows which render is which.
+	if n, ok := sceneRef(in); ok {
+		for _, sc := range c.Project.Scenes {
+			if sc.N != n {
+				continue
+			}
+			if sc.Output == "" {
+				return "", fmt.Errorf("scene %d is planned but not rendered yet — compose it first", n)
+			}
+			return sc.Output, nil
+		}
+		return "", fmt.Errorf("no scene %d in the storyboard", n)
+	}
 	if _, err := os.Stat(in); err == nil {
 		return in, nil
 	}
@@ -256,6 +283,23 @@ func resolveInput(c *Ctx, args Args) (string, error) {
 		return p, nil
 	}
 	return "", fmt.Errorf("unknown input %q — use an asset id or output filename from <project-state>, a real path, or omit input for the current working video", in)
+}
+
+// sceneRef parses the ways a scene gets named in practice: "scene 3",
+// "scene3", "s3", "3" is deliberately NOT accepted — a bare number is far
+// more likely to be a mistake than a reference.
+func sceneRef(in string) (int, bool) {
+	t := strings.ToLower(strings.TrimSpace(in))
+	for _, prefix := range []string{"scene ", "scene", "s"} {
+		if !strings.HasPrefix(t, prefix) {
+			continue
+		}
+		rest := strings.TrimSpace(strings.TrimPrefix(t, prefix))
+		if n, err := strconv.Atoi(rest); err == nil && n > 0 {
+			return n, true
+		}
+	}
+	return 0, false
 }
 
 func fileExists(p string) bool {

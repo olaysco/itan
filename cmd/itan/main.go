@@ -31,7 +31,13 @@ import (
 	"github.com/olaysco/itan/internal/skills"
 )
 
-const version = "0.2.0"
+// version is stamped at build time by the release pipeline:
+//
+//	-ldflags "-X main.version=$(git describe --tags)"
+//
+// A hardcoded constant would ship every release claiming to be the one it was
+// last edited on, which makes a bug report impossible to place.
+var version = "dev"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -178,9 +184,12 @@ const usage = `itan — agentic AI video editor
   itan model                  show the active model
   itan models                 list provider presets
   itan config [get|set|list]  inspect or change configuration
+                              stock footage: itan config set media.pixabay_key <key>
   itan skills                 list available skills
   itan doctor                 check ffmpeg, model, and voice endpoints
   itan version                print version
+
+  ITAN_UI=<path/to/index.html>   serve the UI from disk: edit, refresh, no rebuild
 `
 
 // uiProjectDir picks the project the UI opens: the working directory when it
@@ -285,6 +294,14 @@ func cmdDoctor(dir string) error {
 		}
 		check("model", ok, detail)
 	}
+	if cfg.Model.Vision == "" {
+		if config.CanSee(cfg.Model.Provider, cfg.Model.ID) {
+			check("vision", true, "the model can see frames — the agent can check its own work")
+		} else {
+			check("vision", false, cfg.Model.ID+" cannot accept images, so the agent renders without ever looking. "+
+				"Open the model picker and turn on Vision, or `itan config set model.vision <provider/model>`")
+		}
+	}
 	if cfg.Model.Vision != "" {
 		if _, vm, verr := provider.VisionFromConfig(cfg); verr != nil {
 			check("vision model", false, verr.Error())
@@ -303,6 +320,11 @@ func cmdDoctor(dir string) error {
 		} else {
 			check("text overlays", true, "ffmpeg lacks drawtext — captions render via the browser engine")
 		}
+	}
+	if key := cfg.PixabayKey(); key != "" {
+		check("stock media", true, "Pixabay key set — find_media can source footage and stills")
+	} else {
+		check("stock media", false, "no Pixabay key: free at https://pixabay.com/api/docs, then `itan config set media.pixabay_key <key>` (or set PIXABAY_API_KEY). Without it a project can only show what you already have.")
 	}
 	check("tts", true, fmt.Sprintf("%s @ %s (voice %s)", cfg.Audio.TTS.Provider, cfg.Audio.TTS.BaseURL, cfg.Audio.TTS.Voice))
 	check("stt", true, fmt.Sprintf("%s @ %s", cfg.Audio.STT.Provider, cfg.Audio.STT.BaseURL))
