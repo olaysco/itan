@@ -31,7 +31,13 @@ import (
 	"github.com/olaysco/itan/internal/skills"
 )
 
-const version = "0.2.0"
+// version is stamped at build time by the release pipeline:
+//
+//	-ldflags "-X main.version=$(git describe --tags)"
+//
+// A hardcoded constant would ship every release claiming to be the one it was
+// last edited on, which makes a bug report impossible to place.
+var version = "dev"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {

@@ -26,19 +26,50 @@ Reframed to 9:16 with the hook first, corrected the spoken line, and re-voiced i
 
 ---
 
-## Install & run
+## Install
 
 ```bash
-# needs Go ≥ 1.22 and ffmpeg on PATH
-go build -o itan ./cmd/itan
+brew install olaysco/tap/itan          # macOS/Linux — pulls in ffmpeg
+```
 
+Or grab a binary from [Releases](https://github.com/olaysco/itan/releases) —
+one file, ~11MB, nothing to unpack. Or build it:
+
+```bash
+go install github.com/olaysco/itan/cmd/itan@latest   # needs Go >= 1.22
+```
+
+itan needs two things it does not ship: **ffmpeg** (every render) and a
+**Chromium-family browser** (for `compose` — Chrome, Chromium, Edge or Brave;
+most machines already have one). `brew` installs ffmpeg for you; otherwise
+install both yourself.
+
+Then check the lot at once:
+
+```bash
+itan doctor
+```
+
+It reports ffmpeg, the model and whether its API key is set, the browser,
+**whether the model can see frames** — an agent that cannot look at its own
+renders makes markedly worse video — and the optional voice and stock-media
+services.
+
+## Run
+
+```bash
 export ANTHROPIC_API_KEY=sk-ant-…   # or any provider below
 cd ~/videos/my-project
-./itan add clip.mp4
-./itan                            # interactive session
-./itan -p "trim to the first 10s" # one-shot
-./itan ui                         # desktop editing screen
+itan add clip.mp4
+itan                            # interactive session
+itan -p "trim to the first 10s" # one-shot
+itan ui                         # desktop editing screen
 ```
+
+Everything stays on your machine: projects are folders, renders live in
+`.itan/`, and your footage is never uploaded. There is no hosted version and
+no account — `itan ui` binds to localhost and has no authentication, so do not
+expose it (it will warn you if you try).
 
 ## The harness (the point of this project)
 
