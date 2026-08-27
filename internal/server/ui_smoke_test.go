@@ -42,10 +42,7 @@ func TestUISmoke(t *testing.T) {
 	srv := httptest.NewServer(New(session).Handler())
 	defer srv.Close()
 
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.ExecPath(chrome),
-		chromedp.WindowSize(1600, 1000),
-	)
+	opts := browser.AllocatorOptions(chrome, 1600, 1000)
 	actx, cancelA := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancelA()
 	ctx, cancelC := chromedp.NewContext(actx)
@@ -179,8 +176,7 @@ func TestProjectSwitchCritical(t *testing.T) {
 	srv := httptest.NewServer(New(session).Handler())
 	defer srv.Close()
 
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.ExecPath(chrome), chromedp.WindowSize(1600, 1000))
+	opts := browser.AllocatorOptions(chrome, 1600, 1000)
 	actx, cancelA := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancelA()
 	ctx, cancelC := chromedp.NewContext(actx)
@@ -340,8 +336,7 @@ func TestDropAnywhereAcceptsAllMedia(t *testing.T) {
 	}
 	b64 := base64.StdEncoding.EncodeToString(raw)
 
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.ExecPath(chrome), chromedp.WindowSize(1600, 1000))
+	opts := browser.AllocatorOptions(chrome, 1600, 1000)
 	actx, cancelA := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancelA()
 	ctx, cancelC := chromedp.NewContext(actx)

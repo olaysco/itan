@@ -310,7 +310,11 @@ func cmdDoctor(dir string) error {
 		}
 	}
 	if chrome, berr := browser.Find(); berr == nil {
-		check("compose (browser)", true, chrome+" — HTML motion graphics enabled")
+		note := chrome + " — HTML motion graphics enabled"
+		if !browser.Sandboxed(chrome) {
+			note += "; sandbox off (this machine denies Chromium one — root, or a distro that blocks unprivileged user namespaces). Set ITAN_SANDBOX=1 to insist."
+		}
+		check("compose (browser)", true, note)
 	} else {
 		check("compose (browser)", false, "no Chromium-family browser; compose is disabled until one is installed")
 	}
