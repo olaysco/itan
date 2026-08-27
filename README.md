@@ -29,7 +29,7 @@ Reframed to 9:16 with the hook first, corrected the spoken line, and re-voiced i
 ## Install
 
 ```bash
-brew install olaysco/tap/itan          # macOS/Linux — pulls in ffmpeg
+brew install olaysco/tap/itan          # macOS/Linux — brings ffmpeg with it
 ```
 
 Or grab a binary from [Releases](https://github.com/olaysco/itan/releases) —
