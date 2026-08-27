@@ -45,9 +45,7 @@ func probe(t *testing.T, html string, fps, total int, order []int, expr string) 
 	}
 
 	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(),
-		append(chromedp.DefaultExecAllocatorOptions[:],
-			chromedp.ExecPath(chrome),
-			chromedp.WindowSize(640, 360),
+		browser.AllocatorOptions(chrome, 640, 360,
 			chromedp.Flag("hide-scrollbars", true),
 		)...)
 	defer cancelAlloc()

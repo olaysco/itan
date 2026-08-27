@@ -27,9 +27,7 @@ func CapturePage(ctx context.Context, url string, width int, fullPage bool, scal
 	if err != nil {
 		return 0, 0, err
 	}
-	allocOpts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.ExecPath(chrome),
-		chromedp.WindowSize(width, height),
+	allocOpts := browser.AllocatorOptions(chrome, width, height,
 		chromedp.Flag("hide-scrollbars", true),
 		chromedp.Flag("mute-audio", true),
 	)

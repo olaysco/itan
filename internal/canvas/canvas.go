@@ -136,9 +136,7 @@ func Render(ctx context.Context, opts Opts) error {
 		scale = 3
 	}
 
-	allocOpts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.ExecPath(chrome),
-		chromedp.WindowSize(opts.Width, opts.Height),
+	allocOpts := browser.AllocatorOptions(chrome, opts.Width, opts.Height,
 		chromedp.Flag("hide-scrollbars", true),
 		chromedp.Flag("mute-audio", true),
 		// Compositions may embed project images (capture_page output) via

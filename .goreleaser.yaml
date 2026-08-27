@@ -49,7 +49,11 @@ changelog:
       - "^test:"
       - "^chore:"
 
-brews:
+# GoReleaser deprecated `brews` in v2.10 and hard-deprecated it in v2.16:
+# formulae that install pre-compiled binaries were always a workaround, and
+# Homebrew wants casks for that now. Casks are the replacement, not a
+# downgrade — `brew install olaysco/tap/itan` is unchanged.
+homebrew_casks:
   - name: itan
     ids: [itan]
     repository:
@@ -58,25 +62,38 @@ brews:
       # A token with contents:write on the tap repo. GITHUB_TOKEN from the
       # release workflow only covers this repo, so the tap needs its own.
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
+    # `directory` is omitted deliberately: casks MUST live in Casks/, which
+    # is the default, and goreleaser rejects anything else.
     homepage: https://github.com/olaysco/itan
     description: Agentic AI video editor — plain-language editing over ffmpeg and a real browser
-    license: MIT
     commit_author:
       name: Olayiwola Odunsi
       email: olayiwolaodunsi@gmail.com
 
+    binaries: [itan]
+
+    # Lets `brew audit` reconcile the homepage with the download domain.
+    url:
+      verified: github.com/olaysco/itan
+
     # The dependency that actually matters. Every render goes through ffmpeg,
-    # and making brew install it is most of the reason to ship a tap at all.
+    # and having brew install it is most of the reason to ship a tap at all.
     dependencies:
-      - name: ffmpeg
+      - formula: ffmpeg
 
-    install: |
-      bin.install "itan"
+    # The binary is not code-signed or notarized, so macOS quarantines it on
+    # download and the first run fails with a Gatekeeper error that says
+    # nothing useful. Strip the attribute at install time.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/itan"]
+          end
 
-    # A browser cannot be a formula dependency (Chrome is a cask, and most
-    # people already have one), so say it plainly instead of letting compose
-    # fail later with nothing to explain it.
+    # A browser cannot be a dependency (Chrome is itself a cask, and most
+    # machines already have one), so say it plainly rather than letting
+    # compose fail later with nothing to explain it.
     caveats: |
       itan needs a Chromium-family browser for `compose` — Chrome, Chromium,
       Edge, or Brave. Most machines already have one; if not:
@@ -89,12 +106,6 @@ brews:
 
       It reports ffmpeg, your model and API key, the browser, whether the
       model can see frames, and the optional voice and stock-media services.
-
-    test: |
-      assert_match "itan", shell_output("#{bin}/itan version")
-      # doctor exits non-zero when something is missing, which is correct
-      # behaviour and not a failed install — only check that it runs.
-      system "#{bin}/itan", "help"
 
 release:
   draft: false

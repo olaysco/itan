@@ -33,9 +33,7 @@ func Snapshot(ctx context.Context, html string, w, h int) ([]byte, error) {
 		return nil, err
 	}
 
-	allocOpts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.ExecPath(chrome),
-		chromedp.WindowSize(w, h),
+	allocOpts := browser.AllocatorOptions(chrome, w, h,
 		chromedp.Flag("hide-scrollbars", true),
 		chromedp.Flag("mute-audio", true),
 		chromedp.Flag("allow-file-access-from-files", true),
