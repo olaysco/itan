@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -155,6 +156,9 @@ func (s *Server) Listen(ctx context.Context, addr string) error {
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.ListenAndServe() }()
 	fmt.Printf("Itan UI on http://%s (ctrl+c to quit)\n", addr)
+	if warning := exposureWarning(addr); warning != "" {
+		fmt.Print(warning)
+	}
 	select {
 	case err := <-errCh:
 		return err
@@ -176,6 +180,30 @@ func cacheForever(h http.Handler) http.Handler {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		h.ServeHTTP(w, r)
 	})
+}
+
+// exposureWarning is printed when the UI is bound anywhere but loopback.
+// There is no authentication: whoever reaches the port can switch the
+// project to any directory on this machine and read the files inside it,
+// and every request spends this machine's API keys. That is fine for a
+// local tool and dangerous the moment it is reachable, so say so loudly
+// rather than letting someone find out later.
+func exposureWarning(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	switch host {
+	case "", "localhost", "127.0.0.1", "::1":
+		return ""
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return ""
+	}
+	return "\n  ⚠  This address is reachable from outside this machine, and itan has no\n" +
+		"     authentication. Anyone who can reach it can open any folder on this\n" +
+		"     computer and spend your API keys. Bind 127.0.0.1 unless you have put\n" +
+		"     your own authenticated proxy in front of it.\n\n"
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
