@@ -535,7 +535,24 @@ func (a *Agent) executeBatch(tctx *tools.Ctx, uses []provider.Block, doom *doomD
 		results[i] = a.executeOne(tctx, uses[i], doom, emit)
 		i++
 	}
+	a.activateForTools(uses, results)
 	return results
+}
+
+// activateForTools loads any playbook the calls themselves imply, appending it
+// to that call's result so the model reads it before deciding what to do next.
+// It runs after the batch rather than inside executeOne because parallel-safe
+// calls execute concurrently and activeSkills is not synchronised.
+func (a *Agent) activateForTools(uses, results []provider.Block) {
+	for i, use := range uses {
+		for _, sk := range a.Skills.MatchTool(use.Name) {
+			if a.activeSkills[sk.Name] {
+				continue
+			}
+			a.activeSkills[sk.Name] = true
+			results[i].Content += reminder("skill-playbook name=\""+sk.Name+"\"", sk.Body)
+		}
+	}
 }
 
 func (a *Agent) isParallelSafe(name string) bool {

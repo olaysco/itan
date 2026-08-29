@@ -2,6 +2,7 @@
 name: motion-design
 description: Craft rules for compose graphics — write a per-project style brief, then execute it with discipline.
 triggers: intro, outro, title card, end screen, explainer, motion design, animated caption, launch video, lower third, graphic
+tools: storyboard, compose
 ---
 
 # Motion design

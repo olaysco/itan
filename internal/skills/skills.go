@@ -36,6 +36,7 @@ type Skill struct {
 	Name        string
 	Description string
 	Triggers    []string
+	Tools       []string // tool names whose use activates this skill
 	Body        string
 	Source      string // "builtin" or the file path
 }
@@ -161,6 +162,26 @@ func (s *Set) Match(message string) []Skill {
 	return hits
 }
 
+// MatchTool returns skills a tool call activates. Word triggers only fire on
+// vocabulary the user happens to use — "make me a 45-second video about load
+// balancing" names no craft, so a playbook keyed to "explainer" or "graphic"
+// never loads and the model composes with no art direction at all. What the
+// agent is about to DO is the more reliable signal: reaching for storyboard or
+// compose means it is designing, whatever the user called it.
+func (s *Set) MatchTool(tool string) []Skill {
+	tool = strings.ToLower(strings.TrimSpace(tool))
+	var hits []Skill
+	for _, sk := range s.All() {
+		for _, t := range sk.Tools {
+			if t == tool {
+				hits = append(hits, sk)
+				break
+			}
+		}
+	}
+	return hits
+}
+
 // containsWord reports whether trig occurs in m with non-alphanumeric (or
 // string edge) on both sides. Multi-word triggers match phrase-wise.
 func containsWord(m, trig string) bool {
@@ -208,6 +229,12 @@ func parse(raw, source string) (Skill, bool) {
 			for _, t := range strings.Split(val, ",") {
 				if t = strings.ToLower(strings.TrimSpace(t)); t != "" {
 					sk.Triggers = append(sk.Triggers, t)
+				}
+			}
+		case "tools":
+			for _, t := range strings.Split(val, ",") {
+				if t = strings.ToLower(strings.TrimSpace(t)); t != "" {
+					sk.Tools = append(sk.Tools, t)
 				}
 			}
 		}
