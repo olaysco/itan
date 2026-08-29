@@ -1680,7 +1680,7 @@ $('#styleClear').onclick=()=>{if(confirm('Clear the project style kit? Scenes wi
    to be a config key you could only reach from a terminal, and which is the
    difference between an agent that looks at its own work and one that
    writes motion graphics blind. */
-let mdlTab='direct', mdlRole='text', orCache=null, orLoading=false;
+let mdlTab='direct', mdlRole='text', orCache=null, orLoading=false, orNote='';
 const VISION_DEFAULT='anthropic/claude-haiku-4-5';
 
 async function applySpec(spec, role){
@@ -1772,7 +1772,8 @@ function drawList(){
 
   let rows;
   if(mdlTab==='or'){
-    if(!orCache){list.innerHTML='<div id="mdlNote">loading the catalogue…</div>';return}
+    if(!orCache){list.innerHTML='<div id="mdlNote">loading the supported models…</div>';return}
+    if(orNote){const n=document.createElement('div');n.id='mdlNote';n.innerHTML=orNote;list.appendChild(n)}
     rows=orCache.filter(m=>!q||m.id.toLowerCase().includes(q)||m.name.toLowerCase().includes(q))
       .map(m=>({name:m.name,id:m.id,ctx:m.context?Math.round(m.context/1000)+'k':'',
                 spec:'openrouter/'+m.id,vision:m.vision,price:m.price,
@@ -1837,6 +1838,13 @@ async function loadOpenRouter(){
     const j=await r.json();
     if(!r.ok)throw new Error(j.error||'could not load');
     orCache=j.models||[];
+    // Say when the set is degraded: a supported model missing upstream, or a
+    // pinned list because OpenRouter could not be reached. Silence here would
+    // read as "this is everything", which is the thing we set out to fix.
+    orNote='';
+    if(j.pinned&&j.note) orNote=esc(j.note);
+    if(j.unavailable&&j.unavailable.length)
+      orNote=(orNote?orNote+' · ':'')+'unavailable right now: '+esc(j.unavailable.join(', '));
     drawList();
   }catch(e){
     // The catalogue is a convenience; typing an id must still work.

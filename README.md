@@ -153,6 +153,15 @@ Mid-session, `/model kimi/kimi-k3` switches while **keeping conversation
 history** — the ledger means the new model picks up exactly where the old one
 left off.
 
+**Supported models are a short list, not a catalogue.** Driving itan takes
+three things most models do not have together: tool calling that survives a
+long loop, image input (`view_frames` is how the agent judges its own work —
+a text-only model renders blind), and context enough for a multi-scene
+project. OpenRouter alone lists hundreds of models, so the picker shows only
+the set itan vouches for, and checks those ids against OpenRouter's live
+catalogue so a withdrawn model is reported rather than silently offered. Any
+other id can still be set by hand and is explicitly unsupported.
+
 ### Voice: open-source first
 
 | Role | Default | Switch to |

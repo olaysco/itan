@@ -5,17 +5,19 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/olaysco/itan/internal/config"
 )
 
-// OpenRouter is the one provider whose catalogue changes weekly, and it is
-// the reason someone would ever want to type a model id by hand. Serving the
-// live list means picking "kimi via OpenRouter" is a click instead of a trip
-// to the terminal to look up the exact slug.
+// OpenRouter lists hundreds of models and most of them cannot drive this
+// toolset. The picker therefore shows config.OpenRouterSupported and nothing
+// else; the live catalogue is consulted only to confirm those ids still exist
+// and to attach current pricing and context. A model outside the set can be
+// set by hand and is explicitly unsupported.
 
 type orModel struct {
 	ID      string `json:"id"`
@@ -30,18 +32,23 @@ type orModel struct {
 // of a third party.
 var openRouterCatalogue = "https://openrouter.ai/api/v1/models"
 
+// orCache memoises the enriched list. Freshness is the timestamp, never the
+// length: curation can legitimately return nothing (every supported id
+// withdrawn upstream), and treating empty as "not cached" would refetch on
+// every open — hammering a third party precisely when it is unhappy.
 var orCache struct {
 	sync.Mutex
 	at     time.Time
 	models []orModel
 }
 
-// handleOpenRouterModels proxies OpenRouter's public catalogue. It needs no
-// key (listing is open), is cached for an hour, and degrades to a clear
-// message rather than an empty list the user cannot interpret.
+// handleOpenRouterModels returns the supported set, enriched from OpenRouter's
+// public catalogue. Listing needs no key, is cached for an hour, and when the
+// catalogue is unreachable it falls back to the pinned set — an unreachable
+// third party must not empty the picker.
 func (s *Server) handleOpenRouterModels(w http.ResponseWriter, r *http.Request) {
 	orCache.Lock()
-	fresh := time.Since(orCache.at) < time.Hour && len(orCache.models) > 0
+	fresh := !orCache.at.IsZero() && time.Since(orCache.at) < time.Hour
 	cached := orCache.models
 	orCache.Unlock()
 	if fresh {
@@ -56,12 +63,14 @@ func (s *Server) handleOpenRouterModels(w http.ResponseWriter, r *http.Request) 
 	}
 	resp, err := (&http.Client{Timeout: 20 * time.Second}).Do(req)
 	if err != nil {
-		httpErr(w, 502, "could not reach OpenRouter: "+err.Error()+" — you can still type a model id")
+		writeJSON(w, map[string]any{"models": pinnedSupported(), "supported": true, "pinned": true,
+			"note": "could not reach OpenRouter (" + err.Error() + ") — showing the supported set without live pricing"})
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		httpErr(w, 502, fmt.Sprintf("OpenRouter returned HTTP %d — you can still type a model id", resp.StatusCode))
+		writeJSON(w, map[string]any{"models": pinnedSupported(), "supported": true, "pinned": true,
+			"note": fmt.Sprintf("OpenRouter returned HTTP %d — showing the supported set without live pricing", resp.StatusCode)})
 		return
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
@@ -85,11 +94,15 @@ func (s *Server) handleOpenRouterModels(w http.ResponseWriter, r *http.Request) 
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(body, &raw); err != nil {
-		httpErr(w, 502, "unreadable OpenRouter response")
+		writeJSON(w, map[string]any{"models": pinnedSupported(), "supported": true, "pinned": true,
+			"note": "unreadable OpenRouter response — showing the supported set without live pricing"})
 		return
 	}
 
-	models := make([]orModel, 0, len(raw.Data))
+	// Index the catalogue, then walk the supported set — the curated order is
+	// the picker's order, so the recommended model stays first instead of
+	// wherever the alphabet puts it.
+	live := make(map[string]orModel, len(raw.Data))
 	for _, m := range raw.Data {
 		in, out := perMillion(m.Pricing.Prompt), perMillion(m.Pricing.Completion)
 		vision := false
@@ -98,19 +111,52 @@ func (s *Server) handleOpenRouterModels(w http.ResponseWriter, r *http.Request) 
 				vision = true
 			}
 		}
-		models = append(models, orModel{
+		live[m.ID] = orModel{
 			ID: m.ID, Name: m.Name, Context: m.ContextLength,
 			Price:  priceLabel(in, out),
 			Vision: vision,
 			Free:   in == 0 && out == 0,
-		})
+		}
 	}
-	sort.Slice(models, func(i, j int) bool { return models[i].Name < models[j].Name })
+
+	models := make([]orModel, 0, len(config.OpenRouterSupported))
+	var missing []string
+	for _, sup := range config.OpenRouterSupported {
+		m, ok := live[sup.ID]
+		if !ok {
+			// Supported here but absent upstream: renamed or withdrawn. Say so
+			// rather than quietly shortening the list.
+			missing = append(missing, sup.ID)
+			continue
+		}
+		if !m.Vision {
+			// A model that cannot see renders blind; it does not belong in the
+			// supported set whatever the catalogue now says about it.
+			missing = append(missing, sup.ID+" (no longer accepts images)")
+			continue
+		}
+		m.Name = sup.Name // our label, not the vendor's marketing string
+		models = append(models, m)
+	}
 
 	orCache.Lock()
 	orCache.at, orCache.models = time.Now(), models
 	orCache.Unlock()
-	writeJSON(w, map[string]any{"models": models})
+	out := map[string]any{"models": models, "supported": true}
+	if len(missing) > 0 {
+		out["unavailable"] = missing
+	}
+	writeJSON(w, out)
+}
+
+// pinnedSupported is the answer when OpenRouter cannot be reached: the picker
+// still offers exactly what itan supports, just without live pricing.
+func pinnedSupported() []orModel {
+	out := make([]orModel, 0, len(config.OpenRouterSupported))
+	for _, s := range config.OpenRouterSupported {
+		out = append(out, orModel{ID: s.ID, Name: s.Name, Vision: s.Vision})
+	}
+	return out
 }
 
 // resetORCache clears the memo; tests need each case to start cold.
