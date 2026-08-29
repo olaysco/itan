@@ -110,9 +110,8 @@ type ProviderPreset struct {
 	KeyEnv       string
 	DefaultModel string
 	Note         string
-	// Models are the ones worth offering in a picker. Any id can still be
-	// typed; this is the shortlist, not a limit.
-	Models []PresetModel
+	Models       []PresetModel
+	Namespaced   bool
 }
 
 // PresetModel is one offerable model. Vision is the field that matters most:
@@ -176,7 +175,7 @@ var Presets = map[string]ProviderPreset{
 			{ID: "glm-5.2", Name: "GLM-5.2", Ctx: "128k"},
 			{ID: "glm-5v", Name: "GLM-5V", Vision: true, Ctx: "64k"},
 		}},
-	"openrouter": {Kind: "openai", BaseURL: "https://openrouter.ai/api/v1", KeyEnv: "OPENROUTER_API_KEY", DefaultModel: "anthropic/claude-sonnet-4.5", Note: "OpenRouter (any listed model)"},
+	"openrouter": {Kind: "openai", BaseURL: "https://openrouter.ai/api/v1", KeyEnv: "OPENROUTER_API_KEY", DefaultModel: "anthropic/claude-sonnet-4.5", Note: "OpenRouter (any listed model)", Namespaced: true},
 	"ollama": {Kind: "openai", BaseURL: "http://localhost:11434/v1", KeyEnv: "", DefaultModel: "qwen3-vl:8b", Note: "local Ollama (on this machine)",
 		Models: []PresetModel{
 			{ID: "qwen3-vl:8b", Name: "Qwen3-VL 8B", Vision: true, Ctx: "32k"},
@@ -275,7 +274,13 @@ func (c *Config) UseModel(spec string) error {
 	}
 	p, ok := Presets[provider]
 	if !ok {
-		return fmt.Errorf("unknown provider %q (known: %s)", provider, strings.Join(PresetNames(), ", "))
+		// check the model is a namespaced provider/model combo.
+		if Presets[c.Model.Provider].Namespaced {
+			c.Model.ID = spec
+			return nil
+		}
+		return fmt.Errorf("unknown provider %q (known: %s) — OpenRouter ids are namespaced, so you may mean %q",
+			provider, strings.Join(PresetNames(), ", "), "openrouter/"+spec)
 	}
 	if id == "" {
 		id = p.DefaultModel

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -107,5 +108,43 @@ func TestResolveModel(t *testing.T) {
 	cfg.Model = Model{Provider: "mystery"}
 	if _, _, _, err := cfg.ResolveModel(); err == nil {
 		t.Fatal("expected error for unknown provider without base_url")
+	}
+}
+
+func TestUseModelNamespacedID(t *testing.T) {
+	cfg := Default()
+
+	// The full spec always works, however many slashes the id has.
+	if err := cfg.UseModel("openrouter/google/gemini-3-pro"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Model.Provider != "openrouter" || cfg.Model.ID != "google/gemini-3-pro" {
+		t.Fatalf("full spec = %s/%s", cfg.Model.Provider, cfg.Model.ID)
+	}
+
+	// Already on OpenRouter, a bare namespaced id stays an id.
+	if err := cfg.UseModel("google/gemini-3-flash"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Model.Provider != "openrouter" || cfg.Model.ID != "google/gemini-3-flash" {
+		t.Fatalf("bare namespaced id = %s/%s", cfg.Model.Provider, cfg.Model.ID)
+	}
+
+	// A real preset prefix still switches provider from there.
+	if err := cfg.UseModel("kimi/kimi-k3"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Model.Provider != "kimi" || cfg.Model.ID != "kimi-k3" {
+		t.Fatalf("preset switch = %s/%s", cfg.Model.Provider, cfg.Model.ID)
+	}
+
+	// Off a namespaced provider, an unknown prefix is still a typo, and the
+	// error points at the spec that would have worked.
+	err := cfg.UseModel("google/gemini-3-pro")
+	if err == nil {
+		t.Fatal("expected error on a non-namespaced provider")
+	}
+	if !strings.Contains(err.Error(), "openrouter/google/gemini-3-pro") {
+		t.Fatalf("error should suggest the openrouter spec: %v", err)
 	}
 }

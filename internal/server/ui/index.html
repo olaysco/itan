@@ -1820,7 +1820,9 @@ $('#mdlApply').onclick=()=>{
   const v=$('#mdlId').value.trim();
   if(!v){toast('type a model id first');return}
   const active=(S.state.models||[]).find(m=>m.active);
-  const spec=v.includes('/')?v:((active?active.prov:'anthropic')+'/'+v);
+  const or=mdlTab==='or'||active?.prov==='openrouter';
+  const home=or?'openrouter':(active?active.prov:'anthropic');
+  const spec=(v.startsWith(home+'/')||(!or&&v.includes('/')))?v:home+'/'+v;
   applySpec(spec, mdlRole==='vision'&&S.state.vision?.model?'vision':'text');
 };
 $('#mdlId').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#mdlApply').onclick()}});
