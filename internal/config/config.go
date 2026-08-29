@@ -110,14 +110,8 @@ type ProviderPreset struct {
 	KeyEnv       string
 	DefaultModel string
 	Note         string
-	// Models is the set offered in the picker. For most providers this is a
-	// shortlist and any id may still be typed; for OpenRouter it is the
-	// supported set, and anything outside it is explicitly unsupported.
-	Models []PresetModel
-	// Namespaced marks a host whose model ids themselves contain a slash
-	// (OpenRouter's "anthropic/claude-sonnet-4.5"), so "provider/model"
-	// parsing must not mistake the vendor half for a preset name.
-	Namespaced bool
+	Models       []PresetModel
+	Namespaced   bool
 }
 
 // PresetModel is one offerable model. Vision is the field that matters most:
@@ -153,26 +147,6 @@ func CanSee(provider, id string) bool {
 	return false
 }
 
-// OpenRouterSupported is the set itan vouches for on OpenRouter, in the order
-// the picker offers them. OpenRouter lists hundreds of models and most of them
-// cannot drive this toolset: itan needs tool calling that survives a long
-// loop, image input (view_frames is how the agent judges its own work), and
-// context enough for a multi-scene project. Listing everything invited people
-// to pick a model that fails halfway through a render, so the picker now shows
-// this list and nothing else — a model outside it can still be set by hand,
-// and is explicitly unsupported.
-//
-// Every entry is vision-capable by rule, not by coincidence: a text-only model
-// renders blind. Slugs are checked against OpenRouter's live catalogue at list
-// time, so an id that no longer exists is reported rather than silently shown.
-var OpenRouterSupported = []PresetModel{
-	{ID: "anthropic/claude-opus-4-8", Name: "Claude Opus 4.8", Vision: true, Ctx: "200k"},
-	{ID: "anthropic/claude-sonnet-4.5", Name: "Claude Sonnet 4.5", Vision: true, Ctx: "200k"},
-	{ID: "anthropic/claude-haiku-4-5", Name: "Claude Haiku 4.5", Vision: true, Ctx: "200k"},
-	{ID: "moonshotai/kimi-k2.5", Name: "Kimi K2.5", Vision: true, Ctx: "256k"},
-	{ID: "meta-llama/llama-4-maverick", Name: "Llama 4 Maverick", Vision: true, Ctx: "1M"},
-}
-
 var Presets = map[string]ProviderPreset{
 	"anthropic": {Kind: "anthropic", BaseURL: "https://api.anthropic.com", KeyEnv: "ANTHROPIC_API_KEY", DefaultModel: "claude-opus-4-8", Note: "Anthropic Claude",
 		Models: []PresetModel{
@@ -201,7 +175,7 @@ var Presets = map[string]ProviderPreset{
 			{ID: "glm-5.2", Name: "GLM-5.2", Ctx: "128k"},
 			{ID: "glm-5v", Name: "GLM-5V", Vision: true, Ctx: "64k"},
 		}},
-	"openrouter": {Kind: "openai", BaseURL: "https://openrouter.ai/api/v1", KeyEnv: "OPENROUTER_API_KEY", DefaultModel: "anthropic/claude-sonnet-4.5", Note: "OpenRouter — the supported set", Models: OpenRouterSupported, Namespaced: true},
+	"openrouter": {Kind: "openai", BaseURL: "https://openrouter.ai/api/v1", KeyEnv: "OPENROUTER_API_KEY", DefaultModel: "anthropic/claude-sonnet-4.5", Note: "OpenRouter (any listed model)", Namespaced: true},
 	"ollama": {Kind: "openai", BaseURL: "http://localhost:11434/v1", KeyEnv: "", DefaultModel: "qwen3-vl:8b", Note: "local Ollama (on this machine)",
 		Models: []PresetModel{
 			{ID: "qwen3-vl:8b", Name: "Qwen3-VL 8B", Vision: true, Ctx: "32k"},
