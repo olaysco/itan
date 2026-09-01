@@ -2,6 +2,7 @@
 name: product-launch
 description: Turn a product URL into a launch video — fetch the real copy, capture the real UI, compose the story.
 triggers: product launch, launch video, landing page, promo video, from this url, product video
+tools: fetch_page, capture_page
 ---
 
 # Product launch video
